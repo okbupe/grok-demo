@@ -8,3 +8,7 @@ screenshots/
 !/v2/assets/
 !/v2/vendor/
 !/v2/fonts/
+# frozen round-3 build served at /v3/ (committed on purpose)
+!/v3/assets/
+!/v3/vendor/
+!/v3/fonts/

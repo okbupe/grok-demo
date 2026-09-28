@@ -19,7 +19,7 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-acti
 #weap i{font-style:normal;color:#dff3ff;margin-left:6px;opacity:.9}
 #prog{flex:1;height:12px;border-radius:8px;background:rgba(10,30,60,.45);border:2px solid rgba(255,255,255,.85);position:relative;overflow:visible;box-shadow:0 2px 4px rgba(0,0,0,.25)}
 #progfill{position:absolute;left:0;top:0;bottom:0;width:0%;border-radius:6px;background:linear-gradient(#ffe36a,#ffae22)}
-#progboss{position:absolute;right:-12px;top:50%;width:28px;height:28px;margin-top:-14px;border-radius:50%;background:#c62828 url(assets/r2_boss.webp) center/86% no-repeat;border:2px solid #fff;box-shadow:0 2px 4px rgba(0,0,0,.35)}
+#progboss{position:absolute;right:-12px;top:50%;width:28px;height:28px;margin-top:-14px;border-radius:50%;background:#c62828 url(assets/wasp.webp) center/82% no-repeat;border:2px solid #fff;box-shadow:0 2px 4px rgba(0,0,0,.35)}
 #mute{pointer-events:auto;width:40px;height:40px;border-radius:50%;border:2px solid rgba(255,255,255,.9);background:rgba(10,30,60,.45);color:#fff;font-size:18px;line-height:1;padding:0;margin-left:10px}
 #banner{position:absolute;left:0;right:0;top:32%;text-align:center;font-family:Lilita,sans-serif;font-size:34px;letter-spacing:1px;color:#fff;-webkit-text-stroke:2px #0b2440;paint-order:stroke fill;text-shadow:0 4px 0 #0b2440,0 0 20px rgba(80,180,255,.7);pointer-events:none;opacity:0;transform:scale(.6);transition:opacity .25s,transform .25s}
 #banner.show{opacity:1;transform:scale(1)}
@@ -68,4 +68,3 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-acti
 @keyframes shine{0%{background-position:130% 0}45%,100%{background-position:-30% 0}}
 @keyframes starpop{0%{opacity:0;transform:scale(0) rotate(-40deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
 #prevver{position:absolute;bottom:calc(env(safe-area-inset-bottom) + 14px);left:50%;transform:translateX(-50%);font-size:12px;font-weight:700;color:#fff;opacity:.6;text-decoration:underline;text-shadow:0 1px 2px rgba(0,0,0,.7)}
-#prevver a{color:#fff;text-decoration:underline}

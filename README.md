@@ -1,37 +1,38 @@
-# Grok Demo: Mission 1, "Get to Ridgeback"
+# Grok Demo: Mission 1, "Get to Ridgeback" (round 4)
 
-A portrait, touch-first sky shooter that runs in a mobile browser. Atlas flies the **Lawnmower**, a rusty mango-yellow biplane, across the Channel coast to Ridgeback. On the way you build a drone squad, crack weapon capsules and bring down **Kingsting**, a colossal hornet.
+A portrait, touch-first sky shooter for mobile browsers. Atlas flies the biplane across the Channel coast to Ridgeback. On the way you build a drone squad, shoot gates positive, crack weapon canisters and bring down the **Chitin Queen**.
 
 **Play:** https://okbupe.github.io/grok-demo/
+Earlier rounds, kept frozen for comparison: **Round 3** at https://okbupe.github.io/grok-demo/v3/ and **Round 2** at https://okbupe.github.io/grok-demo/v2/. The title screen has a small "Previous versions" link to both.
 
 ## Controls
-- **Phone:** drag left or right anywhere to steer. Firing is automatic.
+- **Phone:** drag left or right anywhere to steer. Firing is automatic from the first frame.
 - **Desktop:** Arrow keys or A/D. Dragging with the mouse also works.
 
-## The mission (about 95 s)
-1. **Opening:** your guns stay cold until you fly through a single **+2** gate that you cannot miss. Two drones snap into formation beside you, and speech bubbles explain what to do.
-2. **First choice:** a red drone gate that you shoot blue, or a **FIRE RATE** gate.
-3. **Build-up:** a row arrives every 1 to 2 seconds. Plus gates always come with a cost next to them (a red gate, a crate or a swarm). Some red gates can be flipped, such as −30, −60 and −78, and a few go into the hundreds (−150, −260) so you may not flip them in time. Crates, capsules and bugs get tougher as the mission goes on.
-4. **Weapon capsules:** capsule 1 gives the **MINIGUN** and capsule 2 gives **ROCKETS**. An optional **BAZOOKA** capsule sits just before the boss.
-5. **Mid-points:** elites. The **armoured beetle** is slow and soaks up damage. The **alien wasp** is fast and swoops. The **spitter** hangs back and lobs slow green acid at the spot where you were, and a green ring marks where it will land.
-6. **Final third: Kingsting.** It hovers at the top of the screen over a carpet of spiders and has a big health bar and a name banner. It keeps hatching spiders and fires fans of slow red stingers and acid lobs. Once it is below 70% it also makes a **telegraphed charge** down a line marked with red chevrons. About a dozen drones plus rockets is enough to beat it.
-7. **Mission Complete:** the badge pops in with a shine and up to three stars. You get stars for winning, for finishing with at least half your armour and for finishing with 12 or more drones.
+## What round 4 is
+Round 4 mixes the round-2 feel with the round-3 mission structure:
+- **Plane and drones:** round 2's plane and drones, with round 2's banking, tilt, bob, propeller and contrails. The round-3 plane sprite is no longer used.
+- **Gates:** round 2's glass gates, flattened and made smaller, so three would fit side by side. A row never has more than one gate. Next to a gate there may be a canister, a crate, some bugs or nothing. Round 3's propeller gate banners stay in `art/` but are not used.
+- **Enemies:** round 2's yellow-eyed spiders (and the bigger brute) are the main enemies. Round 3's red spider, beetle, wasp and spitter only show up as two short elite moments.
+- **Spawning:** every enemy spawns above the top edge of the screen and flies in from ahead. Bugs keep clear sky behind gates: they stay at least about 1.5 gate-heights back or move to one side of the gate.
+- **Boss:** round 2's stationary **Chitin Queen**. Her brood emerges from her body, and she fires telegraphed acid volleys. Kingsting's code and config stay dormant in the `BOSSES` table as `stinger`, ready for a later mission.
+- **Pickups:** round 2's canisters are back, with a big gold icon on top that shows the weapon: POWER, ROCKETS, BAZOOKA, **BEAM** (restored) or DRONES. The glass weapon orb is about twice as big as before, and its icon fills most of it. Crates are used sparingly.
+- **Bullet tiers (as in Last War):** bullets start in the standard pale gold. The first power pickup makes them **ORANGE** with more damage, and the second makes them **BLUE** with even more damage. Every round already in the air changes colour at once, with a flash and an UP ring. Drones copy the tier. The beam and rockets are coloured by tier too.
 
 ## Rules of the sky
-- Open sky: no lanes or dividers. Each gate is about half the play width, and incoming objects show where the edges are.
-- Everything is airborne, so nothing casts a shadow. Bullets reach three quarters of the way up the screen.
-- **Gates:** every bullet that hits a gate adds +1. Rockets add +2 and bazooka shells add +4. Gates flash white on each hit and snap from red to blue at zero. At **1000** a gate turns gold and shows **MAX**. A blue gate gives you drones and restores some health. A red gate takes that many drones, and flying into a red gate with no drones kills you.
-- **Drones:** the cap is **40**, and they fly the round-2 formation around the plane. A new drone pops in with a scale-up and a golden +1, and a gold **UP** ring marks big gains. Drones fire straight ahead and only turn to aim at bugs that are right on top of the main plane. They copy the jet's ammunition: bullets, mini rockets or mini shells.
-- **Weapons:** when a capsule breaks, every round in the air changes at once. The standard gun fires white-blue tracers. The minigun fires a fast orange stream. Rockets are slower and red, with smoke trails and splash damage. The bazooka has a huge splash.
-- **Crates:** wooden crates break into splinters and give drones or health. The green hazard crate is much tougher and gives more drones. The glass capsule shatters and changes your weapon. The tall glass cocoon holds a rescued pilot and gives drones.
-- **Armour:** the Lawnmower has two armour segments and trails smoke when it is damaged. Health bars change colour from green to red.
-- The screen only shakes at key moments: Kingsting's arrival and death, and big explosions.
+- Open sky: no lanes, dots or dividers. Nothing casts a shadow. Bullets reach three quarters of the way up the screen.
+- **Gates:** every bullet that hits a gate adds +1, and rockets and shells add more. Gates start negative and can be shot positive. At **1000** a gate turns gold and shows **MAX**. A blue gate gives you drones and restores health. A red gate takes that many drones, and flying through a red gate with no drones kills you.
+- **Drones:** the cap is 40, and they fly in formation around the plane. They fire ahead and only aim at bugs close to the plane.
+- Health bars change colour. The screen only shakes at key moments. Something happens every 1 to 2 seconds.
+
+## Mission 1 (about 90 s)
+The mission opens with a +2 gate beside the first swarm. Next come a choice of gates, then build-up rows with rising negative gates and tougher bugs. The first POWER canister turns the bullets orange (about 16 s). A ROCKETS canister follows, then a weapon orb that turns them blue (about 38 s), a BEAM canister, an elite moment, a spitter moment and an optional bazooka canister. The Chitin Queen arrives at about 66 s. After her you get the Mission Complete badge with the biplane and "RIDGEBACK IN SIGHT".
 
 ## Tech
-- Three.js is vendored at build time, so there is no CDN at runtime. A 2D canvas overlay draws gate propellers, numbers, health bars, badges and speech bubbles. The HUD is HTML/CSS, and all sound is synthesised with WebAudio.
-- The sprites are Bupé's round-3 concept art. The top-down views were cut from the white sheets with `tools/cut_art.py` using a soft alpha matte, colour un-premultiplied against the paper so there is no halo, and colour bled outwards for clean GPU filtering. They are stored as `art/*.webp.b64`. Kingsting has no art yet, so it is the wasp scaled up, tinted red and given a glow.
-- `tools/build_assets.py` generates the terrain, clouds and smoke procedurally.
-- `.github/workflows/pages.yml` builds the site with `tools/build.sh`, which stamps a cache-busting version on each build, and publishes it to the `gh-pages` branch.
-- Debug URL flags, all off by default: `?autoplay` (a bot flies the mission), `&ts=2` (time scale), `&warp=70&drones=12&weapon=rockets` (skip ahead), `&bosshp=`.
+- Three.js is vendored at build time, so there is no CDN at runtime. A 2D canvas overlay draws numbers, bars and badges. The HUD is HTML/CSS, and the sound is WebAudio.
+- Sprites are stored as `art/*.webp.b64`. The `r2_*` files are the round-2 plane, spider, boss and canister. The round-3 art stays in the repo for later stages.
+- `tools/build.sh` builds the site, stamps a cache-busting version and copies the frozen `v2/` and `v3/` builds into the output. `.github/workflows/pages.yml` publishes to `gh-pages`.
+- Debug URL flags, all off by default: `?autoplay` (a bot flies the mission), `&ts=2` (time scale), `&warp=60` (skip ahead), `&drones=20`, `&tier=0|1|2`, `&weapon=beam|gun`, `&rockets=1`, `&bazooka=1`, `&bosshp=`, `&hp=`.
+- **Spawn audit:** `window.__AUDIT` records each enemy's first visible position (`seen`, `maxY` as a fraction of screen height from the top, `viol` for anything first seen below 5%), the boss brood separately, gate pairs per row (`gatePairs`), the closest bug behind a gate (`minGap`), the tier timeline and the time of the first shot.
 
 Local build: `pip install numpy scipy opencv-python-headless pillow && bash tools/build.sh _site`, then serve `_site/`.

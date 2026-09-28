@@ -9,10 +9,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="icon" href="data:,">
 <title>Grok Demo · Mission 1: Get to Ridgeback</title>
-<link rel="preload" href="assets/terrain.jpg?v=__BUILD__" as="image" crossorigin>
+<link rel="preload" href="assets/terrain.jpg?v=r3-75868aa" as="image" crossorigin>
 <link rel="preload" href="fonts/nunito.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/lilita.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=__BUILD__">
+<link rel="stylesheet" href="style.css?v=r3-75868aa">
 </head>
 <body>
 <div id="wrap">
@@ -27,7 +27,7 @@
     <div id="weap"></div>
   </div>
   <div id="bossbar" class="hidden">
-    <div id="bossname">CHITIN QUEEN</div>
+    <div id="bossname">KINGSTING</div>
     <div id="bossbg"><div id="bossfill"></div><div id="bosshp">0</div></div>
   </div>
   <div id="banner"></div>
@@ -38,9 +38,9 @@
     </div>
     <div class="spacer"></div>
     <div class="tap">TAP TO FLY</div>
-    <div class="hint">Drag left / right to steer · Auto fire<br>Shoot <b class="b">gates</b> to raise them · Break <b>canisters</b> for new guns</div>
+    <div class="hint">Drag left / right to steer · Auto fire<br>Shoot <b class="b">gates</b> to raise them · Break <b>capsules</b> for new guns</div>
     <div id="loading">Loading…</div>
-    <div id="prevver" onpointerdown="event.stopPropagation()">Previous versions: <a href="v3/">Round 3</a> · <a href="v2/">Round 2</a></div>
+    <a id="prevver" href="../v2/" onpointerdown="event.stopPropagation()">Round 2</a>
   </div>
   <div id="end" class="screen hidden">
     <div id="badgewrap">
@@ -60,6 +60,6 @@
     </div>
   </div>
 </div>
-<script type="module" src="game.js?v=__BUILD__"></script>
+<script type="module" src="game.js?v=r3-75868aa"></script>
 </body>
 </html>
