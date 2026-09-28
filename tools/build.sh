@@ -5,6 +5,7 @@ cd "$(dirname "$0")/.."
 OUT=${1:-_site}
 rm -rf "$OUT"; mkdir -p "$OUT/assets" "$OUT/vendor" "$OUT/fonts"
 cp index.html style.css game.js "$OUT/"
+V=$(git rev-parse --short HEAD 2>/dev/null || date +%s); sed -i "s/__BUILD__/$V/g" "$OUT/index.html"
 python3 tools/build_assets.py "$OUT/assets"
 for f in art/*.b64; do base64 -d "$f" > "$OUT/assets/$(basename "$f" .b64)"; done
 if [ -n "${THREE_JS:-}" ]; then cp "$THREE_JS" "$OUT/vendor/three.module.min.js"; else
