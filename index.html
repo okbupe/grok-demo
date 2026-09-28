@@ -19,11 +19,12 @@
   <canvas id="ui"></canvas>
   <div id="hud" class="hidden">
     <div class="hudrow">
-      <div id="hearts"><i></i><i></i><i></i></div>
+      <div id="hp"><div id="hpfill"></div></div>
       <div id="prog"><div id="progfill"></div><div id="progboss"></div></div>
       <button id="mute" aria-label="Toggle sound">🔊</button>
     </div>
     <div id="score">0</div>
+    <div id="weap"></div>
   </div>
   <div id="banner"></div>
   <div id="start" class="screen">
@@ -33,7 +34,7 @@
     </div>
     <div class="spacer"></div>
     <div class="tap">TAP TO FLY</div>
-    <div class="hint">Drag left / right to steer · Auto fire<br><b class="b">Blue gates</b> add wingmen · Shoot <b>pods</b> for weapons</div>
+    <div class="hint">Drag left / right to steer · Auto fire<br>Shoot <b class="b">gates</b> to raise them · Break <b>pods</b> for weapons</div>
     <div id="loading">Loading…</div>
   </div>
   <div id="end" class="screen hidden">
