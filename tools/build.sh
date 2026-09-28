@@ -15,5 +15,7 @@ if [ -n "${THREE_JS:-}" ]; then cp "$THREE_JS" "$OUT/vendor/three.module.min.js"
 fi
 curl -fsSL -o "$OUT/fonts/lilita.woff2" https://fonts.gstatic.com/s/lilitaone/v17/i7dPIFZ9Zz-WBtRtedDbYEF8RQ.woff2 || echo "warn: font download failed"
 curl -fsSL -o "$OUT/fonts/nunito.woff2" https://fonts.gstatic.com/s/nunito/v32/XRXV3I6Li01BKofINeaB.woff2 || echo "warn: font download failed"
+# Frozen round-2 build (commit 0235f06), served at /v2/
+if [ -d v2 ]; then cp -r v2 "$OUT/v2"; fi
 touch "$OUT/.nojekyll"
 du -sh "$OUT"

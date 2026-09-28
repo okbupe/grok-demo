@@ -4,3 +4,7 @@ vendor/
 fonts/
 src_art/
 screenshots/
+# frozen round-2 build served at /v2/ (committed on purpose)
+!/v2/assets/
+!/v2/vendor/
+!/v2/fonts/

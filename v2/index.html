@@ -8,11 +8,11 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="icon" href="data:,">
-<title>Grok Demo · Mission 1: Get to Ridgeback</title>
-<link rel="preload" href="assets/terrain.jpg?v=__BUILD__" as="image" crossorigin>
+<title>Grok Demo · Jetcraft: Invasion Earth</title>
+<link rel="preload" href="assets/terrain.jpg" as="image" crossorigin>
 <link rel="preload" href="fonts/nunito.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/lilita.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=__BUILD__">
+<link rel="stylesheet" href="style.css?v=r2-0235f06">
 </head>
 <body>
 <div id="wrap">
@@ -20,46 +20,38 @@
   <canvas id="ui"></canvas>
   <div id="hud" class="hidden">
     <div class="hudrow">
-      <div id="hp"><div id="hpfill"></div><div id="hpseg"></div></div>
+      <div id="hp"><div id="hpfill"></div></div>
       <div id="prog"><div id="progfill"></div><div id="progboss"></div></div>
       <button id="mute" aria-label="Toggle sound">🔊</button>
     </div>
+    <div id="score">0</div>
     <div id="weap"></div>
-  </div>
-  <div id="bossbar" class="hidden">
-    <div id="bossname">KINGSTING</div>
-    <div id="bossbg"><div id="bossfill"></div><div id="bosshp">0</div></div>
   </div>
   <div id="banner"></div>
   <div id="start" class="screen">
     <div class="logo">
       <div class="logo-top">GROK DEMO</div>
-      <div class="logo-sub">MISSION 1 · GET TO RIDGEBACK</div>
+      <div class="logo-sub">JETCRAFT: INVASION EARTH</div>
     </div>
     <div class="spacer"></div>
     <div class="tap">TAP TO FLY</div>
-    <div class="hint">Drag left / right to steer · Auto fire<br>Shoot <b class="b">gates</b> to raise them · Break <b>capsules</b> for new guns</div>
+    <div class="hint">Drag left / right to steer · Auto fire<br>Shoot <b class="b">gates</b> to raise them · Break <b>pods</b> for weapons</div>
     <div id="loading">Loading…</div>
-    <a id="prevver" href="v2/" onpointerdown="event.stopPropagation()">Previous version</a>
   </div>
   <div id="end" class="screen hidden">
-    <div id="badgewrap">
-      <img id="badge" src="assets/badge_complete.webp" alt="Mission complete">
-      <div id="shine"></div>
-      <div class="bstar s1">★</div><div class="bstar s2">★</div><div class="bstar s3">★</div>
-    </div>
     <div class="card">
       <div id="endtitle">MISSION COMPLETE</div>
-      <div id="endsub"></div>
+      <div id="endsub">The Chitin Queen is down!</div>
+      <div id="stars"><span>★</span><span>★</span><span>★</span></div>
       <div class="stats">
-        <div><b id="st-kills">0</b><small>Bugs</small></div>
-        <div><b id="st-drones">0</b><small>Drones</small></div>
+        <div><b id="st-kills">0</b><small>Spiders</small></div>
+        <div><b id="st-drones">0</b><small>Wingmen</small></div>
         <div><b id="st-time">0s</b><small>Time</small></div>
       </div>
       <button id="again">FLY AGAIN</button>
     </div>
   </div>
 </div>
-<script type="module" src="game.js?v=__BUILD__"></script>
+<script type="module" src="game.js?v=r2-0235f06"></script>
 </body>
 </html>
