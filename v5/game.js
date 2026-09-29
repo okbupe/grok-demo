@@ -1,7 +1,6 @@
 import * as THREE from './vendor/three.module.min.js';
 
-// Grok Demo, round 6: Mission 1 "Get to Beacon" (round-5 base + snug squad, trauma shake with parallax, rapid fire,
-// crate loot, coins, Chitin naming, threat ranks).
+// Grok Demo, round 5: Mission 1 "Get to Beacon" (round-4 base + hunters, cocoon rescue, beam gesture, Omega Beam).
 const Q = new URLSearchParams(location.search);
 const VER = new URL(import.meta.url).searchParams.get('v') || '';   // cache-bust assets per build
 const BOT = Q.has('bot') || Q.has('autoplay');   // debug autoplay, off by default
@@ -41,38 +40,20 @@ const CFG = {
   camPos: [0, 16, 12], camLook: [0, 0, -8], camFov: 21,
   // --- squad
   maxDrones: 50, droneDX: 0.92, droneDZ: 0.7,
-  droneHug: 0.16,      // how much of a drone may tuck under the main plane's silhouette (0..1); slots hug the real art
-  droneHugPad: 1,      // extra clearance (mask pixels) kept between drone and plane silhouettes
   // --- gates
   gateMax: 1000, gateGrow: 0.20,   // +20% size at MAX, linear from 0
   // --- weapons
   bulletReach: 0.75,   // bullets fade out at this fraction of the screen height (from the bottom)
   beamGrace: 5, beamDrain: 7, beamMinHp: 12,   // seconds free, then hp per second; the beam shuts off at beamMinHp
   omegaDmg: 900, omegaBossDmg: 1500, omegaTime: 1.3,
-  rapidMul: [1, 1.5, 2],   // RAPID FIRE canister: fire-rate multiplier per level (plane and drones); separate from the bullet tiers
   // --- hunters that latch on
   ambushSpeed: 1.6, ambushArmour: 0.3,   // hunter packs dive in faster and shrug off most damage until they reach the squad
   shakeOffV: 9, grip: 0.55,        // steer faster than this (units/s) for `grip` seconds to fling clingers off
   // --- touch gestures (CSS px / ms)
   tapMs: 180, tapPx: 10, tapRadius: 72,
   swipeMinPx: 45, swipeMaxMs: 320, swipeMinV: 0.35, swipeRatio: 2.0, swipeRadius: 115,
-  // --- screen shake (round 6): trauma model. Events add trauma (0..1), shake = trauma^2, trauma decays fast.
-  // Offsets come from smooth noise plus a little roll, applied to the cameras with parallax: the ground layer
-  // moves most, the cloud layer less, the gameplay layer (plane, squad, Chitin) slightly. The HUD never shakes,
-  // except during the Omega Beam, when it rumbles with the world.
-  shake: {
-    decay: 2.7,          // trauma lost per second (a 0.85 burst is calm again in ~0.3 s)
-    ground: 34,          // max ground offset in CSS px at shake = 1
-    clouds: 0.6, game: 0.3,   // layer factors relative to the ground
-    roll: 0.045,         // max roll (radians) at shake = 1 (ground layer; other layers scale by their factor)
-    freq: 16, rumbleFreq: 24,   // noise speed (Hz) for bursts and for the Omega rumble
-    omegaRumble: 0.78,   // trauma floor held for the whole Omega Beam (earthquake)
-    hud: 9,              // HUD rumble during Omega only (CSS px at shake = 1)
-    add: { pickup: 0.4, medium: 0.6, gateMax: 0.4, thud: 0.9, omega: 0.85, omegaEnd: 0.95, bomb: 0.62, bossFinal: 1.0, death: 0.9, stomp: 0.8, star: 0.62 },
-  },
-  // --- coins per Chitin killed (by type) and loot inside crates
-  coins: { spider: 1, redspider: 1, wasp: 2, brute: 5, beetle: 12, spitter: 12, carrier: 6, queen: 300 },
-  loot: { coins: [18, 26], gems: [1, 2], gemCoins: 10, diamondCoins: 25 },
+  // --- screen shake amplitudes (only for things that matter; normal shooting never shakes)
+  shake: { pickup: 0.22, medium: 0.42, gateMax: 0.22, bomb: 0.6, bossFinal: 1.3, omega: 1.1, death: 0.8, stomp: 0.5 },
 };
 // Orb tiers (future design ladder). Only OMEGA is active for now: every player has the Omega Beam.
 const ORB_TIERS = {
@@ -105,13 +86,11 @@ let BOT_Z = 3.2;             // world z of the bottom edge of the screen (comput
 const renderer = new THREE.WebGLRenderer({ canvas: glc, antialias: true, powerPreference: 'high-performance' });
 renderer.setClearColor(0xb8d3e8);
 renderer.autoClear = false;
-const world = new THREE.Scene();   // far ground and smoke columns (wide camera)
-const cloudScene = new THREE.Scene();   // far clouds: same wide view, its own camera so it can shake less than the ground
+const world = new THREE.Scene();   // far ground, clouds, smoke (wide camera)
 const scene = new THREE.Scene();   // gameplay (steep tele camera)
 const HAZE = new THREE.Color(0xbcd6ea);
-world.fog = new THREE.Fog(HAZE, 90, 460); cloudScene.fog = world.fog;
+world.fog = new THREE.Fog(HAZE, 90, 460);
 const wcam = new THREE.PerspectiveCamera(70, 0.5, 0.5, 1200);
-const ccam = new THREE.PerspectiveCamera(70, 0.5, 0.5, 1200);
 const camera = new THREE.PerspectiveCamera(38, 0.5, 1, 400);
 const GCAM_POS = new THREE.Vector3(...CFG.camPos);
 const GCAM_LOOK = new THREE.Vector3(...CFG.camLook);
@@ -321,7 +300,7 @@ function spawnCloud(z) {
     c.position.set(side * rand(9.5, 13), rand(-2, 2), z);
     c.material.opacity = 0.93;
   } else {
-    c = sprite(tex, rand(14, 30), 0.5, 0.5, -2, cloudScene);
+    c = sprite(tex, rand(14, 30), 0.5, 0.5, -2, world);
     c.position.set(side * rand(9, 24), rand(-G * 0.75, -5), z);
   }
   if (Math.random() < 0.5) c.scale.x *= -1;
@@ -389,61 +368,6 @@ function laserIcon() {
   g.fillStyle = '#9fe0ff'; g.beginPath(); g.arc(-40, 0, 7, 0, TAU); g.fill(); g.restore();
   return c;
 }
-// RAPID FIRE icon: a fat lightning bolt over three stacked bullets
-function rapidIcon() {
-  const c = document.createElement('canvas'); c.width = 300; c.height = 248; const g = c.getContext('2d'); g.scale(2, 2);
-  g.lineJoin = 'round'; g.lineCap = 'round';
-  for (let i = 0; i < 3; i++) {   // triple bullets, fanned
-    g.save(); g.translate(40 + i * 35, 70 - (i === 1 ? 10 : 0)); g.rotate((i - 1) * 0.16);
-    g.fillStyle = '#ffcf3a'; g.strokeStyle = '#4a2a00'; g.lineWidth = 4;
-    g.beginPath(); g.moveTo(0, -44); g.quadraticCurveTo(13, -30, 12, -8); g.lineTo(12, 34); g.lineTo(-12, 34); g.lineTo(-12, -8); g.quadraticCurveTo(-13, -30, 0, -44); g.fill(); g.stroke();
-    g.fillStyle = '#c9861a'; g.fillRect(-12, 20, 24, 14); g.strokeRect(-12, 20, 24, 14);
-    g.fillStyle = 'rgba(255,255,255,.7)'; g.fillRect(-6, -24, 4, 36); g.restore();
-  }
-  g.save(); g.translate(92, 64); g.rotate(0.12);   // lightning bolt
-  g.beginPath(); g.moveTo(10, -58); g.lineTo(-30, 8); g.lineTo(-4, 8); g.lineTo(-16, 58); g.lineTo(32, -12); g.lineTo(6, -12); g.lineTo(22, -58); g.closePath();
-  g.fillStyle = '#fff36a'; g.strokeStyle = '#2a1a00'; g.lineWidth = 6; g.stroke(); g.fill();
-  g.fillStyle = 'rgba(255,255,255,.85)'; g.beginPath(); g.moveTo(8, -48); g.lineTo(-18, 2); g.lineTo(-8, 2); g.lineTo(14, -48); g.fill(); g.restore();
-  return c;
-}
-// loot icons (crates show what's inside): a coin, a coin pile, a gem, a diamond
-function coinIcon(size = 64) {
-  const c = document.createElement('canvas'); c.width = c.height = size; const g = c.getContext('2d'), r = size / 2 - 3;
-  const gr = g.createRadialGradient(size * 0.38, size * 0.34, 2, size / 2, size / 2, r); gr.addColorStop(0, '#fff6c0'); gr.addColorStop(0.45, '#ffd23a'); gr.addColorStop(1, '#d88a00');
-  g.fillStyle = gr; g.strokeStyle = '#6a3a00'; g.lineWidth = size * 0.07; g.beginPath(); g.arc(size / 2, size / 2, r, 0, TAU); g.fill(); g.stroke();
-  g.strokeStyle = 'rgba(160,90,0,.7)'; g.lineWidth = size * 0.05; g.beginPath(); g.arc(size / 2, size / 2, r * 0.68, 0, TAU); g.stroke();
-  g.fillStyle = '#9a5a00'; g.font = `900 ${size * 0.5}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('C', size / 2, size / 2 + size * 0.03);
-  return c;
-}
-function pileIcon() {
-  const c = document.createElement('canvas'); c.width = 300; c.height = 240; const g = c.getContext('2d'), co = coinIcon(96);
-  const spots = [[40, 150], [100, 160], [160, 158], [220, 150], [70, 110], [130, 116], [190, 110], [100, 70], [160, 72], [130, 30]];
-  for (const [x, y] of spots) { g.save(); g.translate(x + 18, y + 18); g.scale(1, 0.62); g.drawImage(co, -48, -48); g.restore(); }
-  return c;
-}
-function gemIcon(col = ['#7dffb0', '#18c46a', '#06703a']) {
-  const c = document.createElement('canvas'); c.width = 200; c.height = 200; const g = c.getContext('2d');
-  g.lineJoin = 'round'; g.strokeStyle = '#063a1e'; g.lineWidth = 8;
-  const P = [[100, 18], [168, 70], [140, 176], [60, 176], [32, 70]];
-  g.fillStyle = col[1]; g.beginPath(); P.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.fill(); g.stroke();
-  g.fillStyle = col[0]; g.beginPath(); g.moveTo(100, 18); g.lineTo(130, 72); g.lineTo(70, 72); g.closePath(); g.fill();
-  g.fillStyle = col[2]; g.beginPath(); g.moveTo(70, 72); g.lineTo(130, 72); g.lineTo(140, 176); g.lineTo(60, 176); g.closePath(); g.globalAlpha = 0.55; g.fill(); g.globalAlpha = 1;
-  g.fillStyle = 'rgba(255,255,255,.8)'; g.beginPath(); g.moveTo(92, 34); g.lineTo(108, 34); g.lineTo(84, 70); g.lineTo(62, 70); g.closePath(); g.fill();
-  return c;
-}
-function diamondIcon() {
-  const c = document.createElement('canvas'); c.width = 220; c.height = 200; const g = c.getContext('2d');
-  g.lineJoin = 'round'; g.strokeStyle = '#0a3a5a'; g.lineWidth = 7;
-  const top = [[50, 40], [170, 40], [206, 80], [14, 80]];
-  const body = g.createLinearGradient(0, 40, 0, 190); body.addColorStop(0, '#f4feff'); body.addColorStop(0.5, '#9fe8ff'); body.addColorStop(1, '#3aa8e8');
-  g.fillStyle = body; g.beginPath(); g.moveTo(50, 40); g.lineTo(170, 40); g.lineTo(206, 80); g.lineTo(110, 190); g.lineTo(14, 80); g.closePath(); g.fill(); g.stroke();
-  g.strokeStyle = 'rgba(10,60,100,.55)'; g.lineWidth = 3; g.beginPath(); g.moveTo(14, 80); g.lineTo(206, 80);
-  for (const x of [80, 140]) { g.moveTo(x, 40); g.lineTo(x < 110 ? 60 : 160, 80); g.lineTo(110, 190); }
-  g.moveTo(110, 40); g.lineTo(80, 80); g.moveTo(110, 40); g.lineTo(140, 80); g.stroke();
-  g.fillStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.moveTo(58, 48); g.lineTo(84, 48); g.lineTo(64, 76); g.lineTo(34, 76); g.closePath(); g.fill();
-  return c;
-}
-const LOOT_IMG = {};
 const ICON_IMG = {};
 const BADGES = {};
 function makeBadge(name, tint) {
@@ -460,14 +384,10 @@ function makeBadge(name, tint) {
 }
 function setupIcons() {
   ICON_IMG.power = TEX.icon_minigun.image; ICON_IMG.rockets = TEX.icon_rockets.image; ICON_IMG.bazooka = TEX.icon_bazooka.image;
-  ICON_IMG.beam = laserIcon(); ICON_IMG.drones = TEX.plane.image; ICON_IMG.rapid = rapidIcon();
-  LOOT_IMG.coin = coinIcon(64); LOOT_IMG.coins = pileIcon(); LOOT_IMG.gems = gemIcon(); LOOT_IMG.diamond = diamondIcon();
-  const root = document.documentElement.style;   // the HUD counters and the results card use the same art
-  root.setProperty('--coin', `url(${coinIcon(96).toDataURL()})`); root.setProperty('--gem', `url(${LOOT_IMG.gems.toDataURL()})`); root.setProperty('--dia', `url(${LOOT_IMG.diamond.toDataURL()})`);
+  ICON_IMG.beam = laserIcon(); ICON_IMG.drones = TEX.plane.image;
   const blue = ['rgba(120,220,255,1)', 'rgba(150,215,255,.8)', 'rgba(70,150,235,.8)', '#d8f6ff'];
   const gold = ['rgba(255,210,90,1)', 'rgba(255,226,140,.82)', 'rgba(235,150,30,.82)', '#fff3c0'];
   makeBadge('power', gold); makeBadge('rockets', blue); makeBadge('bazooka', gold); makeBadge('beam', blue); makeBadge('drones', blue);
-  makeBadge('rapid', ['rgba(190,255,90,1)', 'rgba(200,255,150,.85)', 'rgba(60,170,40,.85)', '#efffd8']);
 }
 
 // ---------------------------------------------------------------- audio (all synthesised)
@@ -482,29 +402,6 @@ function initAudio() {
   o.type = 'sawtooth'; o.frequency.value = 62; f.type = 'lowpass'; f.frequency.value = 240; gn.gain.value = 0.035;
   const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = 26; lg.gain.value = 0.022; lfo.connect(lg); lg.connect(gn.gain);
   o.connect(f); f.connect(gn); gn.connect(master); o.start(); lfo.start();
-  amb = { o, f, gn, lfo, lg };
-  if (moodOn) setMood(true, true);
-}
-// music/ambience mood shift for the boss approach (round 6): the drone drops and darkens and a slow heavy pulse
-// (a heartbeat under everything) comes in. It carries on through the boss fight.
-let amb = null, moodOn = false, moodNodes = null;
-function setMood(on, force) {
-  if (on === moodOn && !force) return; moodOn = on;
-  if (!ac || !amb) return; const t = ac.currentTime;
-  amb.o.frequency.setTargetAtTime(on ? 46 : 62, t, 0.9); amb.f.frequency.setTargetAtTime(on ? 170 : 240, t, 0.9);
-  amb.gn.gain.setTargetAtTime(on ? 0.05 : 0.035, t, 0.9); amb.lfo.frequency.setTargetAtTime(on ? 13 : 26, t, 0.9);
-  if (on && !moodNodes) {
-    const p = ac.createOscillator(), pg = ac.createGain(), l = ac.createOscillator(), lg = ac.createGain();
-    p.type = 'sine'; p.frequency.value = 41; pg.gain.value = 0.0; l.type = 'sine'; l.frequency.value = 1.35; lg.gain.value = 0.11;
-    l.connect(lg); lg.connect(pg.gain); pg.gain.setTargetAtTime(0.1, t, 1.2);
-    const d = ac.createOscillator(), df = ac.createBiquadFilter(), dg = ac.createGain();   // a tense detuned second drone
-    d.type = 'sawtooth'; d.frequency.value = 48.9; df.type = 'lowpass'; df.frequency.value = 150; dg.gain.value = 0; dg.gain.setTargetAtTime(0.03, t, 1.5);
-    p.connect(pg); pg.connect(master); d.connect(df); df.connect(dg); dg.connect(master); p.start(); l.start(); d.start();
-    moodNodes = { p, pg, l, d, dg };
-  } else if (!on && moodNodes) {
-    const m = moodNodes; moodNodes = null; m.pg.gain.setTargetAtTime(0, t, 0.3); m.dg.gain.setTargetAtTime(0, t, 0.3);
-    for (const n of [m.p, m.l, m.d]) n.stop(t + 1.5);
-  }
 }
 function noise(dur, f0, f1, vol, type = 'lowpass', q = 1, when = 0) {
   if (!ac) return; const t = ac.currentTime + when;
@@ -556,11 +453,6 @@ const SFX = {
   orb() { [880, 1320, 1760].forEach((f, i) => tone(f, 0.2, 0.06, 'sine', i * 0.05)); },
   thud() { noise(0.3, 500, 50, 0.6); tone(70, 0.3, 0.3, 'sine', 0, 0.5); },
   star() { noise(0.2, 700, 60, 0.45); tone(90, 0.22, 0.25, 'sine', 0, 0.5); tone(1568, 0.3, 0.05, 'triangle', 0.02); },
-  siren() { for (let i = 0; i < 3; i++) { tone(620, 0.42, 0.07, 'sawtooth', i * 0.84, 1.75); tone(1085, 0.42, 0.07, 'sawtooth', i * 0.84 + 0.42, 0.57); } noise(2.4, 300, 120, 0.12, 'lowpass', 1); },
-  coin() { if (gap('coin', 0.035)) return; tone(rand(1850, 2150), 0.07, 0.03, 'square'); tone(2800, 0.09, 0.02, 'triangle', 0.03); },
-  gem() { [1568, 2093, 2637].forEach((f, i) => tone(f, 0.14, 0.05, 'triangle', i * 0.04)); },
-  diamond() { [1318, 1760, 2349, 3136, 4186].forEach((f, i) => tone(f, 0.22, 0.05, 'sine', i * 0.05)); noise(0.4, 9000, 5000, 0.06, 'highpass', 1); },
-  count() { if (gap('count', 0.045)) return; tone(rand(1500, 1700), 0.04, 0.03, 'square'); },
   firework() { noise(0.5, 3000, 200, 0.25); for (let i = 0; i < 4; i++) tone(rand(1500, 3000), 0.12, 0.02, 'sine', 0.05 + i * 0.05); },
 };
 function sfx(n) { try { SFX[n](); } catch (e) { } }
@@ -569,59 +461,27 @@ function sfx(n) { try { SFX[n](); } catch (e) { } }
 const S = {};
 let bugs = [], pods = [], gates = [], shots = [], shells = [], missiles = [], acids = [], drops = [], stings = [], wingmen = [], pops = [], level = [], levelIdx = 0, tips = [], debris = [];
 let cocoons = [], pilots = [], orbFx = [], bombs = [];
-let boss = null, trauma = 0, shakePh = 0, flashRed = 0, slowmo = 1, godMode = false, upRing = null, weaponFlash = 0, omegaFlash = 0;
+let boss = null, shake = 0, flashRed = 0, slowmo = 1, godMode = false, upRing = null, weaponFlash = 0, omegaFlash = 0;
 // debug audit for automated runs: where each enemy first became visible, gate rows, bullet tiers, round-5 checks
 const AUD = { bugs: 0, seen: 0, maxY: 0, worst: '', viol: [], brood: 0, broodMaxY: 0, gates: 0, gatePairs: 0, minGap: 99, tiers: [], firstShotT: -1,
   bottomExit: 0, bottomExitWho: [], bugMaxScreenY: 0, removedOffscreen: 0, latchPlaneMax: 0, latchTotal: 0, flung: 0, carriers: [], cocoon: [],
-  omegaFires: 0, omegaHits: 0, orbs: 0, beamOn: 0, beamOff: 0, beamDrainHp: 0, beamSmoke: 0, gateMaxScale: 0, gateScaleAtMax: [], shakes: {}, maxDrones: 0, stars: -1,
-  shakeLog: [], omegaRumble: [], bossChain: [], bossTrace: [], hudMove: { still: 0, omega: 0 }, shotsPlane: 0, shotsDrone: 0, rapid: [], loot: [], coins: {}, threat: null, vibrate: 0 };
-// drone formation around the main plane: the same staggered-block style as rounds 4-5 (rows of CFG.droneDX,
-// alternate rows offset by half), handed out closest-first. Round 6: instead of a big rectangular keep-out box,
-// every lattice spot is tested against the plane's real silhouette (its alpha mask, as seen through the gameplay
-// camera), so the first drones tuck in right beside the wingtips, the nose and the tail with no hollow ring.
-let SLOTS = [];
-function computeSlots() {
-  const iw = 64, ih = Math.max(8, Math.round(64 * PLANE_AR));
-  const c = document.createElement('canvas'); c.width = iw; c.height = ih; const g = c.getContext('2d', { willReadFrequently: true });
-  g.drawImage(TEX.plane.image, 0, 0, iw, ih);
-  const d = g.getImageData(0, 0, iw, ih).data, M = new Uint8Array(iw * ih), pad = CFG.droneHugPad;
-  for (let i = 0; i < iw * ih; i++) M[i] = d[i * 4 + 3] > 60 ? 1 : 0;
-  const D = new Uint8Array(iw * ih);   // plane mask dilated by `pad` pixels
-  for (let y = 0; y < ih; y++) for (let x = 0; x < iw; x++) if (M[y * iw + x]) for (let yy = -pad; yy <= pad; yy++) for (let xx = -pad; xx <= pad; xx++) { const X = x + xx, Y = y + yy; if (X >= 0 && Y >= 0 && X < iw && Y < ih) D[Y * iw + X] = 1; }
-  const dronePts = [], planePts = [];
-  for (let y = 0; y < ih; y++) for (let x = 0; x < iw; x++) if (M[y * iw + x]) { dronePts.push([(x + 0.5) / iw - 0.5, (y + 0.5) / ih - 0.5]); planePts.push([(x + 0.5) / iw - 0.5, (y + 0.5) / ih - 0.5]); }
-  const [pcx, pcy] = toScreen(0, 0.55, 0), pu = unitPx(0, 0.55, 0), pw = PLANE_W * pu, ph = PLANE_W * PLANE_AR * pu;
-  const planeScr = planePts.filter((_, i) => i % 3 === 0).map(([u, v]) => [pcx + u * pw, pcy + v * ph]);
-  const inPlane = (sx, sy) => { const x = Math.floor(((sx - pcx) / pw + 0.5) * iw), y = Math.floor(((sy - pcy) / ph + 0.5) * ih); return x >= 0 && y >= 0 && x < iw && y < ih && D[y * iw + x] === 1; };
-  const dx = CFG.droneDX, dz = CFG.droneDZ;
-  const build = (z0) => {
-    const pts = [];
-    for (let r = -9; r <= 9; r++) {
-      const z = r * dz + z0; if (z < -3.2 || z > 2.45) continue;
-      const odd = ((r % 2) + 2) % 2 === 1;
-      for (let cc = -6; cc <= 6; cc++) {
-        const x = cc * dx + (odd ? dx / 2 : 0); if (Math.abs(x) > 3.75) continue;
-        const [sx, sy] = toScreen(x, 0.45, z), du = unitPx(x, 0.45, z), dw = WING_W * du, dh = WING_W * PLANE_AR * du;
-        let hit = 0; for (const [u, v] of dronePts) if (inPlane(sx + u * dw, sy + v * dh)) hit++;
-        const ov = hit / dronePts.length; if (ov > CFG.droneHug || inPlane(sx, sy)) continue;
-        let sil = 1e9; for (const [qx, qy] of planeScr) { const q = Math.hypot(sx - qx, sy - qy); if (q < sil) sil = q; }
-        // small squads fill beside the wingtips first; the spots right in front of the nose come a little later
-        pts.push({ x, z, sil: sil / pu, cen: Math.hypot(sx - pcx, (sy - pcy) * 1.1) / pu, ov, pen: z < -0.8 && Math.abs(x) < 0.8 ? 0.3 : 0 });
-      }
+  omegaFires: 0, omegaHits: 0, orbs: 0, beamOn: 0, beamOff: 0, beamDrainHp: 0, beamSmoke: 0, gateMaxScale: 0, gateScaleAtMax: [], shakes: {}, maxDrones: 0, stars: -1 };
+// drone formation around the main plane: the same staggered-block style as round 4, but slots are handed out
+// closest-first so even a small squad packs in tight around the plane (cap: CFG.maxDrones)
+const SLOTS = (() => {
+  const dx = CFG.droneDX, dz = CFG.droneDZ, pts = [];
+  for (let r = -5; r <= 5; r++) {
+    const z = r * dz + 0.05; if (z < -3.0 || z > 2.3) continue;
+    for (let c = -6; c <= 6; c++) {
+      const x = c * dx + (r & 1 ? dx / 2 : 0); if (Math.abs(x) > 3.75) continue;
+      if (Math.abs(x) < 1.5 && z > -1.5 && z < 1.15) continue;   // the main plane's own silhouette stays clear
+      pts.push([x, z]);
     }
-    pts.sort((a, b) => (a.sil + a.cen * 0.3 + a.pen) - (b.sil + b.cen * 0.3 + b.pen) || Math.abs(a.x) - Math.abs(b.x) || a.x - b.x);
-    return pts.slice(0, MAXD);
-  };
-  // pick the row phase that packs the squad in tightest (smallest total clearance for the first slots)
-  let best = null, bs = 1e9;
-  for (let z0 = 0; z0 < dz * 2 - 1e-6; z0 += 0.05) {
-    const p = build(+z0.toFixed(3)); if (p.length < MAXD) continue;
-    const sc = p.slice(0, 16).reduce((a, s) => a + s.sil, 0) + p.reduce((a, s) => a + s.cen, 0) * 0.05;
-    if (sc < bs) { bs = sc; best = p; }
   }
-  SLOTS = best.map((s) => [+s.x.toFixed(3), +s.z.toFixed(3)]);
-  AUD.slots = { first: best.slice(0, 12).map((s) => [+s.x.toFixed(2), +s.z.toFixed(2), +s.sil.toFixed(2), +s.ov.toFixed(2)]), maxClear16: +Math.max(...best.slice(0, 16).map((s) => s.sil)).toFixed(2) };
-}
+  const d = ([x, z]) => Math.hypot(x * 0.8, (z - 0.05) * (z > 0 ? 1.2 : 0.95));
+  pts.sort((a, b) => d(a) - d(b) || Math.abs(a[0]) - Math.abs(b[0]) || a[0] - b[0]);
+  return pts.slice(0, MAXD);
+})();
 
 // bullet tiers, Last War style: standard -> ORANGE -> BLUE. Each power pickup swaps every round in the air at once.
 const TIERS = [
@@ -637,7 +497,6 @@ function updateWeaponHud() {
   let h = `${ic}<b style="color:${t.hud}">${name}</b>`;
   if (S.beamOwned && !S.beamOn) h += ` <i class="bm">BEAM \u2191 swipe up</i>`;
   if (S.beamOn) { const left = CFG.beamGrace - S.beamT; h += left > 0 ? ` <i class="bm">${Math.ceil(left)}s \u00b7 \u2193 stop</i>` : ` <i class="bm drain">DRAINING HP \u00b7 \u2193 stop</i>`; }
-  if (S.rapidLv) h += ` <i class="rf">\u26a1RAPID \u00d7${CFG.rapidMul[S.rapidLv]}</i>`;
   if (S.rocketLv) h += ` <i>ROCKETS \u00d7${S.rocketLv * 2}</i>`;
   if (S.bazookaLv) h += ` <i>BAZOOKA</i>`;
   $('weap').innerHTML = h;
@@ -660,9 +519,6 @@ function buildLevel() {
   const can = (T, x, hp, reward) => L.push({ d: D(T), k: 'pod', x, hp, reward, kind: 'can' });
   const orb = (T, x, hp, reward) => L.push({ d: D(T), k: 'pod', x, hp, reward, kind: 'orb' });
   const crate = (T, x, hp, reward, kind = 'crate1') => L.push({ d: D(T), k: 'pod', x, hp, reward, kind });
-  // round 6: crates are LOOT (mostly coins, sometimes gems, rarely a diamond); RAPID FIRE comes in canisters
-  const loot = (T, x, hp, what) => crate(T, x, hp, { loot: what });
-  const rapid = (T, x, hp) => can(T, x, hp, { rapid: 1 });
   const bug = (T, x, type, hp) => L.push({ d: D(T), k: 'bug', x, type, hp });
   const omegaOrb = (T, x) => L.push({ d: D(T), k: 'pod', x, hp: 10, reward: { omega: 0.34 }, kind: 'omega' });
   // cocoon rescue: a carrier bug brings a pilot in from the side and holds station ahead of the plane
@@ -696,8 +552,7 @@ function buildLevel() {
   at(11.6, 'tip', { text: 'Shoot the canister for more power!', target: 'can', dur: 3 });
   can(9.4, -2.1, 40, { power: 1 }); rows(9.8, 2.4, 4, 2, 8);
   rows(11.4, 0, 10, 5, 9);
-  loot(8.4, -2.5, 30, 'coins');
-  gate(12.8, -2.0, -60); loot(12.8, 2.2, 45, 'coins');
+  gate(12.8, -2.0, -60); crate(12.8, 2.2, 45, { drones: 4 });
   wedge(14.6, 0, 9, 11); brutes(15.2, 1, 70);
   gate(16.4, 1.6, 3); rows(16.4, -2.4, 5, 2, 12);
   omegaOrb(18.0, -2.1);
@@ -705,10 +560,9 @@ function buildLevel() {
   // canister #2: homing rockets join the guns
   can(20.2, 2.2, 110, { rockets: 1 }); gate(20.2, -2.0, -110);
   rows(22.0, 0, 14, 7, 15); brutes(22.6, 1, 110);
-  gate(24.2, 0, -150); loot(24.2, 2.6, 80, 'gems');
+  gate(24.2, 0, -150);
   ambush(24.6, 4, 22);
   rows(25.8, 0, 16, 8, 17);
-  rapid(26.6, -2.3, 120);   // RAPID FIRE #1
   // mid-point: a small elite moment (the round-3 bugs appear only here and later, briefly)
   at(27.4, 'banner', { text: 'ELITES!', sub: 'Armoured beetle and wasps', warn: true });
   bug(28.0, 0, 'beetle', 260); wasps(28.6, 2); bug(29.4, -2.6, 'redspider', 26); bug(29.4, 2.6, 'redspider', 26);
@@ -722,19 +576,17 @@ function buildLevel() {
   can(39.0, -2.2, 170, { weapon: 'beam' }); gate(39.0, 2.0, 5);
   rows(41.0, 0, 22, 8, 28); brutes(41.6, 2, 180);
   ambush(42.4, 5, 30); gate(43.0, -1.6, -320); can(43.0, 2.3, 260, { drones: 8 });
-  rows(45.0, 0, 24, 8, 30); loot(44.6, -2.5, 130, 'coins');
+  rows(45.0, 0, 24, 8, 30);
   at(46.4, 'banner', { text: 'SPITTER!', sub: 'Dodge the green acid', warn: true });
   bug(46.8, 0, 'spitter', 140); wasps(47.4, 2);
-  rapid(48.0, 2.3, 220);    // RAPID FIRE #2 (max)
   gate(49.0, 0, -600);
   rows(50.6, 0, 26, 9, 32); brutes(51.2, 3, 200);
   cocoon(Number(Q.get('cocoon') || 49.6), -2.5, -1, 260, 8);
-  gate(52.8, 2.0, -200); loot(52.8, -2.3, 170, 'coins');
-  at(BOSS_T - 15, 'threat');   // B-rank warning ~15 s before the Queen appears
+  gate(52.8, 2.0, -200);
   rows(54.6, 0, 28, 9, 34);
   // the second orb: a big gun before the boss
   orb(56.4, -2.0, 380, { bazooka: 1 }); gate(56.4, 2.0, 10);
-  omegaOrb(59.6, 0); loot(61.0, 2.4, 190, 'diamond');
+  omegaOrb(59.6, 0);
   ambush(57.2, 6, 38);
   rows(58.2, 0, 24, 8, 36); brutes(58.8, 2, 240);
   // final: the Chitin Queen (round-2 boss)
@@ -763,10 +615,8 @@ function resetGame(play) {
   Object.assign(S, { mode: play ? 'play' : 'title', t: 0, dist: 0, hp: 100, hpMax: 100, barT: 0, drones: 0, px: 0, tx: 0, vx: 0, inv: 0, kills: 0,
     tier: 0, primary: 'gun', rocketLv: 0, bazookaLv: 0, fireT: 0, missileT: 0.8, cannonT: 1, laserT: 0, gunSide: 0, smokeT: 0, endT: 0, maxDrones: 0, ended: false, deathBy: '',
     beamOwned: false, beamOn: false, beamT: 0, beamHintShown: false, beamStopHint: false, beamSmokeT: 0,
-    omega: 0, omegaT: 0, omegaHint: false, combo: 0, comboT: 0, cleanT: 0, rescued: false, shakeT: 0, shakeHint: false, drainHurt: 0, latched: 0,
-    rapidLv: 0, coins: 0, coinsShown: 0, killCoins: 0, lootCoins: 0, gems: 0, gemsShown: 0, diamonds: 0, diamondsShown: 0, killsBy: {} });
-  coinFx = []; setMood(false); $('threat').className = ''; updateLootHud(true);
-  slowmo = 1; trauma = 0; flashRed = 0; weaponFlash = 0; omegaFlash = 0;
+    omega: 0, omegaT: 0, omegaHint: false, combo: 0, comboT: 0, cleanT: 0, rescued: false, shakeT: 0, shakeHint: false, drainHurt: 0, latched: 0 });
+  slowmo = 1; shake = 0; flashRed = 0; weaponFlash = 0; omegaFlash = 0;
   level = buildLevel(); levelIdx = 0;
   setDrones(play ? 2 : 0, 0, 0, true);
   const warp = Number(Q.get('warp') || 0); // debug: skip ahead (seconds)
@@ -785,7 +635,6 @@ function resetGame(play) {
     if (Q.get('rockets')) S.rocketLv = Number(Q.get('rockets'));
     if (Q.get('bazooka')) S.bazookaLv = Number(Q.get('bazooka'));
     if (Q.get('hp')) S.hp = Number(Q.get('hp'));
-    if (Q.get('rapid')) S.rapidLv = clamp(Number(Q.get('rapid')), 0, 2);
   }
   updateHP(); updateWeaponHud();
 }
@@ -873,8 +722,7 @@ function spawnEvent(e) {
   else if (e.k === 'banner') banner(e.text, e.sub, e.warn, 2);
   else if (e.k === 'warn') {
     banner('WARNING!', BOSSES[MISSION_BOSS].name + ' INBOUND', true, 2.8); sfx('warn'); setTimeout(() => sfx('warn'), 450); setTimeout(() => sfx('warn'), 900);
-  } else if (e.k === 'threat') showThreat();
-  else if (e.k === 'boss') spawnBoss(MISSION_BOSS);
+  } else if (e.k === 'boss') spawnBoss(MISSION_BOSS);
   else if (e.k === 'cocoon') spawnCocoon(e);
   else if (e.k === 'ambush') spawnAmbush(e.n, e.hp);
 }
@@ -923,27 +771,10 @@ function burst(x, z, kind, n) {
   }
 }
 function pop(text, x, y, z, color = '#fff', size = 1, stroke = '#0b2440', delay = 0, comic = false) { pops.push({ text, x, y, z, t: -delay, color, size, stroke, comic }); }
-// screen shake (round 6): impulse bursts on a trauma value; the visible shake is trauma^2 and decays fast.
-// Only things that matter shake: crate/canister thuds, big kills, pickups, gate MAX, Omega, the Queen's death chain.
+// screen shake: only for things that matter (explosions, pickups, big kills, gate MAX, boss death chain, Omega)
 function addShake(kind, mul = 1) {
-  const a = (CFG.shake.add[kind] || 0.4) * mul;
-  trauma = Math.min(1, Math.max(trauma + a * 0.35, a));
-  const pk = +(trauma * trauma).toFixed(3), A = AUD.shakes[kind] || (AUD.shakes[kind] = { n: 0, peak: 0 });
-  A.n++; A.peak = Math.max(A.peak, pk);
-  if (AUD.shakeLog.length < 400) AUD.shakeLog.push([+S.t.toFixed(2), kind, pk]);
-}
-// smooth 1D value noise in [-1, 1] (one channel per seed)
-function vnoise(t, s) {
-  const i = Math.floor(t), f = t - i, u = f * f * (3 - 2 * f);
-  const h = (n) => { const x = Math.sin(n * 127.1 + s * 311.7) * 43758.5453; return (x - Math.floor(x)) * 2 - 1; };
-  return lerp(h(i), h(i + 1), u);
-}
-// phone vibration on big thuds, Omega and the boss explosions (only after a user gesture; always guarded)
-let userGestured = false, buzzLast = 0;
-function buzz(p) {
-  if (!userGestured || !navigator.vibrate) return;
-  const n = performance.now(); if (n - buzzLast < 70) return; buzzLast = n;
-  try { navigator.vibrate(p); AUD.vibrate++; } catch (e) { }
+  const a = (CFG.shake[kind] || 0.3) * mul; shake = Math.max(shake, a);
+  AUD.shakes[kind] = (AUD.shakes[kind] || 0) + 1;
 }
 let bannerT = 0;
 function banner(text, sub, warn, dur = 1.6) {
@@ -979,7 +810,6 @@ function killBug(s, i) {
   explode(s.x, 0.4, s.z, B.big ? 1.6 : s.type === 'beetle' ? 1.7 : s.elite ? 1.3 : 0.85, true, s.type === 'spitter' ? [0.4, 0.95, 0.2] : [0.75, 0.1, 0.08]);
   if (B.big || s.elite) addShake('medium');
   scene.remove(s.sprite); bugs.splice(i, 1); S.kills++;
-  awardKill(s.src === 'carrier' ? 'carrier' : s.type, s.x, s.z);
   // Omega charge: every kill feeds it, more during a combo and while you stay clean
   S.combo = S.comboT > 0 ? S.combo + 1 : 1; S.comboT = 1.4;
   omegaGain(0.0034 * (1 + Math.min(S.combo, 24) * 0.05) * (S.cleanT > 6 ? 1.5 : 1) * (B.big || s.elite ? 3 : 1));
@@ -990,8 +820,8 @@ function breakPod(p, i) {
   if (k === 'omega') { collectOmegaOrb(p); scene.remove(p.sprite); pods.splice(i, 1); return; }
   if (k === 'orb') { burst(p.x, p.z, 'glass', 36); sfx('glass'); explode(p.x, 0.9, p.z, 1.4, false); }
   else if (k === 'can') { burst(p.x, p.z, 'metal', 16); explode(p.x, 1, p.z, 1.6, true, [0.6, 0.62, 0.66]); }
-  else { burst(p.x, p.z, 'wood', 26); sfx('wood'); sfx('thud'); explode(p.x, 0.8, p.z, 1.3, false); }
-  addShake('thud'); buzz(45);   // round 6: breaking a crate, canister or power box lands like the Mission Complete star thud
+  else { burst(p.x, p.z, 'wood', 20); sfx('wood'); explode(p.x, 0.8, p.z, 1.2, false); }
+  addShake('pickup');
   scene.remove(p.sprite); pods.splice(i, 1);
   giveReward(p.reward, p.x, p.z);
 }
@@ -1008,8 +838,6 @@ function setTier(n, x, z) {
 }
 function giveReward(R, x = S.px, z = -6) {
   if (R.power) { setTier(S.tier + R.power, x, z); return; }
-  if (R.rapid) { setRapid(S.rapidLv + R.rapid, x, z); return; }
-  if (R.loot) { dropLoot(R.loot, x, z); return; }
   if (R.weapon === 'beam') {
     S.beamOwned = true; weaponFlash = 1; upRing = { t: 0, col: '#9fe0ff' }; flyIcons.push({ name: 'beam', x, z, t: 0 });
     banner('BEAM!', 'Swipe up from the plane to fire', false, 1.8); updateWeaponHud(); sfx('power');
@@ -1040,81 +868,6 @@ function giveReward(R, x = S.px, z = -6) {
   }
 }
 const flyIcons = [];
-// RAPID FIRE (round 6): more bullets per second for the plane and every drone; stacks in CFG.rapidMul steps.
-// It is separate from the bullet colour tiers (standard / orange / blue), which set damage.
-const rapidMul = () => CFG.rapidMul[S.rapidLv] || 1;
-function setRapid(n, x, z) {
-  const was = S.rapidLv; S.rapidLv = clamp(n, 0, CFG.rapidMul.length - 1);
-  flyIcons.push({ name: 'rapid', x, z, t: 0 }); upRing = { t: 0, col: '#c8ff5a' }; weaponFlash = 0.8; sfx('power');
-  const m = CFG.rapidMul[S.rapidLv];
-  banner(S.rapidLv === was ? 'RAPID FIRE MAX!' : 'RAPID FIRE!', `Fire rate \u00d7${m}${S.rapidLv >= CFG.rapidMul.length - 1 ? ' \u00b7 MAX' : ''} \u00b7 drones too`, false, 1.8);
-  pop('\u26a1 \u00d7' + m, S.px, 2.6, -2.6, '#d8ff6a', 1.2, '#1f3a00', 0.1, true);
-  AUD.rapid.push({ t: +S.t.toFixed(2), lv: S.rapidLv, mul: m }); updateWeaponHud();
-}
-// ---------------------------------------------------------------- coins and loot (round 6)
-// Every Chitin kill pays coins by type (CFG.coins). Crates hold loot: a burst of coins, gems or a diamond,
-// which pop out and fly to the HUD counters. The results card tallies it all.
-let coinFx = [];
-function lootTarget(kind) {
-  const el = $(kind === 'coin' ? 'coinico' : kind === 'gem' ? 'gemico' : 'diaico'); const r = el.getBoundingClientRect(), w = wrap.getBoundingClientRect();
-  return [r.left - w.left + r.width / 2, r.top - w.top + r.height / 2];
-}
-function spawnCoins(kind, n, total, x, y, z, power = 1) {
-  const [sx, sy] = toScreen(x, y, z); const per = Math.floor(total / n);
-  for (let i = 0; i < n; i++) {
-    const a = rand(-Math.PI, 0) + rand(-0.4, 0.4), sp = rand(90, 260) * power;
-    coinFx.push({ kind, x: sx, y: sy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - rand(60, 180) * power, t: 0, hold: rand(0.3, 0.55) + (kind === 'coin' ? 0 : 0.15), fly: rand(0.4, 0.6), val: i === 0 ? total - per * (n - 1) : per, ph: rand(0, TAU) });
-  }
-}
-function awardKill(type, x, z) {
-  const v = CFG.coins[type] || 1; S.coins += v; S.killCoins += v; S.killsBy[type] = (S.killsBy[type] || 0) + 1;
-  AUD.coins[type] = (AUD.coins[type] || 0) + v;
-  if (coinFx.length < 140) spawnCoins('coin', v >= 5 ? 3 : 1, v, x, 0.6, z, v >= 5 ? 0.9 : 0.5); else { S.coinsShown += v; updateLootHud(); }
-}
-function dropLoot(what, x, z) {
-  const L = CFG.loot; let c = 0;
-  if (what === 'coins') { const n = Math.round(rand(L.coins[0], L.coins[1])); c = n * 2; spawnCoins('coin', n, c, x, 0.9, z, 1.25); pop('+' + c, x, 2.2, z, '#ffd84a', 1.1, '#3a1d00', 0, true); }
-  else if (what === 'gems') { const n = Math.round(rand(L.gems[0], L.gems[1])); S.gems += n; c = L.gemCoins; spawnCoins('gem', n, n, x, 0.9, z, 1.1); spawnCoins('coin', 6, c, x, 0.9, z, 1.1); pop('GEM \u00d7' + n, x, 2.3, z, '#7dffb0', 1.0, '#063a1e', 0, true); sfx('gem'); $('gemBox').classList.remove('hidden'); }
-  else { S.diamonds += 1; c = L.diamondCoins; spawnCoins('diamond', 1, 1, x, 0.9, z, 1.0); spawnCoins('coin', 10, c, x, 0.9, z, 1.2); pop('DIAMOND!', x, 2.4, z, '#bff4ff', 1.15, '#0a3a5a', 0, true); sfx('diamond'); $('diaBox').classList.remove('hidden');
-    for (let k = 0; k < 40; k++) { const a = rand(0, TAU), sp = rand(2, 7); fx.spawn({ x, y: 0.9, z, vx: Math.cos(a) * sp, vy: rand(1, 4), vz: Math.sin(a) * sp, life: rand(0.4, 0.8), s0: 0.6, s1: 0.1, r: 0.8, g: 0.95, b: 1, a: 1, world: true }); } }
-  S.coins += c; S.lootCoins += c; AUD.loot.push({ t: +S.t.toFixed(2), what, coins: c, gems: S.gems, diamonds: S.diamonds });
-}
-let lootKey = '';
-function updateLootHud(force) {
-  const k = S.coinsShown + '|' + S.gemsShown + '|' + S.diamondsShown; if (k === lootKey && !force) return; lootKey = k;
-  $('coinN').textContent = S.coinsShown || 0; $('gemN').textContent = S.gemsShown || 0; $('diaN').textContent = S.diamondsShown || 0;
-  if (force) { $('gemBox').classList.toggle('hidden', !(S.gems > 0)); $('diaBox').classList.toggle('hidden', !(S.diamonds > 0)); }
-}
-function bumpHud(id) { const el = $(id); el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
-function updateCoins(dt) {
-  if (!coinFx.length) return;
-  const tg = { coin: lootTarget('coin'), gem: lootTarget('gem'), diamond: lootTarget('diamond') };
-  for (let i = coinFx.length - 1; i >= 0; i--) {
-    const c = coinFx[i]; c.t += dt; c.ph += dt * 12;
-    if (c.t < c.hold) { c.vy += 700 * dt; c.vx *= Math.pow(0.9, dt * 60); c.x += c.vx * dt; c.y += c.vy * dt; c.x0 = c.x; c.y0 = c.y; continue; }
-    const k = Math.min(1, (c.t - c.hold) / c.fly), e = k * k, [tx, ty] = tg[c.kind];
-    c.x = lerp(c.x0, tx, e) + Math.sin(k * Math.PI) * 30 * (c.vx > 0 ? 1 : -1); c.y = lerp(c.y0, ty, e) - Math.sin(k * Math.PI) * 40;
-    if (k >= 1) {
-      coinFx.splice(i, 1);
-      if (c.kind === 'coin') { S.coinsShown += c.val; sfx('coin'); bumpHud('coinBox'); }
-      else if (c.kind === 'gem') { S.gemsShown += c.val; sfx('gem'); bumpHud('gemBox'); addShake('pickup', 0.7); }
-      else { S.diamondsShown += c.val; sfx('diamond'); bumpHud('diaBox'); addShake('pickup'); }
-      updateLootHud();
-    }
-  }
-}
-// ---------------------------------------------------------------- threat ranks (round 6, a first taste)
-// The title card sets the mission's threat level (C-rank); ~15 s before the boss a B-rank warning slams in with a
-// siren and the ambience turns dark (setMood) for the rest of the fight.
-const THREAT = { mission: 'C', boss: 'B' };
-function showThreat() {
-  const name = BOSSES[MISSION_BOSS].name, el = $('threat');
-  el.innerHTML = `<div class="tr-rank">${THREAT.boss}</div><div class="tr-txt"><b>${THREAT.boss}-RANK THREAT</b><small>${name} APPROACHING</small></div>`;
-  el.className = ''; void el.offsetWidth; el.className = 'show';
-  sfx('siren'); setMood(true); flashRed = Math.max(flashRed, 0.5); addShake('medium', 0.8);
-  AUD.threat = { t: +S.t.toFixed(2), text: `${THREAT.boss}-RANK THREAT: ${name} APPROACHING`, bossT: BOSS_T, mood: moodOn, audio: !!ac };
-  setTimeout(() => { if (el.className === 'show') el.className = 'out'; }, 3800);
-}
 function hitGate(t, tick) {
   t.bump = Math.min(1, t.bump + 0.35); t.pulse = 1;   // every hit 'feeds' the gate: a short pulse, negative or positive
   if (t.val >= GATE_MAX) return;
@@ -1166,7 +919,7 @@ const GLOG = [];   // gesture log for automated tests
 function planeScreen() { return toScreen(S.px, 0.55, -0.15); }
 function localXY(e) { const r = wrap.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
 function onDown(e) {
-  initAudio(); userGestured = true;
+  initAudio();
   dragging = true; lastX = e.clientX;
   if (S.mode === 'title' && ready) { startGame(); gest.id = null; return; }
   if (S.mode !== 'play') return;
@@ -1208,7 +961,6 @@ document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: fal
 document.addEventListener('gesturestart', (e) => e.preventDefault());
 document.addEventListener('dblclick', (e) => e.preventDefault());
 window.addEventListener('keydown', (e) => {
-  userGestured = true;
   if (['ArrowLeft', 'a', 'A'].includes(e.key)) keyL = true;
   if (['ArrowRight', 'd', 'D'].includes(e.key)) keyR = true;
   if (S.mode === 'play' && ['ArrowUp', 'w', 'W'].includes(e.key)) setBeam(true);
@@ -1245,7 +997,6 @@ function endGame(win) {
   $('endtitle').textContent = win ? 'BEACON IN SIGHT' : 'SHOT DOWN';
   $('endsub').textContent = win ? 'The Chitin Queen is down. The squadron flies on to Beacon.' : ({ gate: 'A negative gate with no drones is fatal. Shoot it blue first!', crash: 'Flying into a canister with no drones hurts. Shoot it open!', beam: 'The beam drained you dry. Swipe down sooner!' }[S.deathBy] || 'The Chitin got you. Regroup, pilot!');
   $('st-kills').textContent = S.kills; $('st-drones').textContent = win ? S.drones : S.maxDrones; $('st-time').textContent = Math.round(S.t) + 's';
-  coinTally(win);
   const hpF = S.hp / S.hpMax, okHp = hpF >= CFG_STARS.hp, okD = S.drones >= CFG_STARS.drones;
   const r = [win, win && (okHp || S.rescued), win && okHp && S.rescued && okD];
   const stars = r.filter(Boolean).length;
@@ -1256,7 +1007,7 @@ function endGame(win) {
     <div>${ck(r[2])}<b>\u2605\u2605\u2605</b> 50% health + pilot + ${CFG_STARS.drones} drones <small>(${S.drones} drones)</small></div>` : '';
   const els = [...document.querySelectorAll('.bstar')];
   els.forEach((el, i) => { el.innerHTML = starSvg(i < stars); el.className = 'bstar s' + (i + 1) + (i < stars ? ' on' : ' off'); });
-  $('hud').classList.add('hidden'); $('bossbar').classList.add('hidden'); setMood(false);
+  $('hud').classList.add('hidden'); $('bossbar').classList.add('hidden');
   if (!win) return;
   // 1) the gold strip STOMPS down: huge -> impact (shake + dust ring)
   const bw = $('badgewrap'); bw.classList.remove('stomp'); void bw.offsetWidth; bw.classList.add('stomp');
@@ -1265,7 +1016,7 @@ function endGame(win) {
   for (let i = 0; i < stars; i++) {
     const t0 = 850 + i * 430;
     endLater(t0, () => els[i].classList.add(stars === 1 ? 'pop' : 'land'));
-    endLater(t0 + (stars === 1 ? 120 : 230), () => { sfx('star'); shakeEnd('small'); addShake('star'); EFX.starPuff(els[i], stars); });
+    endLater(t0 + (stars === 1 ? 120 : 230), () => { sfx('star'); shakeEnd('small'); addShake('pickup', 0.6); EFX.starPuff(els[i], stars); });
   }
   // 3) the celebration scales with the stars: 3 = glow, confetti, fireworks; 2 = a little confetti; 1 = nothing extra
   const tEnd = 850 + stars * 430 + 250;
@@ -1274,25 +1025,6 @@ function endGame(win) {
     for (let k = 0; k < 9; k++) endLater(tEnd + 150 + k * 420, () => { EFX.firework(); sfx('firework'); });
     endLater(tEnd + 1600, () => EFX.confetti(120));
   } else if (stars === 2) endLater(tEnd, () => { e.classList.add('nice'); EFX.confetti(70); });
-}
-// results: coins earned (Chitin kills x value, plus loot), gems and diamonds, with a count-up
-function coinTally(win) {
-  S.coinsShown = S.coins; S.gemsShown = S.gems; S.diamondsShown = S.diamonds; coinFx = []; updateLootHud(true);
-  const kinds = Object.keys(S.killsBy).filter((k) => S.killsBy[k] > 0).sort((a, b) => (CFG.coins[b] || 0) - (CFG.coins[a] || 0));
-  const NAME = { spider: 'Crawlers', redspider: 'Skitterers', wasp: 'Wasps', brute: 'Brutes', beetle: 'Beetles', spitter: 'Spitters', carrier: 'Carriers', queen: 'Queen' };
-  $('cs-rows').innerHTML = `<div class="grid">${kinds.map((k) => `<div><span>${NAME[k] || k} ${S.killsBy[k]}\u00d7${CFG.coins[k] || 1}</span><b>${S.killsBy[k] * (CFG.coins[k] || 1)}</b></div>`).join('')}</div>` +
-    `<div class="sum">Chitin <b>${S.killCoins}</b> + crate loot <b>${S.lootCoins}</b></div>`;
-  $('st-gems').textContent = S.gems; $('st-dia').textContent = S.diamonds;
-  let bank = 0; try { bank = Number(localStorage.getItem('grokdemo.coins') || 0) + S.coins; localStorage.setItem('grokdemo.coins', String(bank)); } catch (e) { }
-  $('cs-bank').textContent = bank ? `Bank ${bank}` : '';
-  AUD.results = { coins: S.coins, killCoins: S.killCoins, lootCoins: S.lootCoins, gems: S.gems, diamonds: S.diamonds, killsBy: { ...S.killsBy }, kills: S.kills, bank };
-  const el = $('st-coins'); el.textContent = '0'; const t0 = performance.now() + (win ? 2300 : 700), dur = 1500, total = S.coins;
-  const step = (t) => {
-    const k = clamp((t - t0) / dur, 0, 1), v = Math.round(total * (1 - Math.pow(1 - k, 3)));
-    if (t >= t0) { if (el.textContent !== String(v)) { el.textContent = v; sfx('count'); } }
-    if (k < 1) requestAnimationFrame(step); else { el.textContent = total; $('coinsum').classList.remove('done'); void el.offsetWidth; $('coinsum').classList.add('done'); sfx('gate'); AUD.results.shown = total; }
-  };
-  $('coinsum').classList.remove('done'); requestAnimationFrame(step);
 }
 // end-screen effects canvas: dust ring, star puffs, confetti, fireworks
 const EFX = (() => {
@@ -1357,7 +1089,7 @@ function botThink() {
     for (const g of gates) {
       if (g.passed || g.z > 0 || g.z < -36 || Math.abs(g.x - c) > GATE_W / 2 - 0.3) continue;
       const tLeft = -g.z / OBJ_V, inRange = Math.min(tLeft, -RANGE_Z / OBJ_V);
-      const hps = (S.primary === 'beam' ? 18 : T.rate * rapidMul() * (T.twin ? 2 : 1)) + Math.min(S.drones, 7) * 3 * rapidMul();
+      const hps = (S.primary === 'beam' ? 18 : T.rate * (T.twin ? 2 : 1)) + Math.min(S.drones, 7) * 3;
       const proj = Math.min(GATE_MAX, g.val + inRange * hps * 0.6);
       const near = g.z > -12 ? 3 : 1;
       if (proj < 0) sc += (S.drones + proj <= 0 && S.drones <= 3 ? -400 : proj * 1.5) * near;
@@ -1407,10 +1139,9 @@ function firePrimary(dt) {
   if (S.primary === 'beam') return;   // the beam is drawn and applied in update()
   const T = T_(); S.fireT -= dt;
   while (S.fireT <= 0) {
-    S.fireT += 1 / (T.rate * rapidMul());
+    S.fireT += 1 / T.rate;
     if (AUD.firstShotT < 0) AUD.firstShotT = +S.t.toFixed(3);
     const guns = T.twin ? [-0.55, 0.55] : [S.gunSide ? 0.55 : -0.55]; S.gunSide ^= 1;
-    AUD.shotsPlane += guns.length;
     for (const gx of guns) {
       fire(S.px + gx, -0.9, 0, -62, false);
       fx.spawn({ x: S.px + gx, y: 0.55, z: -1.1, vx: 0, vy: 0, vz: 0, life: 0.06, s0: 1.0 + S.tier * 0.35, s1: 0.6, r: T.core[0], g: T.core[1], b: T.core[2], a: 1 });
@@ -1423,7 +1154,7 @@ function fireWingmen(dt) {
   for (const w of wingmen) {
     w.fireT -= dt;
     if (w.fireT > 0) continue;
-    w.fireT += 1 / (3 * rapidMul()); AUD.shotsDrone++;
+    w.fireT += 1 / 3;
     // straight ahead, unless a bug is right on top of the main plane: then nearby drones turn to shoot it
     // clinging bugs first (drones shoot them off the plane and each other), then bugs close to the plane
     let tgt = null, best = 1e9;
@@ -1931,8 +1662,7 @@ function update(dt) {
   }
   ringFx.end();
 
-  for (let i = flyIcons.length - 1; i >= 0; i--) { const f = flyIcons[i]; f.t += dt * 1.4; if (f.t >= 1) { flyIcons.splice(i, 1); addShake('pickup'); } }
-  updateCoins(dt);
+  for (let i = flyIcons.length - 1; i >= 0; i--) { const f = flyIcons[i]; f.t += dt * 1.4; if (f.t >= 1) flyIcons.splice(i, 1); }
   for (let i = pops.length - 1; i >= 0; i--) { const p = pops[i]; p.t += dt; if (p.t > 0) p.z += dz * 0.2; if (p.t > 1.1) pops.splice(i, 1); }
   for (let i = tips.length - 1; i >= 0; i--) { const t = tips[i]; t.t += dt; if (t.t > t.dur) tips.splice(i, 1); }
   if (upRing) { upRing.t += dt; if (upRing.t > 0.9) upRing = null; }
@@ -1943,9 +1673,7 @@ function update(dt) {
   if (S.mode === 'dead' || S.mode === 'win') { S.endT -= dt / Math.max(slowmo, 0.3); if (S.endT <= 0 && !S.ended) { S.ended = true; endGame(S.mode === 'win'); } }
   if (play) $('progfill').style.width = clamp(S.t / BOSS_T * 100, 0, 100) + '%';
   if (bannerT > 0) { bannerT -= dt; if (bannerT <= 0) $('banner').className = ''; }
-  trauma = Math.max(0, trauma - dt * CFG.shake.decay);
-  if (S.omegaT > 0) trauma = Math.max(trauma, CFG.shake.omegaRumble);   // Omega: a continuous earthquake under everything
-  flashRed = Math.max(0, flashRed - dt * 2.5); omegaFlash = Math.max(0, omegaFlash - dt * 1.4);
+  shake = Math.max(0, shake - dt * 3.2); flashRed = Math.max(0, flashRed - dt * 2.5); omegaFlash = Math.max(0, omegaFlash - dt * 1.4);
 }
 function lob(x0, z0, x1, T) {
   acids.push({ x0, z0, x1: clamp(x1, -4, 4), z1: 0.2, t: 0, T, peak: 3.2, x: x0, z: z0, y: 0.5 });
@@ -2015,7 +1743,7 @@ function collectOmegaOrb(p) {
 function fireOmega() {
   if (S.mode !== 'play' || S.omega < 1 || S.omegaT > 0 || !planeSprite.visible) return false;
   S.omega = 0; S.omegaT = CFG.omegaTime; S.omegaTick = 0; AUD.omegaFires++;
-  omegaFlash = 1; addShake('omega'); buzz([90, 40, 90, 40, 90, 40, 90, 40, 160]); sfx('omega'); banner(ORB_TIER.toUpperCase() + ' BEAM!', '', false, 1.2);
+  omegaFlash = 1; addShake('omega'); sfx('omega'); banner(ORB_TIER.toUpperCase() + ' BEAM!', '', false, 1.2);
   omegaStrike(1);
   return true;
 }
@@ -2048,7 +1776,6 @@ function updateOmega(dt, now) {
   }
   if (S.omegaT > 0) {
     S.omegaT -= dt; S.omegaTick -= dt;
-    if (S.omegaT <= 0) { addShake('omegaEnd'); buzz(120); }   // the rumble ends with a burst
     if (S.omegaTick <= 0 && S.omegaT > 0.25) { S.omegaTick = 0.12; omegaStrike(0.08); }
     for (let k = 0; k < 6; k++) { const z = rand(TOP_Z, -1.5), hw = hwAt(z) + 1; fx.spawn({ x: S.px + rand(-hw, hw) * 0.8, y: rand(0.3, 1.5), z, vx: 0, vy: rand(1, 3), vz: 0, life: 0.35, s0: 1.1, s1: 0.1, r: 0.9, g: 0.75, b: 1, a: 1 }); }
   }
@@ -2098,7 +1825,7 @@ function hitCarrier(K, dmg) {
   if (!K.alive) return;
   K.hp -= dmg; K.flash = 1; K.barT = 1.4;
   if (K.hp <= 0) {
-    K.alive = false; explode(K.x, 0.9, K.z, 1.3, true, [0.75, 0.1, 0.08]); addShake('medium'); scene.remove(K.sprite); S.kills++; awardKill('carrier', K.x, K.z);
+    K.alive = false; explode(K.x, 0.9, K.z, 1.3, true, [0.75, 0.1, 0.08]); addShake('medium'); scene.remove(K.sprite); S.kills++;
     AUD.cocoon.push({ ev: 'carrierDown', t: +S.t.toFixed(2) });
   }
 }
@@ -2137,21 +1864,10 @@ function updateCocoons(dt, dz) {
 function updatePilots(dt) {
   for (let i = pilots.length - 1; i >= 0; i--) {
     const p = pilots[i]; p.t += dt / 0.95;
-    if (p.t >= 1) { pilots.splice(i, 1); giveReward(p.reward, S.px, -1.5); addShake('pickup'); AUD.cocoon.push({ ev: 'rescued', t: +S.t.toFixed(2), drones: S.drones }); }
+    if (p.t >= 1) { pilots.splice(i, 1); giveReward(p.reward, S.px, -1.5); AUD.cocoon.push({ ev: 'rescued', t: +S.t.toFixed(2), drones: S.drones }); }
   }
 }
-// the Queen's death: a chain of explosions at random, irregular intervals (quick doubles, normal beats and pauses),
-// varied sizes and spots across her body; each one is a sharp shake burst that decays before the next, and the
-// final blast is the biggest. About 2.5-3.5 s in total, different every time.
-function bossChain(bw) {
-  const L = []; let t = 0.04;
-  for (;;) {
-    const r = Math.random(), gap = r < 0.28 ? rand(0.12, 0.17) : r < 0.8 ? rand(0.2, 0.44) : rand(0.5, 0.6);
-    L.push({ t, size: rand(1.1, 2.3), x: rand(-0.46, 0.46) * bw, y: rand(0.5, 3.3), z: rand(-1.2, 1.2) });
-    t += gap; if (t > 2.35) break;
-  }
-  return { list: L, end: clamp(t + 0.22, 2.5, 3.4) };
-}
+const BOMB_CHAIN = [0, 0.2, 0.42, 0.62, 0.86, 1.06, 1.3, 1.52, 1.78, 2.0, 2.26, 2.5];
 
 // ---------------------------------------------------------------- bosses
 // Mission 1 uses the round-2 Chitin Queen. Kingsting (round 3) stays in the table, dormant, for a later stage.
@@ -2210,20 +1926,15 @@ function updateQueen(dt, dz) {
       }
     }
   } else if (b.state === 'dying') {
-    // an irregular rolling chain of bombs (bossChain), each with its own decaying shake burst, then the final blast
+    // a rolling chain of bombs over ~2.6 s, each with its own shake pulse, then the final blast
     b.x += Math.sin(b.t * 40) * 0.05; if (b.t > 0.25) slowmo = 1;
-    if (!b.chain) { b.chain = bossChain(b.bw); AUD.bossChainEnd = +b.chain.end.toFixed(2); }
-    while (b.bombI < b.chain.list.length && b.t >= b.chain.list[b.bombI].t) {
-      const k = b.chain.list[b.bombI++];
-      explode(b.x + k.x, k.y, b.z + k.z, k.size, true, [0.75, 0.1, 0.08]);
-      burst(b.x + k.x, b.z + k.z, 'green', Math.round(3 + k.size * 3)); addShake('bomb', k.size / 1.75); buzz(Math.round(20 + k.size * 16));
-      AUD.bombs = (AUD.bombs || 0) + 1; AUD.bossChain.push({ t: +b.t.toFixed(2), size: +k.size.toFixed(2), shake: +(trauma * trauma).toFixed(3) });
+    while (b.bombI < BOMB_CHAIN.length && b.t >= BOMB_CHAIN[b.bombI]) {
+      const k = b.bombI++;
+      explode(b.x + rand(-2.4, 2.4), rand(0.6, 3.2), b.z + rand(-1.1, 1.1), rand(1.4, 2.1), true, [0.75, 0.1, 0.08]);
+      burst(b.x + rand(-2, 2), b.z, 'green', 6); addShake('bomb', 0.75 + k * 0.05); AUD.bombs = (AUD.bombs || 0) + 1;
     }
-    if (b.t > b.chain.end) {
-      explode(b.x, 1.5, b.z, 4.4, true, [0.75, 0.1, 0.08]); addShake('bossFinal'); buzz([140, 60, 260]); flashRed = 0; omegaFlash = 0.5;
-      AUD.bossChain.push({ t: +b.t.toFixed(2), size: 4.4, shake: +(trauma * trauma).toFixed(3), final: true });
-      S.coins += CFG.coins.queen; S.killCoins += CFG.coins.queen; S.killsBy.queen = 1; AUD.coins.queen = CFG.coins.queen; S.kills++;
-      spawnCoins('coin', 40, CFG.coins.queen, b.x, 1.5, b.z, 1.6);
+    if (b.t > 2.7) {
+      explode(b.x, 1.5, b.z, 4, true, [0.75, 0.1, 0.08]); addShake('bossFinal'); flashRed = 0; omegaFlash = 0.5;
       scene.remove(b.sprite); boss = null; slowmo = 1; $('bossbar').classList.add('hidden');
       for (const s of bugs) { explode(s.x, 0.4, s.z, 0.8, false); scene.remove(s.sprite); }
       bugs = []; drops = []; acids = [];
@@ -2473,7 +2184,7 @@ function drawOverlay() {
       const [nx, ny] = toScreen(p.x, 0.15 + h * 0.36, p.z);
       txt(String(Math.max(0, Math.ceil(p.hp))), nx + u * 0.02, ny, Math.max(12, u * 0.8), '#fff', '#1a2230', 0.16);
       const [bx, by] = toScreen(p.x, 0.15 + h * 0.98, p.z);
-      const key = p.reward.power ? 'power' : p.reward.rapid ? 'rapid' : p.reward.weapon === 'beam' ? 'beam' : p.reward.rockets ? 'rockets' : p.reward.bazooka ? 'bazooka' : 'drones';
+      const key = p.reward.power ? 'power' : p.reward.weapon === 'beam' ? 'beam' : p.reward.rockets ? 'rockets' : p.reward.bazooka ? 'bazooka' : 'drones';
       const img = BADGES[key]; const bw = u * 2.7, bh = bw * img.height / img.width;
       ctx.drawImage(img, bx - bw / 2, by - bh * 0.86 + bob * u * 0.06, bw, bh);
       if (p.reward.drones) txt('+' + p.reward.drones, bx + bw * 0.28, by - bh * 0.3 + bob * u * 0.06, Math.max(12, u * 0.62), '#ffe066', '#4a2e00', 0.2);
@@ -2498,14 +2209,6 @@ function drawOverlay() {
       const [x, y, u] = onSprite(s, 0.5, 0.72);
       txt(String(Math.max(0, Math.ceil(p.hp))), x, y, Math.max(12, u * 0.72), '#fff', '#1a1208', 0.18);
       const [bx, by] = onSprite(s, 0.5, 0.12); const r = p.reward, bw = u * 2.1, bh = u * 0.95, bb = bob * u * 0.05;
-      if (r.loot) {   // round 6: a big loot icon shows what's inside (coin pile, gem, diamond)
-        const img = LOOT_IMG[r.loot], iw = u * (r.loot === 'coins' ? 2.3 : 1.7), ih = iw * img.height / img.width, yy = by - ih * 0.42 + bb * 1.5;
-        ctx.save(); ctx.shadowColor = r.loot === 'coins' ? 'rgba(255,210,60,1)' : r.loot === 'gems' ? 'rgba(90,255,160,1)' : 'rgba(170,240,255,1)'; ctx.shadowBlur = 16;
-        ctx.drawImage(img, bx - iw / 2, yy - ih / 2, iw, ih); ctx.restore();
-        if (r.loot === 'diamond') { ctx.save(); ctx.globalCompositeOperation = 'lighter'; for (let k = 0; k < 5; k++) { const a = now * 2.2 + k * TAU / 5 + p.ph, pr = iw * (0.55 + 0.1 * Math.sin(now * 5 + k)); sparkle(bx + Math.cos(a) * pr, yy + Math.sin(a) * pr * 0.7, u * (0.18 + 0.12 * Math.abs(Math.sin(now * 6 + k * 1.7))), '#f2fdff'); } ctx.restore(); }
-        else if (r.loot === 'gems') { ctx.save(); ctx.globalCompositeOperation = 'lighter'; sparkle(bx + iw * 0.3, yy - ih * 0.3, u * 0.2 * (0.6 + 0.4 * Math.sin(now * 7)), '#eafff2'); ctx.restore(); }
-        continue;
-      }
       ctx.fillStyle = r.hp ? 'rgba(20,90,30,.88)' : 'rgba(12,40,90,.88)'; ctx.strokeStyle = r.hp ? '#9dff8a' : '#9fe0ff'; ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.roundRect(bx - bw / 2, by - bh / 2 + bb, bw, bh, bh / 2); ctx.fill(); ctx.stroke();
       if (r.hp) txt('\u2665 +' + r.hp, bx, by + bb + 1, bh * 0.62, '#b8ffa8', '#0b2a10', 0.14);
@@ -2602,12 +2305,6 @@ function drawOverlay() {
     const sc = p.size * (k < 0.15 ? 0.6 + k / 0.15 * 0.6 : 1.2 - Math.min(0.2, (k - 0.15)));
     txt(p.text, x, y - k * 50, 30 * sc, p.color, p.stroke, 0.2); ctx.globalAlpha = 1;
   }
-  // loot flying to the HUD counters (screen space)
-  for (const c of coinFx) {
-    if (c.kind === 'coin') { const img = LOOT_IMG.coin, s = 22, sx = Math.abs(Math.cos(c.ph)) * 0.8 + 0.2; ctx.save(); ctx.translate(c.x, c.y); ctx.scale(sx, 1); ctx.drawImage(img, -s / 2, -s / 2, s, s); ctx.restore(); }
-    else { const img = c.kind === 'gem' ? LOOT_IMG.gems : LOOT_IMG.diamond, s = c.kind === 'gem' ? 34 : 44; ctx.save(); ctx.shadowColor = c.kind === 'gem' ? '#5aff9a' : '#bff4ff'; ctx.shadowBlur = 14; ctx.drawImage(img, c.x - s / 2, c.y - s * img.height / img.width / 2, s, s * img.height / img.width); ctx.restore();
-      ctx.save(); ctx.globalCompositeOperation = 'lighter'; for (let k = 0; k < 3; k++) { const a = now * 8 + k * 2.1; sparkle(c.x + Math.cos(a) * s * 0.6, c.y + Math.sin(a) * s * 0.5, 5, '#ffffff'); } ctx.restore(); }
-  }
   // tutorial speech bubbles
   for (const t of tips) {
     let x = W / 2, y = H * 0.5;
@@ -2684,7 +2381,6 @@ function resize() {
   renderer.setPixelRatio(DPR); renderer.setSize(W, H, false);
   uic.width = Math.round(W * DPR); uic.height = Math.round(H * DPR);
   const aspect = W / H; camera.aspect = aspect; wcam.aspect = aspect;
-  camera.clearViewOffset(); wcam.clearViewOffset();
   const t = Math.max(Math.tan(THREE.MathUtils.degToRad(FOVV)), Math.tan(THREE.MathUtils.degToRad(19.5)) / aspect);
   wcam.fov = THREE.MathUtils.radToDeg(2 * Math.atan(t));
   wcam.position.copy(CAM_POS); wcam.lookAt(CAM_LOOK); wcam.updateProjectionMatrix(); wcam.updateMatrixWorld();
@@ -2721,42 +2417,14 @@ function loop(t) {
   frames++; fpsT += dt; if (fpsT > 1) { window.__fps = frames / fpsT; frames = 0; fpsT = 0; }
   let total = dt * slowmo * TS;
   while (total > 1e-5) { const st = Math.min(total, 1 / 30); update(st); total -= st; }
-  applyShake(dt * TS);
+  const shx = (Math.random() - 0.5) * shake, shy = (Math.random() - 0.5) * shake;
+  wcam.position.set(CAM_POS.x + S.px * 0.25, CAM_POS.y, CAM_POS.z); wcam.lookAt(CAM_LOOK.x + S.px * 0.2, CAM_LOOK.y, CAM_LOOK.z);
+  camera.position.set(GCAM_POS.x + S.px * 0.22 + shx * 0.8, GCAM_POS.y + shy * 0.6, GCAM_POS.z); camera.lookAt(GCAM_LOOK.x + S.px * 0.18 + shx * 0.4, GCAM_LOOK.y, GCAM_LOOK.z);
   renderer.clear();
   renderer.render(world, wcam);
-  renderer.render(cloudScene, ccam);
   renderer.clearDepth();
   renderer.render(scene, camera);
   drawOverlay();
-}
-
-// camera shake with parallax: ground (wcam) most, clouds (ccam) less, gameplay (camera) slightly. The HUD is HTML
-// and stays put, except during the Omega Beam, when it rumbles along with the world.
-const HUD_SHAKE = ['hud', 'bossbar', 'banner', 'threat', 'ui'];
-let hudShaken = false;
-function applyShake(dt) {
-  const C = CFG.shake, sh = trauma * trauma, omega = S.omegaT > 0 && S.mode === 'play';
-  shakePh += dt * (omega ? C.rumbleFreq : C.freq);
-  const nx = vnoise(shakePh, 1), ny = vnoise(shakePh, 2), nr = vnoise(shakePh, 3);
-  wcam.position.set(CAM_POS.x + S.px * 0.25, CAM_POS.y, CAM_POS.z); wcam.lookAt(CAM_LOOK.x + S.px * 0.2, CAM_LOOK.y, CAM_LOOK.z);
-  camera.position.set(GCAM_POS.x + S.px * 0.22, GCAM_POS.y, GCAM_POS.z); camera.lookAt(GCAM_LOOK.x + S.px * 0.18, GCAM_LOOK.y, GCAM_LOOK.z);
-  ccam.copy(wcam);
-  const layer = (cam, f) => {
-    if (sh < 1e-4) { if (cam.view && cam.view.enabled) cam.clearViewOffset(); return 0; }
-    const ox = nx * C.ground * f * sh, oy = ny * C.ground * f * sh * 0.8;
-    cam.setViewOffset(W, H, ox, oy, W, H); cam.rotateZ(nr * C.roll * f * sh);
-    return Math.hypot(ox, oy);
-  };
-  const g = layer(wcam, 1), c = layer(ccam, C.clouds), p = layer(camera, C.game);
-  camera.updateMatrixWorld();
-  S.shakePx = [+g.toFixed(1), +c.toFixed(1), +p.toFixed(1)];
-  if (omega) {
-    if (AUD.omegaRumble.length < 600) AUD.omegaRumble.push([+S.t.toFixed(2), +sh.toFixed(3), +g.toFixed(1)]);
-    const k = C.hud * sh;
-    for (const id of HUD_SHAKE) { const el = $(id); el.style.translate = `${(nx * k).toFixed(1)}px ${(ny * k * 0.8).toFixed(1)}px`; el.style.rotate = `${(nr * sh * 0.8).toFixed(2)}deg`; }
-    hudShaken = true;
-  } else if (hudShaken) { hudShaken = false; for (const id of HUD_SHAKE) { const el = $(id); el.style.translate = ''; el.style.rotate = ''; } }
-  if (boss && boss.state === 'dying' && AUD.bossTrace.length < 500) AUD.bossTrace.push([+boss.t.toFixed(3), +sh.toFixed(3)]);
 }
 
 async function boot() {
@@ -2770,7 +2438,7 @@ async function boot() {
   try { await Promise.race([Promise.all([document.fonts.load(`900 40px NunitoG`), document.fonts.load('40px Lilita'), document.fonts.load('40px LuckiestG')]), new Promise((r) => setTimeout(r, 2000))]); } catch (e) { }
   PLANE_AR = TEX.plane.image.height / TEX.plane.image.width;
   TEX.omegaorb = makeOmegaOrbTex();
-  setupIcons(); setupWorld(); resize(); computeSlots(); resetGame(false);
+  setupIcons(); setupWorld(); resize(); resetGame(false);
   ready = true; $('loading').textContent = '';
   if (Q.has('autostart') || Q.has('autoplay')) startGame();
 }
@@ -2782,7 +2450,6 @@ window.__AUDIT = AUD;
 window.__G = { S, AUD, get bugs() { return bugs; }, get pods() { return pods; }, get gates() { return gates; }, get boss() { return boss; }, get wingmen() { return wingmen; },
   get shots() { return shots; }, get RANGE_Z() { return RANGE_Z; }, get TOP_Z() { return TOP_Z; }, god(v) { godMode = v; }, give: (r) => giveReward(r), tier: (n) => setTier(n, S.px, -6),
   hurt: (d) => hurtPlayer(d), setDrones: (n) => setDrones(n), toScreen, start: () => startGame(), camera, resize, unitPx, bosses: BOSSES,
-  get cocoons() { return cocoons; }, get pilots() { return pilots; }, GLOG, CFG, get SLOTS() { return SLOTS; }, MAXD, get trauma() { return trauma; }, dropLoot: (w, x = 0, z = -8) => dropLoot(w, x, z), setRapid: (n) => setRapid(n, S.px, -6),
-  showThreat: () => showThreat(), get coinFx() { return coinFx; }, get mood() { return moodOn; }, addShake: (k, m) => addShake(k, m), get BOT_Z() { return BOT_Z; }, planeScreen,
+  get cocoons() { return cocoons; }, get pilots() { return pilots; }, GLOG, CFG, SLOTS, MAXD, get BOT_Z() { return BOT_Z; }, planeScreen,
   fireOmega: () => fireOmega(), setBeam: (v) => setBeam(v), omega: (v) => { S.omega = v; }, spawnCocoon: (o) => spawnCocoon(Object.assign({ x: -2.2, side: -1, hp: 260, drones: 8 }, o || {})),
   spawnBug: (x, z, type = 'spider', hp = 20) => newBug(x, z, type, hp), spawnGate: (x, val, z) => { spawnEvent({ k: 'gate', x, val, d: S.dist + (z ? -z : 30) }); return gates[gates.length - 1]; } };

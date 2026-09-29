@@ -19,3 +19,7 @@ screenshots/
 # vendored fonts (round 5) are committed
 !/fonts/
 __pycache__/
+# frozen round-5 build served at /v5/ (committed on purpose)
+!/v5/assets/
+!/v5/vendor/
+!/v5/fonts/
