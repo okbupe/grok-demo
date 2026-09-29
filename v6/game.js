@@ -1,7 +1,7 @@
 import * as THREE from './vendor/three.module.min.js';
 
-// Grok Demo, round 7: Mission 1 "Get to Beacon" (round-6 base + a timed, visual Mission Complete sequence:
-// coins count up, drones cash in, star bonus, stones; rubies as a new rare loot type).
+// Grok Demo, round 6: Mission 1 "Get to Beacon" (round-5 base + snug squad, trauma shake with parallax, rapid fire,
+// crate loot, coins, Xora naming, threat ranks).
 const Q = new URLSearchParams(location.search);
 const VER = new URL(import.meta.url).searchParams.get('v') || '';   // cache-bust assets per build
 const BOT = Q.has('bot') || Q.has('autoplay');   // debug autoplay, off by default
@@ -72,14 +72,7 @@ const CFG = {
   },
   // --- coins per Xora killed (by type) and loot inside crates
   coins: { spider: 1, redspider: 1, wasp: 2, brute: 5, beetle: 12, spitter: 12, carrier: 6, queen: 300 },
-  loot: { coins: [18, 26], gems: [1, 2], gemCoins: 10, diamondCoins: 25,
-    ruby: { crate: 0.04, elite: 0.15, carrier: 0.3 } },   // round 7: RUBIES, a rare stone (rarer than gems): chance per crate, elite kill (beetle, spitter), carrier kill
-  // --- Mission Complete payout (round 7): stage coins (kills + crate loot), then every drone left cashes in
-  // droneCoinBase x the plane's droneCoinMult, then the whole total is multiplied by the star bonus.
-  plane: 'lawnmower',
-  planes: { lawnmower: { name: 'Lawnmower', droneCoinMult: 0.4 } },   // per-plane drone value multiplier (Lawnmower = base plane)
-  droneCoinBase: 10,                       // coins per drone before the plane multiplier (45 drones x 10 x 0.4 = 180)
-  starBonus: { 1: 1.0, 2: 1.25, 3: 1.5 },   // coin multiplier by stars earned
+  loot: { coins: [18, 26], gems: [1, 2], gemCoins: 10, diamondCoins: 25 },
 };
 // Orb tiers (future design ladder). Only OMEGA is active for now: every player has the Omega Beam.
 const ORB_TIERS = {
@@ -450,22 +443,6 @@ function diamondIcon() {
   g.fillStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.moveTo(58, 48); g.lineTo(84, 48); g.lineTo(64, 76); g.lineTo(34, 76); g.closePath(); g.fill();
   return c;
 }
-// round 7: the ruby, a red cushion-cut stone (clearly not the green pentagon gem)
-function rubyIcon() {
-  const c = document.createElement('canvas'); c.width = 200; c.height = 200; const g = c.getContext('2d');
-  g.lineJoin = 'round'; g.strokeStyle = '#4a0010'; g.lineWidth = 8;
-  const O = [], I = [];
-  for (let i = 0; i < 8; i++) { const a = -Math.PI / 2 + Math.PI / 8 + i * TAU / 8; O.push([100 + Math.cos(a) * 84, 104 + Math.sin(a) * 80]); I.push([100 + Math.cos(a) * 44, 100 + Math.sin(a) * 40]); }
-  const body = g.createRadialGradient(80, 70, 6, 100, 104, 92); body.addColorStop(0, '#ffb3c0'); body.addColorStop(0.45, '#ff2d55'); body.addColorStop(1, '#8a0020');
-  g.fillStyle = body; g.beginPath(); O.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.fill(); g.stroke();
-  g.lineWidth = 3; g.strokeStyle = 'rgba(90,0,20,.55)'; g.beginPath();
-  for (let i = 0; i < 8; i++) { g.moveTo(O[i][0], O[i][1]); g.lineTo(I[i][0], I[i][1]); }
-  I.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.stroke();
-  g.fillStyle = 'rgba(255,120,150,.55)'; g.beginPath(); I.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.fill();
-  g.fillStyle = 'rgba(255,255,255,.85)'; g.beginPath(); g.moveTo(60, 50); g.lineTo(92, 36); g.lineTo(84, 62); g.lineTo(58, 76); g.closePath(); g.fill();
-  g.beginPath(); g.arc(128, 72, 6, 0, TAU); g.fill();
-  return c;
-}
 const LOOT_IMG = {};
 const ICON_IMG = {};
 const BADGES = {};
@@ -484,10 +461,9 @@ function makeBadge(name, tint) {
 function setupIcons() {
   ICON_IMG.power = TEX.icon_minigun.image; ICON_IMG.rockets = TEX.icon_rockets.image; ICON_IMG.bazooka = TEX.icon_bazooka.image;
   ICON_IMG.beam = laserIcon(); ICON_IMG.drones = TEX.plane.image; ICON_IMG.rapid = rapidIcon();
-  LOOT_IMG.coin = coinIcon(64); LOOT_IMG.coins = pileIcon(); LOOT_IMG.gems = gemIcon(); LOOT_IMG.diamond = diamondIcon(); LOOT_IMG.ruby = rubyIcon();
+  LOOT_IMG.coin = coinIcon(64); LOOT_IMG.coins = pileIcon(); LOOT_IMG.gems = gemIcon(); LOOT_IMG.diamond = diamondIcon();
   const root = document.documentElement.style;   // the HUD counters and the results card use the same art
-  root.setProperty('--coin', `url(${coinIcon(96).toDataURL()})`); root.setProperty('--gem', `url(${LOOT_IMG.gems.toDataURL()})`); root.setProperty('--dia', `url(${LOOT_IMG.diamond.toDataURL()})`); root.setProperty('--ruby', `url(${LOOT_IMG.ruby.toDataURL()})`);
-  root.setProperty('--drone', `url(${ICON_IMG.drones.src})`);
+  root.setProperty('--coin', `url(${coinIcon(96).toDataURL()})`); root.setProperty('--gem', `url(${LOOT_IMG.gems.toDataURL()})`); root.setProperty('--dia', `url(${LOOT_IMG.diamond.toDataURL()})`);
   const blue = ['rgba(120,220,255,1)', 'rgba(150,215,255,.8)', 'rgba(70,150,235,.8)', '#d8f6ff'];
   const gold = ['rgba(255,210,90,1)', 'rgba(255,226,140,.82)', 'rgba(235,150,30,.82)', '#fff3c0'];
   makeBadge('power', gold); makeBadge('rockets', blue); makeBadge('bazooka', gold); makeBadge('beam', blue); makeBadge('drones', blue);
@@ -587,31 +563,7 @@ const SFX = {
   count() { if (gap('count', 0.045)) return; tone(rand(1500, 1700), 0.04, 0.03, 'square'); },
   firework() { noise(0.5, 3000, 200, 0.25); for (let i = 0; i < 4; i++) tone(rand(1500, 3000), 0.12, 0.02, 'sine', 0.05 + i * 0.05); },
 };
-// round 7: results-sequence sounds (ticks with a rising pitch, whooshes, thuds, a choir shimmer and a fanfare)
-function pad(freq, dur, vol, type = 'sine', when = 0, att = 0.12, vib = 0) {
-  if (!ac) return; const t = ac.currentTime + when; const o = ac.createOscillator(); o.type = type; o.frequency.setValueAtTime(freq, t);
-  if (vib) { const l = ac.createOscillator(), lg = ac.createGain(); l.frequency.value = 5.2 + Math.random(); lg.gain.value = freq * vib; l.connect(lg); lg.connect(o.frequency); l.start(t); l.stop(t + dur + 0.05); }
-  const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + att); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.05);
-}
-Object.assign(SFX, {
-  ruby() { [988, 1318, 1976, 2637].forEach((f, i) => tone(f, 0.2, 0.05, 'triangle', i * 0.045)); tone(660, 0.3, 0.05, 'sine', 0, 1.5); },
-  rtick(k = 0) { if (gap('rtick', 0.028)) return; const f = 520 * Math.pow(2, clamp(k, 0, 1) * 1.6); tone(f, 0.05, 0.05, 'square'); tone(f * 2, 0.07, 0.025, 'triangle', 0.012); },
-  rsurge(k = 0) { const f = 700 * Math.pow(2, clamp(k, 0, 1) * 1.2); [1, 1.25, 1.5].forEach((m, i) => tone(f * m, 0.12, 0.05, 'triangle', i * 0.03)); },
-  whoosh() { noise(0.34, 300, 3200, 0.2, 'bandpass', 1.2); },
-  whooshDown() { noise(0.3, 2600, 250, 0.2, 'bandpass', 1.2); },
-  zip() { if (gap('zip', 0.03)) return; noise(0.07, 2400, 5200, 0.06, 'bandpass', 4); },
-  dcoin(k = 0) { if (gap('dcoin', 0.028)) return; const f = 900 * Math.pow(2, clamp(k, 0, 1) * 1.3); tone(f, 0.06, 0.045, 'square'); tone(f * 1.5, 0.08, 0.02, 'triangle', 0.02); },
-  pthud() { noise(0.22, 800, 60, 0.4); tone(110, 0.2, 0.22, 'sine', 0, 0.5); },
-  riser() { tone(220, 0.6, 0.06, 'sawtooth', 0, 4); noise(0.6, 400, 6000, 0.08, 'bandpass', 2); },
-  punch() { noise(0.5, 1200, 50, 0.7); tone(65, 0.45, 0.35, 'sine', 0, 0.4); [523, 659, 784, 1046].forEach((f) => tone(f, 0.35, 0.05, 'sawtooth')); noise(0.8, 9000, 4000, 0.12, 'highpass', 1); },
-  choir() { [523.3, 659.3, 784, 1046.5, 1318.5].forEach((f, i) => { pad(f, 1.6, 0.035, 'sine', i * 0.04, 0.18, 0.006); pad(f * 1.004, 1.5, 0.02, 'triangle', i * 0.04 + 0.02, 0.22, 0.008); });
-    for (let i = 0; i < 7; i++) tone(rand(2600, 4600), 0.25, 0.018, 'sine', 0.1 + i * 0.09); noise(1.2, 9000, 6000, 0.04, 'highpass', 1); },
-  land() { noise(0.6, 900, 40, 0.8); tone(55, 0.6, 0.4, 'sine', 0, 0.4); tone(110, 0.3, 0.12, 'triangle', 0, 0.5); },
-  fanfare() { const N = [[392, 0, 0.12], [392, 0.12, 0.12], [392, 0.24, 0.12], [523, 0.36, 0.5], [659, 0.36, 0.5], [784, 0.36, 0.7], [1046, 0.36, 0.9]];
-    for (const [f, w, d] of N) { tone(f, d, 0.05, 'sawtooth', w); tone(f, d, 0.06, 'triangle', w); } noise(0.9, 8000, 3000, 0.06, 'highpass', 1, 0.36); },
-});
-function sfx(n, arg) { try { SFX[n](arg); } catch (e) { } }
+function sfx(n) { try { SFX[n](); } catch (e) { } }
 
 // ---------------------------------------------------------------- state
 const S = {};
@@ -622,7 +574,7 @@ let boss = null, trauma = 0, shakePh = 0, flashRed = 0, slowmo = 1, godMode = fa
 const AUD = { bugs: 0, seen: 0, maxY: 0, worst: '', viol: [], brood: 0, broodMaxY: 0, gates: 0, gatePairs: 0, minGap: 99, tiers: [], firstShotT: -1,
   bottomExit: 0, bottomExitWho: [], bugMaxScreenY: 0, removedOffscreen: 0, latchPlaneMax: 0, latchTotal: 0, flung: 0, carriers: [], cocoon: [],
   omegaFires: 0, omegaHits: 0, orbs: 0, beamOn: 0, beamOff: 0, beamDrainHp: 0, beamSmoke: 0, gateMaxScale: 0, gateScaleAtMax: [], shakes: {}, maxDrones: 0, stars: -1,
-  shakeLog: [], omegaRumble: [], bossChain: [], bossTrace: [], hudMove: { still: 0, omega: 0 }, shotsPlane: 0, shotsDrone: 0, rapid: [], loot: [], rubies: [], coins: {}, threat: null, vibrate: 0 };
+  shakeLog: [], omegaRumble: [], bossChain: [], bossTrace: [], hudMove: { still: 0, omega: 0 }, shotsPlane: 0, shotsDrone: 0, rapid: [], loot: [], coins: {}, threat: null, vibrate: 0 };
 // drone formation around the main plane: the same staggered-block style as rounds 4-5 (rows of CFG.droneDX,
 // alternate rows offset by half), handed out closest-first. Round 6: instead of a big rectangular keep-out box,
 // every lattice spot is tested against the plane's real silhouette (its alpha mask, as seen through the gameplay
@@ -740,6 +692,7 @@ function buildLevel() {
   // first choice: a red drone gate on one side, spiders on the other
   gate(6.0, 2.0, -24); rows(6.0, -2.3, 4, 2, 6);
   rows(7.8, 0, 8, 4, 8);
+  at(7.4, 'banner', { text: 'XORA SWARM INCOMING!', sub: 'Keep the squad firing', warn: true });
   // canister #1: bullets turn ORANGE
   at(11.6, 'tip', { text: 'Shoot the canister for more power!', target: 'can', dur: 3 });
   can(9.4, -2.1, 40, { power: 1 }); rows(9.8, 2.4, 4, 2, 8);
@@ -758,6 +711,7 @@ function buildLevel() {
   rows(25.8, 0, 16, 8, 17);
   rapid(26.6, -2.3, 120);   // RAPID FIRE #1
   // mid-point: a small elite moment (the round-3 bugs appear only here and later, briefly)
+  at(27.4, 'banner', { text: 'ELITES!', sub: 'Armoured beetle and wasps', warn: true });
   bug(28.0, 0, 'beetle', 260); wasps(28.6, 2); bug(29.4, -2.6, 'redspider', 26); bug(29.4, 2.6, 'redspider', 26);
   // the big glass orb: bullets turn BLUE
   orb(31.0, -2.0, 220, { power: 1 }); gate(31.0, 2.0, -90);
@@ -770,6 +724,7 @@ function buildLevel() {
   rows(41.0, 0, 22, 8, 28); brutes(41.6, 2, 180);
   ambush(42.4, 5, 30); gate(43.0, -1.6, -320); can(43.0, 2.3, 260, { drones: 8 });
   rows(45.0, 0, 24, 8, 30); loot(44.6, -2.5, 130, 'coins');
+  at(46.4, 'banner', { text: 'SPITTER!', sub: 'Dodge the green acid', warn: true });
   bug(46.8, 0, 'spitter', 140); wasps(47.4, 2);
   rapid(48.0, 2.3, 220);    // RAPID FIRE #2 (max)
   gate(49.0, 0, -600);
@@ -810,7 +765,7 @@ function resetGame(play) {
     tier: 0, primary: 'gun', rocketLv: 0, bazookaLv: 0, fireT: 0, missileT: 0.8, cannonT: 1, laserT: 0, gunSide: 0, smokeT: 0, endT: 0, maxDrones: 0, ended: false, deathBy: '',
     beamOwned: false, beamOn: false, beamT: 0, beamHintShown: false, beamStopHint: false, beamSmokeT: 0,
     omega: 0, omegaT: 0, omegaHint: false, combo: 0, comboT: 0, cleanT: 0, rescued: false, shakeT: 0, shakeHint: false, drainHurt: 0, latched: 0,
-    rapidLv: 0, coins: 0, coinsShown: 0, killCoins: 0, lootCoins: 0, gems: 0, gemsShown: 0, rubies: 0, rubiesShown: 0, diamonds: 0, diamondsShown: 0, killsBy: {} });
+    rapidLv: 0, coins: 0, coinsShown: 0, killCoins: 0, lootCoins: 0, gems: 0, gemsShown: 0, diamonds: 0, diamondsShown: 0, killsBy: {} });
   coinFx = []; setMood(false); $('threat').className = ''; updateLootHud(true);
   slowmo = 1; trauma = 0; flashRed = 0; weaponFlash = 0; omegaFlash = 0;
   level = buildLevel(); levelIdx = 0;
@@ -1102,7 +1057,7 @@ function setRapid(n, x, z) {
 // which pop out and fly to the HUD counters. The results card tallies it all.
 let coinFx = [];
 function lootTarget(kind) {
-  const el = $(kind === 'coin' ? 'coinico' : kind === 'gem' ? 'gemico' : kind === 'ruby' ? 'rbico' : 'diaico'); const r = el.getBoundingClientRect(), w = wrap.getBoundingClientRect();
+  const el = $(kind === 'coin' ? 'coinico' : kind === 'gem' ? 'gemico' : 'diaico'); const r = el.getBoundingClientRect(), w = wrap.getBoundingClientRect();
   return [r.left - w.left + r.width / 2, r.top - w.top + r.height / 2];
 }
 function spawnCoins(kind, n, total, x, y, z, power = 1) {
@@ -1112,15 +1067,7 @@ function spawnCoins(kind, n, total, x, y, z, power = 1) {
     coinFx.push({ kind, x: sx, y: sy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - rand(60, 180) * power, t: 0, hold: rand(0.3, 0.55) + (kind === 'coin' ? 0 : 0.15), fly: rand(0.4, 0.6), val: i === 0 ? total - per * (n - 1) : per, ph: rand(0, TAU) });
   }
 }
-const RUBY_FORCE = Q.get('ruby') === '1';   // debug: every ruby roll succeeds
-function rollRuby(src, x, y, z) {
-  const ch = CFG.loot.ruby[src] || 0; if (!(RUBY_FORCE || Math.random() < ch)) return false;
-  S.rubies += 1; spawnCoins('ruby', 1, 1, x, y, z, 1.0); pop('RUBY!', x, 2.9, z, '#ff8a9a', 1.1, '#4a0010', 0.05, true); sfx('ruby'); $('rbBox').classList.remove('hidden');
-  for (let k = 0; k < 30; k++) { const a = rand(0, TAU), sp = rand(2, 6); fx.spawn({ x, y, z, vx: Math.cos(a) * sp, vy: rand(1, 4), vz: Math.sin(a) * sp, life: rand(0.4, 0.8), s0: 0.55, s1: 0.1, r: 1, g: 0.3, b: 0.4, a: 1, world: true }); }
-  AUD.rubies.push({ t: +S.t.toFixed(2), src, rubies: S.rubies }); return true;
-}
 function awardKill(type, x, z) {
-  if (type === 'carrier' || type === 'beetle' || type === 'spitter') rollRuby(type === 'carrier' ? 'carrier' : 'elite', x, 0.8, z);
   const v = CFG.coins[type] || 1; S.coins += v; S.killCoins += v; S.killsBy[type] = (S.killsBy[type] || 0) + 1;
   AUD.coins[type] = (AUD.coins[type] || 0) + v;
   if (coinFx.length < 140) spawnCoins('coin', v >= 5 ? 3 : 1, v, x, 0.6, z, v >= 5 ? 0.9 : 0.5); else { S.coinsShown += v; updateLootHud(); }
@@ -1132,18 +1079,17 @@ function dropLoot(what, x, z) {
   else { S.diamonds += 1; c = L.diamondCoins; spawnCoins('diamond', 1, 1, x, 0.9, z, 1.0); spawnCoins('coin', 10, c, x, 0.9, z, 1.2); pop('DIAMOND!', x, 2.4, z, '#bff4ff', 1.15, '#0a3a5a', 0, true); sfx('diamond'); $('diaBox').classList.remove('hidden');
     for (let k = 0; k < 40; k++) { const a = rand(0, TAU), sp = rand(2, 7); fx.spawn({ x, y: 0.9, z, vx: Math.cos(a) * sp, vy: rand(1, 4), vz: Math.sin(a) * sp, life: rand(0.4, 0.8), s0: 0.6, s1: 0.1, r: 0.8, g: 0.95, b: 1, a: 1, world: true }); } }
   S.coins += c; S.lootCoins += c; AUD.loot.push({ t: +S.t.toFixed(2), what, coins: c, gems: S.gems, diamonds: S.diamonds });
-  rollRuby('crate', x, 1.0, z);
 }
 let lootKey = '';
 function updateLootHud(force) {
-  const k = S.coinsShown + '|' + S.gemsShown + '|' + S.rubiesShown + '|' + S.diamondsShown; if (k === lootKey && !force) return; lootKey = k;
-  $('coinN').textContent = S.coinsShown || 0; $('gemN').textContent = S.gemsShown || 0; $('rbN').textContent = S.rubiesShown || 0; $('diaN').textContent = S.diamondsShown || 0;
-  if (force) { $('gemBox').classList.toggle('hidden', !(S.gems > 0)); $('rbBox').classList.toggle('hidden', !(S.rubies > 0)); $('diaBox').classList.toggle('hidden', !(S.diamonds > 0)); }
+  const k = S.coinsShown + '|' + S.gemsShown + '|' + S.diamondsShown; if (k === lootKey && !force) return; lootKey = k;
+  $('coinN').textContent = S.coinsShown || 0; $('gemN').textContent = S.gemsShown || 0; $('diaN').textContent = S.diamondsShown || 0;
+  if (force) { $('gemBox').classList.toggle('hidden', !(S.gems > 0)); $('diaBox').classList.toggle('hidden', !(S.diamonds > 0)); }
 }
 function bumpHud(id) { const el = $(id); el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
 function updateCoins(dt) {
   if (!coinFx.length) return;
-  const tg = { coin: lootTarget('coin'), gem: lootTarget('gem'), ruby: lootTarget('ruby'), diamond: lootTarget('diamond') };
+  const tg = { coin: lootTarget('coin'), gem: lootTarget('gem'), diamond: lootTarget('diamond') };
   for (let i = coinFx.length - 1; i >= 0; i--) {
     const c = coinFx[i]; c.t += dt; c.ph += dt * 12;
     if (c.t < c.hold) { c.vy += 700 * dt; c.vx *= Math.pow(0.9, dt * 60); c.x += c.vx * dt; c.y += c.vy * dt; c.x0 = c.x; c.y0 = c.y; continue; }
@@ -1153,7 +1099,6 @@ function updateCoins(dt) {
       coinFx.splice(i, 1);
       if (c.kind === 'coin') { S.coinsShown += c.val; sfx('coin'); bumpHud('coinBox'); }
       else if (c.kind === 'gem') { S.gemsShown += c.val; sfx('gem'); bumpHud('gemBox'); addShake('pickup', 0.7); }
-      else if (c.kind === 'ruby') { S.rubiesShown += c.val; sfx('ruby'); bumpHud('rbBox'); addShake('pickup', 0.8); }
       else { S.diamondsShown += c.val; sfx('diamond'); bumpHud('diaBox'); addShake('pickup'); }
       updateLootHud();
     }
@@ -1295,34 +1240,25 @@ const starSvg = (on) => `<svg viewBox="0 0 100 100"><path d="${STAR_D}" fill="${
 let endTimers = [];
 function endLater(ms, f) { endTimers.push(setTimeout(f, ms)); }
 function shakeEnd(kind) { const e = $('end'); e.classList.remove('shk-big', 'shk-small'); void e.offsetWidth; e.classList.add(kind === 'big' ? 'shk-big' : 'shk-small'); }
-let celTimers = [], celebrated = false;
-// the celebration scales with the stars: 3 = glow, confetti, fireworks; 2 = a little confetti; 1 = nothing extra
-function celebrate(stars) {
-  if (celebrated) return; celebrated = true; const e = $('end');
-  const later = (ms, f) => celTimers.push(setTimeout(f, ms));
-  if (stars === 3) {
-    e.classList.add('mega'); EFX.confetti(200); sfx('win'); EFX.perfect();
-    for (let k = 0; k < 9; k++) later(150 + k * 420, () => { EFX.firework(); sfx('firework'); });
-    later(1600, () => EFX.confetti(120));
-  } else if (stars === 2) { e.classList.add('nice'); EFX.confetti(70); }
-}
 function endGame(win) {
-  endTimers.forEach(clearTimeout); endTimers = []; celTimers.forEach(clearTimeout); celTimers = []; celebrated = false; EFX.reset(); RES.stop();
-  const e = $('end'); e.classList.remove('hidden', 'mega', 'nice', 'shk-big', 'shk-small', 'landed', 'win', 'skipped'); e.classList.toggle('lose', !win); e.classList.toggle('win', !!win); e.classList.remove('play'); void e.offsetWidth; e.classList.add('play');
-  $('badgewrap').classList.remove('shown');
+  endTimers.forEach(clearTimeout); endTimers = []; EFX.reset();
+  const e = $('end'); e.classList.remove('hidden', 'mega', 'nice', 'shk-big', 'shk-small', 'landed'); e.classList.toggle('lose', !win); e.classList.remove('play'); void e.offsetWidth; e.classList.add('play');
+  $('endtitle').textContent = win ? 'BEACON IN SIGHT' : 'SHOT DOWN';
+  $('endsub').textContent = win ? 'The Xora Queen is down. The squadron flies on to Beacon.' : ({ gate: 'A negative gate with no drones is fatal. Shoot it blue first!', crash: 'Flying into a canister with no drones hurts. Shoot it open!', beam: 'The beam drained you dry. Swipe down sooner!' }[S.deathBy] || 'The Xora got you. Regroup, pilot!');
+  $('st-kills').textContent = S.kills; $('st-drones').textContent = win ? S.drones : S.maxDrones; $('st-time').textContent = Math.round(S.t) + 's';
+  coinTally(win);
   const hpF = S.hp / S.hpMax, okHp = hpF >= CFG_STARS.hp, okD = S.drones >= CFG_STARS.drones;
   const r = [win, win && (okHp || S.rescued), win && okHp && S.rescued && okD];
   const stars = r.filter(Boolean).length;
   AUD.stars = stars; AUD.starInfo = { hp: Math.round(hpF * 100), rescued: S.rescued, drones: S.drones };
+  const ck = (v) => `<span class="${v ? 'ok' : 'no'}">${v ? '\u2714' : '\u2716'}</span>`;
+  $('rules').innerHTML = win ? `<div>${ck(r[0])}<b>\u2605</b> Complete the mission</div>
+    <div>${ck(r[1])}<b>\u2605\u2605</b> 50% health <i>or</i> rescue the pilot <small>(${Math.round(hpF * 100)}% \u00b7 pilot ${S.rescued ? '\u2714' : '\u2716'})</small></div>
+    <div>${ck(r[2])}<b>\u2605\u2605\u2605</b> 50% health + pilot + ${CFG_STARS.drones} drones <small>(${S.drones} drones)</small></div>` : '';
   const els = [...document.querySelectorAll('.bstar')];
   els.forEach((el, i) => { el.innerHTML = starSvg(i < stars); el.className = 'bstar s' + (i + 1) + (i < stars ? ' on' : ' off'); });
   $('hud').classList.add('hidden'); $('bossbar').classList.add('hidden'); setMood(false);
-  if (!win) {   // shot down: the round-6 card, unchanged
-    $('endtitle').textContent = 'SHOT DOWN';
-    $('endsub').textContent = ({ gate: 'A negative gate with no drones is fatal. Shoot it blue first!', crash: 'Flying into a canister with no drones hurts. Shoot it open!', beam: 'The beam drained you dry. Swipe down sooner!' }[S.deathBy] || 'The Xora got you. Regroup, pilot!');
-    $('st-kills').textContent = S.kills; $('st-drones').textContent = S.maxDrones; $('st-time').textContent = Math.round(S.t) + 's';
-    $('rules').innerHTML = ''; coinTally(false); return;
-  }
+  if (!win) return;
   // 1) the gold strip STOMPS down: huge -> impact (shake + dust ring)
   const bw = $('badgewrap'); bw.classList.remove('stomp'); void bw.offsetWidth; bw.classList.add('stomp');
   endLater(330, () => { shakeEnd('big'); sfx('thud'); addShake('stomp'); EFX.dust(); e.classList.add('landed'); });
@@ -1332,132 +1268,17 @@ function endGame(win) {
     endLater(t0, () => els[i].classList.add(stars === 1 ? 'pop' : 'land'));
     endLater(t0 + (stars === 1 ? 120 : 230), () => { sfx('star'); shakeEnd('small'); addShake('star'); EFX.starPuff(els[i], stars); });
   }
-  // 3) the celebration by star count (as in round 5/6)
-  endLater(850 + stars * 430 + 250, () => celebrate(stars));
-  // 4) round 7: the payout sequence runs alongside (RES)
-  RES.start(stars);
+  // 3) the celebration scales with the stars: 3 = glow, confetti, fireworks; 2 = a little confetti; 1 = nothing extra
+  const tEnd = 850 + stars * 430 + 250;
+  if (stars === 3) {
+    endLater(tEnd, () => { e.classList.add('mega'); EFX.confetti(200); sfx('win'); EFX.perfect(); });
+    for (let k = 0; k < 9; k++) endLater(tEnd + 150 + k * 420, () => { EFX.firework(); sfx('firework'); });
+    endLater(tEnd + 1600, () => EFX.confetti(120));
+  } else if (stars === 2) endLater(tEnd, () => { e.classList.add('nice'); EFX.confetti(70); });
 }
-// tap anywhere on the results (not the button) to fast-forward the sequence to its end
-function skipEnd() {
-  const e = $('end'); if (!e.classList.contains('win') || e.classList.contains('hidden') || !RES.running()) return;
-  endTimers.forEach(clearTimeout); endTimers = [];
-  if (!e.classList.contains('landed')) { e.classList.add('landed'); $('badgewrap').classList.add('shown'); }
-  document.querySelectorAll('.bstar.on').forEach((el) => { if (!el.classList.contains('land') && !el.classList.contains('pop')) el.classList.add('shown'); });
-  e.classList.add('skipped'); celebrate(AUD.stars); RES.skip();
-}
-$('end').addEventListener('pointerdown', (ev) => { if (ev.target.closest && ev.target.closest('button')) return; initAudio(); skipEnd(); });
-$('again2').addEventListener('pointerdown', (e) => { e.stopPropagation(); initAudio(); startGame(); });
-
-// ---------------------------------------------------------------- Mission Complete payout sequence (round 7)
-// One timeline (ms from the end of the mission), driven by a single rAF loop so tap-to-skip can jump straight to the
-// end with exactly the same totals:
-//   stage coins count up in surges on the star thuds -> drones cash in (count down, coins up by
-//   drones x CFG.droneCoinBase x plane droneCoinMult) -> star bonus (x CFG.starBonus[stars]) -> stones -> final land.
-const RES = (() => {
-  let P = null, raf = 0, t0 = 0, ei = 0, skipped = false, lastTick = -1, lastSeg = -1, lastLaunch = 0, lastArr = 0, shown = { c: -1, d: -1 }, bump = 0, dBump = 0, done = false;
-  const q = (id) => $(id);
-  const TICK = 55;   // ms between count-up ticks
-  function plan(stars) {
-    const stage = S.coins, D = S.drones, plane = CFG.planes[CFG.plane] || { droneCoinMult: 1 }, mult = plane.droneCoinMult;
-    const per = CFG.droneCoinBase * mult, droneBonus = Math.round(D * per), sm = CFG.starBonus[stars] || 1, pre = stage + droneBonus, final = Math.round(pre * sm);
-    const thuds = []; for (let i = 0; i < stars; i++) thuds.push(850 + i * 430 + (stars === 1 ? 120 : 230));
-    const T = { name: 560, coinIn: 780 };
-    T.segs = thuds.map((a, i) => [a, i + 1 < stars ? thuds[i + 1] : a + 620]); T.c0 = T.segs[0][0]; T.c1 = T.segs[T.segs.length - 1][1];
-    T.dIn = T.c1 + 260; T.mult = T.dIn + 330; T.d0 = T.dIn + 760; T.dTick = D ? clamp(1500 / D, 32, 110) : 0; T.fly = 380;
-    T.d1 = D ? T.d0 + (D - 1) * T.dTick + T.fly : T.d0; T.s0 = T.d1 + 380; T.s1 = T.s0 + 720;
-    const stones = [['gem', S.gems], ['ruby', S.rubies], ['diamond', S.diamonds]].filter(([, n]) => n > 0);
-    let tt = T.s1 + 760; const st = stones.map(([k, n]) => { const o = { k, n, at: tt, rare: k !== 'gem' }; tt += o.rare ? 780 : 500; return o; });
-    T.stones = st.map((o) => o.at); T.f = st.length ? tt + 80 : T.s1 + 720; T.btn = T.f + 520; T.end = T.btn + 450;
-    return { stage, killCoins: S.killCoins, lootCoins: S.lootCoins, D, base: CFG.droneCoinBase, mult, per, droneBonus, stars, sm, pre, final, T, stones: st, plane: CFG.plane };
-  }
-  function coinAt(t) {
-    const T = P.T;
-    if (t < T.c0) return 0;
-    if (t < T.c1) { let F = 0; const n = T.segs.length; for (const [a, b] of T.segs) { if (t >= b) F += 1 / n; else if (t >= a) { const k = (t - a) / (b - a); F += (1 - (1 - k) * (1 - k)) / n; } } return Math.min(P.stage, Math.round(P.stage * F)); }
-    if (t < T.s1) return P.stage + Math.round(arrivedAt(t) * P.per);
-    if (t < T.s1 + 300) { const k = (t - T.s1) / 300; return Math.round(P.pre + (P.final - P.pre) * (1 - Math.pow(1 - k, 3))); }
-    return P.final;
-  }
-  const launchedAt = (t) => (!P.D || t < P.T.d0 ? 0 : clamp(Math.floor((t - P.T.d0) / P.T.dTick) + 1, 0, P.D));
-  const arrivedAt = (t) => (!P.D || t < P.T.d0 + P.T.fly ? 0 : clamp(Math.floor((t - P.T.d0 - P.T.fly) / P.T.dTick) + 1, 0, P.D));
-  const cls = (id, c, on = true) => q(id).classList.toggle(c, on);
-  function starText(n) { return '\u2605'.repeat(n); }
-  function events() {
-    const T = P.T, E = [];
-    E.push({ at: T.name, fn: (f) => { cls('r-name', 'rin'); if (!f) sfx('whooshDown'); } });
-    E.push({ at: T.coinIn, fn: (f) => { cls('r-coins', 'rin'); if (!f) { sfx('whoosh'); sfx('pthud'); } } });
-    E.push({ at: T.dIn, fn: (f) => { cls('r-drones', 'rin'); if (!f) { sfx('whoosh'); setTimeout(() => sfx('pthud'), 120); } } });
-    E.push({ at: T.mult, fn: (f) => { cls('r-mult', 'rin'); if (!f) { sfx('pthud'); sfx('rsurge', 0.2); } } });
-    E.push({ at: T.s0, fn: (f) => {
-      const b = q('r-bonus'); b.innerHTML = `<span class="bs">${starText(P.stars)}</span><b>\u00d7${P.sm.toFixed(P.sm % 1 ? 2 : 1).replace(/0$/, '').replace(/\.$/, '.0')}</b>`; b.classList.add('rin');
-      if (f) return; sfx('riser');
-      document.querySelectorAll('.bstar.on').forEach((el, i) => { setTimeout(() => { el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse'); sfx('rsurge', 0.5 + i * 0.2); EFX.starPuff(el, 3); }, i * 140); });
-      const src = document.querySelector('.bstar.s2.on') || document.querySelector('.bstar.on'); if (src) EFX.streak(src, b);
-    } });
-    E.push({ at: T.s1, fn: (f) => { if (f) return; cls('r-coins', 'punch', false); void q('r-coins').offsetWidth; cls('r-coins', 'punch'); cls('r-bonus', 'used');
-      sfx('punch'); shakeEnd('big'); addShake('stomp'); vib(40); const fl = q('r-flash'); fl.classList.remove('go'); void fl.offsetWidth; fl.classList.add('go'); EFX.coinBurst(q('r-coinico'), P.stars >= 2 ? 36 : 22); bump = 0.55; } });
-    P.stones.forEach((o, i) => E.push({ at: o.at, fn: (f) => { const el = q('r-stones').children[i]; el.classList.add('rin');
-      if (f) return; sfx('pthud'); sfx(o.k === 'gem' ? 'gem' : o.k === 'ruby' ? 'ruby' : 'diamond'); shakeEnd('small');
-      if (o.rare) { sfx('choir'); EFX.holy(el, o.k === 'ruby' ? '#ff9aae' : '#dff8ff'); } else EFX.sparkAt(el, '#8dffb8', 18); } }));
-    E.push({ at: T.f, fn: () => { q('r-coinN').textContent = P.final; shown.c = P.final; cls('r-coins', 'land', false); void q('r-coins').offsetWidth; cls('r-coins', 'land'); cls('r-coins', 'final');
-      sfx('land'); setTimeout(() => sfx('fanfare'), 140); shakeEnd('big'); addShake('stomp'); vib(60); EFX.coinBurst(q('r-coinico'), 60, true); cls('r-bank', 'rin'); bump = 0;
-      AUD.results.shown = Number(q('r-coinN').textContent); AUD.results.skipped = skipped; AUD.results.landedAt = Math.round(performance.now() - t0); } });
-    E.push({ at: T.btn, fn: (f) => { cls('again2', 'rin'); if (!f) sfx('whoosh'); } });
-    E.push({ at: T.end, fn: () => { done = true; } });
-    return E.sort((a, b) => a.at - b.at);
-  }
-  const vib = (ms) => buzz(ms);
-  function step(t) {
-    const T = P.T;
-    // count-up ticks (rising pitch), surges on the star thuds, coins flying in
-    if (!skipped && t >= T.c0 && t < T.c1 + TICK) {
-      const seg = T.segs.findIndex(([a, b]) => t >= a && t < b);
-      if (seg >= 0 && seg !== lastSeg) { lastSeg = seg; sfx('rsurge', seg / 3); bump = Math.max(bump, 0.32); EFX.coinsIn(q('r-coinico'), 8); }
-      const k = Math.floor((t - T.c0) / TICK); if (k !== lastTick && t < T.c1) { lastTick = k; sfx('rtick', (t - T.c0) / (T.c1 - T.c0)); bump = Math.max(bump, 0.14); EFX.coinsIn(q('r-coinico'), 1); }
-    }
-    // drones: one launches every dTick and flies into the coin total
-    const L = launchedAt(t), A = arrivedAt(t);
-    if (!skipped) {
-      while (lastLaunch < L) { lastLaunch++; sfx('zip'); dBump = 0.2; EFX.droneIn(q('r-droneico'), q('r-coinico'), T.fly / 1000); }
-      if (A > lastArr) { lastArr = A; sfx('dcoin', A / Math.max(1, P.D)); bump = Math.max(bump, 0.16); }
-    } else { lastLaunch = L; lastArr = A; }
-    const c = coinAt(t); if (c !== shown.c) { shown.c = c; q('r-coinN').textContent = c; }
-    const d = P.D - L; if (d !== shown.d) { shown.d = d; q('r-droneN').textContent = d; if (d === 0 && P.D > 0) cls('r-drones', 'empty'); }
-    while (ei < P.ev.length && P.ev[ei].at <= t) P.ev[ei++].fn(skipped);
-    bump *= 0.86; dBump *= 0.84;
-    q('r-coinN').style.transform = `scale(${(1 + bump).toFixed(3)})`; q('r-coinico').style.transform = `scale(${(1 + bump * 0.7).toFixed(3)}) rotate(${(bump * 40).toFixed(1)}deg)`;
-    q('r-droneN').style.transform = `scale(${(1 + dBump).toFixed(3)})`;
-  }
-  function frame(now) { if (!P) return; const t = now - t0; step(t); if (done && t > P.T.end + 600) { raf = 0; return; } raf = requestAnimationFrame(frame); }
-  return {
-    start(stars) {
-      P = plan(stars); P.ev = events(); ei = 0; skipped = false; done = false; lastTick = -1; lastSeg = -1; lastLaunch = 0; lastArr = 0; shown = { c: -1, d: -1 }; bump = 0; dBump = 0;
-      S.coinsShown = S.coins; S.gemsShown = S.gems; S.rubiesShown = S.rubies; S.diamondsShown = S.diamonds; coinFx = []; updateLootHud(true);
-      for (const id of ['r-name', 'r-coins', 'r-drones', 'r-mult', 'r-bonus', 'again2', 'r-bank']) q(id).className = '';
-      q('again2').className = 'againbtn'; q('r-flash').className = '';
-      q('r-mult').textContent = '\u00d7' + P.mult; q('r-bonus').innerHTML = '';
-      q('r-stones').innerHTML = P.stones.map((o) => `<div class="stone ${o.k}${o.rare ? ' rare' : ''}"><div class="rays"></div><i class="ico ${o.k === 'diamond' ? 'dia' : o.k}"></i><b>\u00d7${o.n}</b></div>`).join('');
-      q('r-stones').classList.toggle('none', !P.stones.length);
-      let bank = 0; try { bank = Number(localStorage.getItem('grokdemo.coins') || 0) + P.final; localStorage.setItem('grokdemo.coins', String(bank)); } catch (e) { }
-      q('r-bank').textContent = bank ? `BANK ${bank}` : '';
-      AUD.results = { stage: P.stage, killCoins: P.killCoins, lootCoins: P.lootCoins, drones: P.D, droneCoinBase: P.base, droneCoinMult: P.mult, plane: P.plane, droneBonus: P.droneBonus,
-        stars: P.stars, starMult: P.sm, preStar: P.pre, final: P.final, expected: Math.round((P.stage + Math.round(P.D * P.base * P.mult)) * P.sm), gems: S.gems, rubies: S.rubies, diamonds: S.diamonds,
-        kills: S.kills, killsBy: { ...S.killsBy }, bank, timeline: { ...P.T, segs: P.T.segs }, shown: null, skipped: false, coins: S.coins, t0: 0 };
-      q('r-coinN').textContent = '0'; q('r-droneN').textContent = P.D;
-      t0 = performance.now(); AUD.results.t0 = t0; if (raf) cancelAnimationFrame(raf); raf = requestAnimationFrame(frame);
-    },
-    skip() {
-      if (!P || done) return; skipped = true; AUD.results.skipAt = Math.round(performance.now() - t0);
-      t0 = performance.now() - P.T.end - 1; step(P.T.end + 1); bump = 0; if (!raf) raf = requestAnimationFrame(frame);
-    },
-    stop() { if (raf) cancelAnimationFrame(raf); raf = 0; P = null; },
-    running() { return !!P && !done; },
-    get P() { return P; },
-  };
-})();
 // results: coins earned (Xora kills x value, plus loot), gems and diamonds, with a count-up
 function coinTally(win) {
-  S.coinsShown = S.coins; S.gemsShown = S.gems; S.rubiesShown = S.rubies; S.diamondsShown = S.diamonds; coinFx = []; updateLootHud(true);
+  S.coinsShown = S.coins; S.gemsShown = S.gems; S.diamondsShown = S.diamonds; coinFx = []; updateLootHud(true);
   const kinds = Object.keys(S.killsBy).filter((k) => S.killsBy[k] > 0).sort((a, b) => (CFG.coins[b] || 0) - (CFG.coins[a] || 0));
   const NAME = { spider: 'Crawlers', redspider: 'Skitterers', wasp: 'Wasps', brute: 'Brutes', beetle: 'Beetles', spitter: 'Spitters', carrier: 'Carriers', queen: 'Queen' };
   $('cs-rows').innerHTML = `<div class="grid">${kinds.map((k) => `<div><span>${NAME[k] || k} ${S.killsBy[k]}\u00d7${CFG.coins[k] || 1}</span><b>${S.killsBy[k] * (CFG.coins[k] || 1)}</b></div>`).join('')}</div>` +
@@ -1487,22 +1308,10 @@ const EFX = (() => {
   function tick(t) {
     const dt = Math.min(0.05, (t - lastT) / 1000); lastT = t;
     const w = cv.clientWidth, h = cv.clientHeight; g.setTransform(DPR, 0, 0, DPR, 0, 0); g.clearRect(0, 0, w, h);
-    for (let i = rings.length - 1; i >= 0; i--) { const r = rings[i]; r.t += dt; const k = r.t / r.life; if (k >= 1) { rings.splice(i, 1); continue; } if (k < 0) continue;
+    for (let i = rings.length - 1; i >= 0; i--) { const r = rings[i]; r.t += dt; const k = r.t / r.life; if (k >= 1) { rings.splice(i, 1); continue; }
       g.globalAlpha = (1 - k) * r.a; g.strokeStyle = r.col; g.lineWidth = r.lw * (1 - k) + 1; g.beginPath(); g.ellipse(r.x, r.y, r.r0 + (r.r1 - r.r0) * (1 - (1 - k) * (1 - k)), (r.r0 + (r.r1 - r.r0) * (1 - (1 - k) * (1 - k))) * r.sq, 0, 0, TAU); g.stroke(); }
     for (let i = parts.length - 1; i >= 0; i--) {
-      const p = parts[i]; p.t += dt;
-      if (p.kind === 'fly') {   // round 7: an icon flying along a curve into a target (coins, drones, star bonus)
-        if (p.t < 0) continue; const k = Math.min(1, p.t / p.life);
-        if (k >= 1) { parts.splice(i, 1); if (p.cb) p.cb(); if (p.pop) for (let j = 0; j < 5; j++) { const a = rand(0, TAU), sp = rand(60, 140); parts.push({ kind: 'spark', x: p.x1, y: p.y1, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, grav: 0, drag: 0.9, s: 2.4, col: p.pop, t: 0, life: 0.3, rot: 0, vr: 0 }); } continue; }
-        const e = p.ease === 'in' ? k * k : k * k * (3 - 2 * k), u = 1 - e, x = u * u * p.x0 + 2 * u * e * p.cx + e * e * p.x1, y = u * u * p.y0 + 2 * u * e * p.cy + e * e * p.y1;
-        const sc = p.s * (p.s1 ? lerp(1, p.s1, k) : 1) * (k < 0.15 ? 0.4 + k / 0.15 * 0.6 : 1);
-        g.globalAlpha = 1; g.save(); g.translate(x, y); g.rotate(p.rot + p.vr * k); if (p.spin) g.scale(Math.abs(Math.cos(p.t * 14 + p.ph)) * 0.8 + 0.2, 1);
-        if (p.glow) { g.shadowColor = p.glow; g.shadowBlur = 12; }
-        if (p.img) g.drawImage(p.img, -sc / 2, -sc * p.img.height / p.img.width / 2, sc, sc * p.img.height / p.img.width);
-        else { g.fillStyle = p.col; g.beginPath(); g.arc(0, 0, sc / 2, 0, TAU); g.fill(); }
-        g.restore(); continue;
-      }
-      if (p.t >= p.life || p.y > h + 40) { parts.splice(i, 1); continue; }
+      const p = parts[i]; p.t += dt; if (p.t >= p.life || p.y > h + 40) { parts.splice(i, 1); continue; }
       if (p.kind === 'rocket') { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 260 * dt; if (p.vy > -60) { burstAt(p.x, p.y, p.col); parts.splice(i, 1); continue; } g.globalAlpha = 1; g.fillStyle = '#fff6c0'; g.beginPath(); g.arc(p.x, p.y, 3, 0, TAU); g.fill(); continue; }
       const dr = Math.pow(p.drag, dt * 60); p.vx *= dr; p.vy = p.vy * dr + p.grav * dt; p.x += p.vx * dt + (p.sway ? Math.sin(p.t * 5 + p.ph) * 30 * dt : 0); p.y += p.vy * dt; p.rot += p.vr * dt;
       const k = p.t / p.life; g.globalAlpha = p.kind === 'conf' ? Math.min(1, (1 - k) * 4) : 1 - k * k;
@@ -1536,23 +1345,6 @@ const EFX = (() => {
       for (let i = 0; i < n; i++) parts.push({ kind: 'conf', x: rand(0, w), y: rand(-160, -10), vx: rand(-40, 40), vy: rand(80, 200), grav: 60, drag: 0.99, s: rand(4, 7), col: cols[i % cols.length], t: 0, life: rand(3, 5), rot: rand(0, TAU), vr: rand(-6, 6), ph: rand(0, TAU), sway: true }); },
     firework() { ensure(); const w = cv.clientWidth, h = cv.clientHeight; parts.push({ kind: 'rocket', x: rand(w * 0.15, w * 0.85), y: h + 10, vx: rand(-30, 30), vy: -rand(560, 700), col: cols[(Math.random() * cols.length) | 0], t: 0, life: 3 }); },
     perfect() { ensure(); const [x, y, w, h] = rel($('badgewrap')); texts.push({ s: 'PERFECT!', x, y: y - h * 0.62, t: 0 }); },
-    // round 7: results-sequence effects
-    coinsIn(target, n) { ensure(); const [tx, ty] = rel(target), w = cv.clientWidth, h = cv.clientHeight;
-      for (let i = 0; i < n; i++) { const side = Math.random(), x0 = side < 0.35 ? rand(-20, 30) : side < 0.7 ? rand(w - 30, w + 20) : rand(0, w), y0 = side < 0.7 ? rand(h * 0.25, h * 0.95) : h + 20;
-        parts.push({ kind: 'fly', img: LOOT_IMG.coin, x0, y0, cx: (x0 + tx) / 2 + rand(-120, 120), cy: Math.min(y0, ty) - rand(40, 160), x1: tx, y1: ty, s: rand(20, 30), s1: 0.6, t: -rand(0, 0.12), life: rand(0.38, 0.55), rot: 0, vr: 0, spin: true, ph: rand(0, TAU), ease: 'in', pop: '#ffe27a' }); } },
-    droneIn(src, target, dur) { ensure(); const [x0, y0] = rel(src), [tx, ty] = rel(target);
-      parts.push({ kind: 'fly', img: ICON_IMG.drones, x0: x0 + rand(-8, 8), y0, cx: x0 + rand(-110, 110), cy: (y0 + ty) / 2 - rand(20, 70), x1: tx, y1: ty, s: 34, s1: 0.45, t: 0, life: dur, rot: 0, vr: rand(-1.5, 1.5), ease: 'in', glow: '#9fe8ff', pop: '#bff0ff' }); },
-    streak(src, target) { ensure(); const [x0, y0] = rel(src), [tx, ty] = rel(target);
-      for (let i = 0; i < 14; i++) parts.push({ kind: 'fly', x0: x0 + rand(-20, 20), y0: y0 + rand(-10, 10), cx: (x0 + tx) / 2 + rand(-80, 80), cy: (y0 + ty) / 2 + rand(-40, 40), x1: tx + rand(-14, 14), y1: ty + rand(-8, 8), s: rand(6, 11), s1: 0.3, col: i % 3 ? '#ffe27a' : '#ffffff', t: -i * 0.025, life: 0.45, rot: 0, vr: 0, glow: '#ffd84a', pop: '#fff3c0' }); },
-    coinBurst(el, n, big) { ensure(); const [x, y] = rel(el);
-      for (let i = 0; i < n; i++) { const a = rand(0, TAU), sp = rand(120, big ? 420 : 300); parts.push({ kind: 'spark', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - (big ? 80 : 40), grav: 380, drag: 0.95, s: rand(2.6, 4.6), col: Math.random() < 0.3 ? '#fff' : '#ffd84a', t: 0, life: rand(0.6, 1.1), rot: 0, vr: 0 }); }
-      rings.push({ x, y, t: 0, life: 0.5, r0: 20, r1: big ? 170 : 120, sq: 1, col: '#ffe27a', lw: big ? 12 : 8, a: 1 });
-      if (big) rings.push({ x, y, t: -0.08, life: 0.7, r0: 10, r1: 240, sq: 0.9, col: '#fff6c8', lw: 6, a: 0.8 }); },
-    sparkAt(el, col, n) { ensure(); const [x, y] = rel(el); for (let i = 0; i < n; i++) { const a = i / n * TAU, sp = rand(80, 170); parts.push({ kind: 'spark', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, grav: 120, drag: 0.92, s: 3, col: i % 2 ? '#fff' : col, t: 0, life: 0.55, rot: 0, vr: 0 }); }
-      rings.push({ x, y, t: 0, life: 0.4, r0: 12, r1: 60, sq: 1, col, lw: 5, a: 0.9 }); },
-    holy(el, col) { ensure(); const [x, y] = rel(el);
-      for (let i = 0; i < 36; i++) { const a = rand(0, TAU), sp = rand(40, 200); parts.push({ kind: 'spark', x: x + rand(-8, 8), y: y + rand(-8, 8), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 60, grav: -30, drag: 0.94, s: rand(2, 4), col: Math.random() < 0.5 ? '#ffffff' : col, t: 0, life: rand(0.9, 1.6), rot: 0, vr: 0 }); }
-      rings.push({ x, y, t: 0, life: 0.6, r0: 16, r1: 110, sq: 1, col: '#fffbe0', lw: 9, a: 1 }); rings.push({ x, y, t: -0.15, life: 0.8, r0: 10, r1: 150, sq: 1, col, lw: 5, a: 0.8 }); },
   };
 })();
 
@@ -2398,8 +2190,7 @@ function updateQueen(dt, dz) {
     }
   } else if (b.state === 'fight') {
     const enr = b.hp < b.max * 0.5;
-    if (enr && !b.enraged) { b.enraged = true; sfx('roar');   // round 7: no warning banner (warnings are only for bosses approaching)
-      flashRed = 0.6; b.atkT = Math.min(b.atkT, 1.2); }
+    if (enr && !b.enraged) { b.enraged = true; banner('ENRAGED!', 'Watch the red strip', true, 1.4); sfx('roar'); flashRed = 0.6; b.atkT = Math.min(b.atkT, 1.2); }
     b.x = Math.sin(b.t * (enr ? 0.7 : 0.5)) * 1.7;
     b.spawnT -= dt;
     if (b.spawnT <= 0 && play) {
@@ -2572,22 +2363,6 @@ function comic(s, x, y, size, color = '#ffd84a', stroke = '#3a1d00') {
   else { g.addColorStop(0, '#ffffff'); g.addColorStop(0.5, color); g.addColorStop(1, color); }
   ctx.fillStyle = g; ctx.fillText(s, x, y);
 }
-// round 7: a cartoon speech bubble 'HELP!' over the trapped pilot's cocoon (bobbing, pops in, gone once freed)
-function helpBubble(c) {
-  c.helpT = (c.helpT || 0) + 1 / 60; const now = performance.now() / 1000;
-  const [x0, y0, u] = onSprite(c.sprite, 0.62, -0.02), k = Math.min(1, c.helpT / 0.3), sc = easeBack(k) * (1 + 0.05 * Math.sin(now * 9));
-  const bw = Math.max(62, u * 2.5), bh = bw * 0.52, x = x0 + bw * 0.22, y = y0 - bh * 0.75 + Math.sin(now * 4.2) * u * 0.14;
-  ctx.save(); ctx.translate(x, y); ctx.rotate(-0.07 + Math.sin(now * 3.1) * 0.04); ctx.scale(sc, sc);
-  ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(3, bw * 0.055); ctx.strokeStyle = '#2a1200'; ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.ellipse(0, 0, bw / 2, bh / 2, 0, 0, TAU);
-  ctx.moveTo(-bw * 0.2, bh * 0.36); ctx.lineTo(-bw * 0.34, bh * 0.86); ctx.lineTo(-bw * 0.02, bh * 0.44);   // tail towards the pilot
-  ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowOffsetY = 3; ctx.shadowBlur = 0; ctx.fill(); ctx.shadowColor = 'transparent'; ctx.stroke();
-  ctx.beginPath(); ctx.ellipse(0, 0, bw / 2 - ctx.lineWidth * 0.6, bh / 2 - ctx.lineWidth * 0.6, 0, 0, TAU); ctx.fill();   // hide the tail seam
-  ctx.fillStyle = 'rgba(255,255,255,1)'; ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.ellipse(-bw * 0.2, -bh * 0.22, bw * 0.12, bh * 0.08, -0.4, 0, TAU); ctx.fillStyle = '#dff2ff'; ctx.fill(); ctx.globalAlpha = 1;
-  comic('HELP!', 0, bh * 0.04, bh * 0.56, '#ff3a3a', '#3a0000');
-  ctx.restore();
-  AUD.help = (AUD.help || 0) + 1;
-}
 function txt(s, x, y, size, fill = '#fff', stroke = '#0b2440', lw = 0.2, italic = false) {
   ctx.font = `${italic ? 'italic ' : ''}900 ${size}px ${FONT}`; ctx.lineWidth = Math.max(2, size * lw); ctx.strokeStyle = stroke; ctx.lineJoin = 'round';
   ctx.strokeText(s, x, y); ctx.fillStyle = fill; ctx.fillText(s, x, y);
@@ -2740,7 +2515,6 @@ function drawOverlay() {
   }
   // cocoon rescue: HP just below the amber glass, the reward beside it, the carrier's bar when hit
   for (const c of cocoons) {
-    if (c.stage < 2 && c.z > TOP_Z - 2) helpBubble(c);   // round 7: the trapped pilot calls for help
     if (c.stage < 2 && c.state !== 'leave') {
       const [x, y, u] = onSprite(c.sprite, 0.5, 0.79);
       txt(String(Math.max(0, Math.ceil(c.hp))), x, y, Math.max(15, u * 0.8), '#fff', '#2a1200', 0.22);
@@ -2832,7 +2606,7 @@ function drawOverlay() {
   // loot flying to the HUD counters (screen space)
   for (const c of coinFx) {
     if (c.kind === 'coin') { const img = LOOT_IMG.coin, s = 22, sx = Math.abs(Math.cos(c.ph)) * 0.8 + 0.2; ctx.save(); ctx.translate(c.x, c.y); ctx.scale(sx, 1); ctx.drawImage(img, -s / 2, -s / 2, s, s); ctx.restore(); }
-    else { const img = c.kind === 'gem' ? LOOT_IMG.gems : c.kind === 'ruby' ? LOOT_IMG.ruby : LOOT_IMG.diamond, s = c.kind === 'gem' ? 34 : c.kind === 'ruby' ? 38 : 44; ctx.save(); ctx.shadowColor = c.kind === 'gem' ? '#5aff9a' : c.kind === 'ruby' ? '#ff5a78' : '#bff4ff'; ctx.shadowBlur = 14; ctx.drawImage(img, c.x - s / 2, c.y - s * img.height / img.width / 2, s, s * img.height / img.width); ctx.restore();
+    else { const img = c.kind === 'gem' ? LOOT_IMG.gems : LOOT_IMG.diamond, s = c.kind === 'gem' ? 34 : 44; ctx.save(); ctx.shadowColor = c.kind === 'gem' ? '#5aff9a' : '#bff4ff'; ctx.shadowBlur = 14; ctx.drawImage(img, c.x - s / 2, c.y - s * img.height / img.width / 2, s, s * img.height / img.width); ctx.restore();
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; for (let k = 0; k < 3; k++) { const a = now * 8 + k * 2.1; sparkle(c.x + Math.cos(a) * s * 0.6, c.y + Math.sin(a) * s * 0.5, 5, '#ffffff'); } ctx.restore(); }
   }
   // tutorial speech bubbles

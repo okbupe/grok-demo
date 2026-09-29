@@ -23,3 +23,7 @@ __pycache__/
 !/v5/assets/
 !/v5/vendor/
 !/v5/fonts/
+# frozen round-6 build served at /v6/ (committed on purpose)
+!/v6/assets/
+!/v6/vendor/
+!/v6/fonts/

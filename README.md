@@ -1,9 +1,9 @@
-# Grok Demo: Mission 1, "Get to Beacon" (round 6)
+# Grok Demo: Mission 1, "Get to Beacon" (round 7)
 
 A portrait, touch-first sky shooter for mobile browsers, and a prototype of *Jetcraft: Invasion Earth*. Atlas flies the biplane across the Channel coast to **Beacon**, the base. On the way you build a drone squad, shoot gates positive, crack weapon canisters, smash loot crates, rescue a cocooned pilot and bring down the **Xora Queen**. The alien race is the **Xora**.
 
 **Play:** https://okbupe.github.io/grok-demo/
-Earlier rounds are kept frozen for comparison: **Round 5** at https://okbupe.github.io/grok-demo/v5/, **Round 4** at https://okbupe.github.io/grok-demo/v4/, **Round 3** at https://okbupe.github.io/grok-demo/v3/ and **Round 2** at https://okbupe.github.io/grok-demo/v2/. The title screen links to all four under "Previous versions".
+Earlier rounds are kept frozen for comparison: **Round 6** at https://okbupe.github.io/grok-demo/v6/, **Round 5** at https://okbupe.github.io/grok-demo/v5/, **Round 4** at https://okbupe.github.io/grok-demo/v4/, **Round 3** at https://okbupe.github.io/grok-demo/v3/ and **Round 2** at https://okbupe.github.io/grok-demo/v2/. The title screen links to all five under "Previous versions".
 
 ## Controls
 - **Steer:** drag left or right anywhere. Firing is automatic from the first frame.
@@ -12,6 +12,23 @@ Earlier rounds are kept frozen for comparison: **Round 5** at https://okbupe.git
 - **Shake off clinging Xora:** steer hard left and right.
 - **Desktop:** arrow keys or A/D to steer, W/↑ for beam on, S/↓ for beam off, Space or E for Omega. Mouse drag and clicking the plane also work.
 - **Gesture rules:** a flick must start within 115 px of the plane, last under 320 ms, travel at least 45 px, be mostly vertical (|dy| > 2·|dx|) and move at least 0.35 px/ms. A tap must start within 72 px of the plane, last under 180 ms and move under 10 px. Steering drags, resting your thumb, and lifting then putting it down to drag never count as a flick or a tap.
+
+## New in round 7
+- **Mission Complete is now a timed, visual payout sequence** with very few words. The gold banner stomp, the star thuds and the celebration by star count are unchanged. Times are from the end of the mission (3 stars, 45 drones):
+  1. **0.33 s** the banner stomps; the stars thud at about 1.1, 1.5 and 1.9 s (as before).
+  2. **0.56 s** the mission name **BEACON IN SIGHT** drops in. **0.78 s** a big coin pops in. From the first star thud the number **counts up the stage coins** (Xora kills plus crate loot) in surges, one per star thud. Coins fly into the icon, every tick raises the pitch and bumps the number.
+  3. **+0.26 s** after the count, the **DRONES** block slides in: the drones left as a big number, with a **×0.4** chip under it (the Lawnmower's `droneCoinMult`). The drones then **count down to 0**. Each one flies into the coin total and adds `CFG.droneCoinBase` (10) × the multiplier. The drain takes about 1.5 s, whatever the squad size.
+  4. **Star bonus:** the stars pulse, a pink **★★ ×1.25** sticker streaks down from them (1★ ×1.0, 2★ ×1.25, 3★ ×1.5, from `CFG.starBonus`). 0.7 s later the total multiplies with a punch, a flash and a big shake.
+  5. **Stones:** only the ones you got, one by one: **GEMS** (green), **RUBIES** (red) and **DIAMONDS**. Each pops in with a thud. Rubies and diamonds get a heavenly glow with light rays and a choir shimmer.
+  6. The **final total lands** with a big thud, a gold burst and a fanfare. Then **CONTINUE** slides in (it restarts the mission for now) with a tiny `BANK` line. The whole sequence is about 9 to 10 s.
+  - **Tap anywhere** (not the button) to skip straight to the end. The totals are the same because the sequence is a single timeline.
+  - **Maths:** `final = round((stageCoins + round(drones × droneCoinBase × droneCoinMult)) × starBonus[stars])`. `window.__AUDIT.results` logs every term, the timeline and the value shown.
+  - The time, the Xora kill count, the per-enemy breakdown and the star checklist are gone from the win screen. The SHOT DOWN screen is unchanged.
+  - Sound (all procedural): rising-pitch count ticks, surges on the star thuds, whooshes, drone zips and coin pings, a riser and a punch for the bonus, stone thuds, a choir pad for rare stones, a landing thud and a fanfare.
+- **Rubies** are a new rare loot type, rarer than gems. They can come from any crate (4%), an elite kill (beetle or spitter, 15%) or a carrier kill (30%) (`CFG.loot.ruby`). There is a red HUD counter between gems and diamonds. Debug: `&ruby=1` makes every roll succeed.
+- **Warning banners are only for bosses now:** the B-rank Xora Queen threat banner (with its siren and mood shift) and the Queen's arrival stay. The "XORA SWARM INCOMING!", "ELITES!", "SPITTER!" and "ENRAGED!" banners are gone. Weapon pickups and "PILOT RESCUED!" still get banners.
+- **HELP!** A bobbing cartoon speech bubble in the comic font sits over the trapped pilot's cocoon. It goes away the moment the pilot is freed, and then the usual rescue plays.
+- Round 6 is frozen at `/v6/`.
 
 ## New in round 6
 - **Snug squad:** the round-5 keep-out box around the main plane is gone. At boot every spot of the same staggered formation is tested against the plane's real silhouette (its alpha mask, as seen through the gameplay camera). The first drones tuck in right beside the wingtips, then behind the wings, beside the nose and behind the tail, and the rest pack outward. No hollow ring, cap still **50**. `CFG.droneHug` and `CFG.droneHugPad` set how tight.
@@ -48,14 +65,14 @@ Earlier rounds are kept frozen for comparison: **Round 5** at https://okbupe.git
 - Health bars change colour. Something happens every 1 to 2 seconds.
 
 ## Tuning
-All sizes, speeds, camera, gesture thresholds, shake (trauma decay, layer amplitudes, Omega rumble), rapid-fire steps, coin values and loot live in the **`CFG` block at the top of `game.js`**: plane, drone, gate, Xora, boss, cocoon and orb sizes; scroll, object and Xora speed; hunter speed and radius; camera position and FOV; drone spacing; beam grace and drain; Omega damage; tap and swipe thresholds. Star rules are in `CFG_STARS`.
+All sizes, speeds, camera, gesture thresholds, shake (trauma decay, layer amplitudes, Omega rumble), rapid-fire steps, coin values, loot (including ruby chances), the drone payout (`droneCoinBase`, per-plane `planes.*.droneCoinMult`) and the star bonus (`starBonus`) live in the **`CFG` block at the top of `game.js`**: plane, drone, gate, Xora, boss, cocoon and orb sizes; scroll, object and Xora speed; hunter speed and radius; camera position and FOV; drone spacing; beam grace and drain; Omega damage; tap and swipe thresholds. Star rules are in `CFG_STARS`.
 
 ## Tech
 - Three.js is vendored at build time, so there is no CDN at runtime. A 2D canvas overlay draws numbers, bars, badges, sparkles and beams. The HUD is HTML/CSS, and the sound is WebAudio.
 - Sprites are stored as `art/*.webp.b64`. `tools/cut_cocoon.py` cuts the three cocoon stages from the reference sheet with the shared alpha matte from `tools/cut_art.py`, so there is no white halo.
-- `tools/build.sh` builds the site, stamps a cache-busting version, copies `fonts/`, and copies the frozen `v2/`, `v3/`, `v4/` and `v5/` builds (v5 = commit f19e5cd). `.github/workflows/pages.yml` publishes to `gh-pages`.
+- `tools/build.sh` builds the site, stamps a cache-busting version, copies `fonts/`, and copies the frozen `v2/`, `v3/`, `v4/`, `v5/` and `v6/` builds (v5 = commit f19e5cd, v6 = commit b4f3de1). `.github/workflows/pages.yml` publishes to `gh-pages`.
 - Font: Luckiest Guy by Astigmatic, from Google Fonts, vendored as `fonts/luckiest.woff2` (Apache License 2.0, see `fonts/LICENSE-LuckiestGuy.txt`).
-- **Debug URL flags** (all off by default): `?autoplay` (a bot flies the mission), `&ts=2`, `&warp=60`, `&drones=20`, `&tier=0|1|2`, `&weapon=beam|gun`, `&beamon=1`, `&rockets=1`, `&bazooka=1`, `&bosshp=`, `&hp=`, `&omega=0..1` (starting charge), `&cocoon=T` (cocoon time in seconds), `&rapid=0|1|2`.
-- **Audit:** `window.__AUDIT` records spawns (`seen`, `maxY`, `viol` for mid-screen pop-ins, `brood`, `gatePairs`, `minGap`), hunters (`bottomExit`, `bugMaxScreenY`, `removedOffscreen`, `latchTotal`, `latchPlaneMax`, `flung`), the cocoon event log (`cocoon`, `carriers`), Omega (`omegaFires`, `omegaHits`, `orbs`), the beam (`beamOn`, `beamOff`, `beamDrainHp`, `beamSmoke`), gates (`gateMaxScale`, `gateScaleAtMax`), `shakes` by kind (`{n, peak}`), `shakeLog`, `omegaRumble` (per-frame shake during Omega), `bossChain` and `bossTrace` (the death chain), `shotsPlane`/`shotsDrone`, `rapid`, `loot`, `coins` by type, `results`, `threat`, `vibrate`, `slots`, `maxDrones`, `bombs` and `stars`. `window.__G.GLOG` logs every gesture decision.
+- **Debug URL flags** (all off by default): `?autoplay` (a bot flies the mission), `&ts=2`, `&warp=60`, `&drones=20`, `&tier=0|1|2`, `&weapon=beam|gun`, `&beamon=1`, `&rockets=1`, `&bazooka=1`, `&bosshp=`, `&hp=`, `&omega=0..1` (starting charge), `&cocoon=T` (cocoon time in seconds), `&rapid=0|1|2`, `&ruby=1` (every ruby roll succeeds).
+- **Audit:** `window.__AUDIT` records spawns (`seen`, `maxY`, `viol` for mid-screen pop-ins, `brood`, `gatePairs`, `minGap`), hunters (`bottomExit`, `bugMaxScreenY`, `removedOffscreen`, `latchTotal`, `latchPlaneMax`, `flung`), the cocoon event log (`cocoon`, `carriers`), Omega (`omegaFires`, `omegaHits`, `orbs`), the beam (`beamOn`, `beamOff`, `beamDrainHp`, `beamSmoke`), gates (`gateMaxScale`, `gateScaleAtMax`), `shakes` by kind (`{n, peak}`), `shakeLog`, `omegaRumble` (per-frame shake during Omega), `bossChain` and `bossTrace` (the death chain), `shotsPlane`/`shotsDrone`, `rapid`, `loot`, `coins` by type, `results`, `threat`, `vibrate`, `slots`, `maxDrones`, `bombs`, `stars`, `rubies` (ruby drops) and `results` (round 7: stage, drones, droneBonus, starMult, final, shown, skipped, timeline). `window.__G.GLOG` logs every gesture decision.
 
 Local build: `pip install numpy scipy opencv-python-headless pillow && bash tools/build.sh _site`, then serve `_site/`.
