@@ -1,9 +1,9 @@
-# Grok Demo: Mission 1, "Get to Beacon" (round 9)
+# Grok Demo: Mission 1, "Get to Beacon" (round 10)
 
 A portrait, touch-first sky shooter for mobile browsers, and a prototype of *Jetcraft: Invasion Earth*. Atlas flies the biplane across the Channel coast to **Beacon**, the base. On the way you build a drone squad, shoot gates positive, crack weapon canisters, smash loot crates, rescue a cocooned pilot and bring down the **Xora Queen**. The alien race is the **Xora**.
 
 **Play:** https://okbupe.github.io/grok-demo/
-Earlier rounds are kept frozen for comparison: **Round 8** at https://okbupe.github.io/grok-demo/v8/, **Round 7** at https://okbupe.github.io/grok-demo/v7/, **Round 6** at https://okbupe.github.io/grok-demo/v6/, **Round 5** at https://okbupe.github.io/grok-demo/v5/, **Round 4** at https://okbupe.github.io/grok-demo/v4/, **Round 3** at https://okbupe.github.io/grok-demo/v3/ and **Round 2** at https://okbupe.github.io/grok-demo/v2/. The title screen links to all seven on one line ("Previous versions: 8 · 7 · 6 · 5 · 4 · 3 · 2").
+Earlier rounds are kept frozen for comparison: **Round 9** at https://okbupe.github.io/grok-demo/v9/, **Round 8** at https://okbupe.github.io/grok-demo/v8/, **Round 7** at https://okbupe.github.io/grok-demo/v7/, **Round 6** at https://okbupe.github.io/grok-demo/v6/, **Round 5** at https://okbupe.github.io/grok-demo/v5/, **Round 4** at https://okbupe.github.io/grok-demo/v4/, **Round 3** at https://okbupe.github.io/grok-demo/v3/ and **Round 2** at https://okbupe.github.io/grok-demo/v2/. The title screen links to all eight on one line ("Previous versions: 9 · 8 · 7 · 6 · 5 · 4 · 3 · 2").
 
 ## Controls
 - **Steer:** drag left or right anywhere. Firing is automatic from the first frame.
@@ -12,6 +12,14 @@ Earlier rounds are kept frozen for comparison: **Round 8** at https://okbupe.git
 - **Shake off clinging Xora:** steer hard left and right.
 - **Desktop:** arrow keys or A/D to steer, W/↑ for beam on, S/↓ for beam off, Space or E for Omega. Mouse drag and clicking the plane also work.
 - **Gesture rules:** a flick must start within 115 px of the plane, last under 320 ms, travel at least 45 px, be mostly vertical (|dy| > 2·|dx|) and move at least 0.35 px/ms. A tap must start within 72 px of the plane, last under 180 ms and move under 10 px. Steering drags, resting your thumb, and lifting then putting it down to drag never count as a flick or a tap.
+
+## New in round 10
+The round-9 sequence, sizes and impact are kept, with these changes:
+- **BEACON IN SIGHT** is exactly the round-6 title again: Lilita One 28 px, normal letter spacing, gold `#ffd64a` with a 2 px brown `#3a2208` outline and a 4 px drop. It sits at the top of the card as in round 6 (16 px card padding).
+- **Coin number:** the round-6 coin-number format (Luckiest Guy, normal spacing, `#ffe066`, brown outline and drop), scaled from 30 px to 56 px so the digits (42 px cap height plus outline) are a little shorter than the 55 px coin. The coin stays on the left, and the star sticker works as before.
+- **DRONES row, rebuilt:** a bigger drone icon (70×58 px) and a bigger count (Luckiest Guy 52 px, the same style as the coin number in light blue), then the word DRONES with the **×0.4 chip directly under it, left-aligned**. The coin row and the drones row share one left edge and one 70 px icon column, so the two numbers line up. When the drain reaches 0, only the icon and the number fade.
+- **Stones idle shine,** each on its own random timers so they never sync: **gems** get a light glint sweeping across the stone every 2.2–5.2 s; **rubies** get the same glint plus a soft, slow red glow; **diamonds** get the glint plus small twinkling star sparkles popping around them every 0.2–0.6 s. It's subtle. The old big halo and holy rays still only appear for extraordinary runs (`CFG.results`, `&shine=1`). `window.__AUDIT.stoneFx` logs every glint and sparkle with its time.
+- Round 9 (commit 0cbb2ac) is frozen at `/v9/`.
 
 ## New in round 9
 - **Results font:** the Mission Complete sequence (mission name, coin and drone numbers, labels, the ×0.4 chip, the star sticker, stone counts, CONTINUE, BANK) is back in **Lilita One**, the font of the round 5/6 results card. Round 7 had switched it to Luckiest Guy. Luckiest Guy stays on the HUD, the Omega bar and the boss warning.
@@ -87,7 +95,7 @@ All sizes, speeds, camera, gesture thresholds, shake (trauma decay, layer amplit
 ## Tech
 - Three.js is vendored at build time, so there is no CDN at runtime. A 2D canvas overlay draws numbers, bars, badges, sparkles and beams. The HUD is HTML/CSS, and the sound is WebAudio.
 - Sprites are stored as `art/*.webp.b64`. `tools/cut_cocoon.py` cuts the three cocoon stages from the reference sheet with the shared alpha matte from `tools/cut_art.py`, so there is no white halo.
-- `tools/build.sh` builds the site, stamps a cache-busting version, copies `fonts/`, and copies the frozen `v2/`, `v3/`, `v4/`, `v5/`, `v6/`, `v7/` and `v8/` builds (v5 = commit f19e5cd, v6 = commit b4f3de1, v7 = commit e003488, v8 = commit eb1161c). `.github/workflows/pages.yml` publishes to `gh-pages`.
+- `tools/build.sh` builds the site, stamps a cache-busting version, copies `fonts/`, and copies the frozen `v2/`, `v3/`, `v4/`, `v5/`, `v6/`, `v7/`, `v8/` and `v9/` builds (v5 = commit f19e5cd, v6 = commit b4f3de1, v7 = commit e003488, v8 = commit eb1161c, v9 = commit 0cbb2ac). `.github/workflows/pages.yml` publishes to `gh-pages`.
 - Font: Luckiest Guy by Astigmatic, from Google Fonts, vendored as `fonts/luckiest.woff2` (Apache License 2.0, see `fonts/LICENSE-LuckiestGuy.txt`).
 - **Debug URL flags** (all off by default): `?autoplay` (a bot flies the mission), `&ts=2`, `&warp=60`, `&drones=20`, `&tier=0|1|2`, `&weapon=beam|gun`, `&beamon=1`, `&rockets=1`, `&bazooka=1`, `&bosshp=`, `&hp=`, `&omega=0..1` (starting charge), `&cocoon=T` (cocoon time in seconds), `&rapid=0|1|2`, `&ruby=1` (every ruby roll succeeds).
 - **Audit:** `window.__AUDIT` records spawns (`seen`, `maxY`, `viol` for mid-screen pop-ins, `brood`, `gatePairs`, `minGap`), hunters (`bottomExit`, `bugMaxScreenY`, `removedOffscreen`, `latchTotal`, `latchPlaneMax`, `flung`), the cocoon event log (`cocoon`, `carriers`), Omega (`omegaFires`, `omegaHits`, `orbs`), the beam (`beamOn`, `beamOff`, `beamDrainHp`, `beamSmoke`), gates (`gateMaxScale`, `gateScaleAtMax`), `shakes` by kind (`{n, peak}`), `shakeLog`, `omegaRumble` (per-frame shake during Omega), `bossChain` and `bossTrace` (the death chain), `shotsPlane`/`shotsDrone`, `rapid`, `loot`, `coins` by type, `results`, `threat`, `vibrate`, `slots`, `maxDrones`, `bombs`, `stars`, `rubies` (ruby drops), `omegaHit` and `deathY` (round 8: Omega hits by kind with the highest hit, and the screen y of each Xora death) and `results` (round 7: stage, drones, droneBonus, starMult, final, shown, skipped, timeline). `window.__G.GLOG` logs every gesture decision.

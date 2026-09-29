@@ -1,6 +1,5 @@
 import * as THREE from './vendor/three.module.min.js';
 
-// Round 10: round-6 BEACON IN SIGHT title and coin-number format, a rebuilt DRONES row (x0.4 under the label), idle stone glints/glow/sparkles.
 // Round 9: medium-size Mission Complete in Lilita One, shine only for extraordinary runs (CFG.results, &shine=1),
 // stone counts beside their icons, and a hazard-tape boss warning with the boss name in 3D letters.
 // Grok Demo, round 8: Mission 1 "Get to Beacon" (round-7 base + smaller Xora with a perspective approach scale,
@@ -1423,7 +1422,7 @@ const RES = (() => {
     } });
     E.push({ at: T.s1, fn: (f) => { if (f) return; cls('r-coins', 'punch', false); void q('r-coins').offsetWidth; cls('r-coins', 'punch'); cls('r-bonus', 'used');
       sfx('punch'); shakeEnd('big'); addShake('stomp'); vib(40); const fl = q('r-flash'); fl.classList.remove('go'); void fl.offsetWidth; fl.classList.add('go'); EFX.coinBurst(q('r-coinico'), P.stars >= 2 ? 36 : 22); bump = 0.55; } });
-    P.stones.forEach((o, i) => E.push({ at: o.at, fn: (f) => { const el = q('r-stones').children[i]; el.classList.add('rin'); idle(el, o.k);
+    P.stones.forEach((o, i) => E.push({ at: o.at, fn: (f) => { const el = q('r-stones').children[i]; el.classList.add('rin');
       if (f) return; sfx('pthud'); sfx(o.k === 'gem' ? 'gem' : o.k === 'ruby' ? 'ruby' : 'diamond'); shakeEnd('small');
       const col = o.k === 'ruby' ? '#ff9aae' : o.k === 'diamond' ? '#dff8ff' : '#8dffb8';
       if (o.rare) sfx('choir'); if (o.rare && P.shine) EFX.holy(el, col); else EFX.sparkAt(el, col, 18); } }));
@@ -1435,25 +1434,6 @@ const RES = (() => {
     return E.sort((a, b) => a.at - b.at);
   }
   const vib = (ms) => buzz(ms);
-  // round 10: subtle idle life for the stones, each on its own random timers (never in sync)
-  let idleT = [];
-  const later = (ms, f) => idleT.push(setTimeout(f, ms));
-  function idle(el, k) {
-    const ico = el.querySelector('.ico'), gl = el.querySelector('.gl'); if (!ico || !gl) return;
-    if (k === 'ruby') ico.style.setProperty('--rd', (-rand(0, 3.4)).toFixed(2) + 's');
-    const glint = () => { gl.classList.remove('go'); void gl.offsetWidth; gl.classList.add('go'); AUD.stoneFx.push([k, 'glint', Math.round(performance.now() - t0)]); later(rand(2200, 5200), glint); };
-    later(rand(600, 2600), glint);
-    if (k === 'diamond') {
-      const spark = () => {
-        const sp = document.createElement('span'); sp.className = 'spk'; const a = rand(0, TAU), r = rand(0.38, 0.7);
-        sp.style.left = (50 + Math.cos(a) * r * 100).toFixed(1) + '%'; sp.style.top = (50 + Math.sin(a) * r * 100).toFixed(1) + '%';
-        sp.style.setProperty('--ss', rand(0.55, 1.15).toFixed(2)); sp.style.setProperty('--sd', rand(0.7, 1.25).toFixed(2) + 's');
-        sp.addEventListener('animationend', () => sp.remove()); ico.appendChild(sp); AUD.stoneFx.push([k, 'spark', Math.round(performance.now() - t0)]);
-        later(rand(180, 620), spark);
-      };
-      later(rand(200, 700), spark);
-    }
-  }
   function step(t) {
     const T = P.T;
     // count-up ticks (rising pitch), surges on the star thuds, coins flying in
@@ -1478,12 +1458,12 @@ const RES = (() => {
   function frame(now) { if (!P) return; const t = now - t0; step(t); if (done && t > P.T.end + 600) { raf = 0; return; } raf = requestAnimationFrame(frame); }
   return {
     start(stars) {
-      idleT.forEach(clearTimeout); idleT = []; AUD.stoneFx = []; P = plan(stars); P.ev = events(); ei = 0; skipped = false; done = false; lastTick = -1; lastSeg = -1; lastLaunch = 0; lastArr = 0; shown = { c: -1, d: -1 }; bump = 0; dBump = 0;
+      P = plan(stars); P.ev = events(); ei = 0; skipped = false; done = false; lastTick = -1; lastSeg = -1; lastLaunch = 0; lastArr = 0; shown = { c: -1, d: -1 }; bump = 0; dBump = 0;
       S.coinsShown = S.coins; S.gemsShown = S.gems; S.rubiesShown = S.rubies; S.diamondsShown = S.diamonds; coinFx = []; updateLootHud(true);
       for (const id of ['r-name', 'r-coins', 'r-drones', 'r-mult', 'r-bonus', 'again2', 'r-bank']) q(id).className = '';
       q('again2').className = 'againbtn'; q('r-flash').className = '';
       q('r-mult').textContent = '\u00d7' + P.mult; q('r-bonus').innerHTML = '';
-      q('r-stones').innerHTML = P.stones.map((o) => `<div class="stone ${o.k}${o.rare ? ' rare' : ''}"><div class="rays"></div><i class="ico ${o.k === 'diamond' ? 'dia' : o.k}"><span class="gl"></span></i><b>\u00d7${o.n}</b></div>`).join('');
+      q('r-stones').innerHTML = P.stones.map((o) => `<div class="stone ${o.k}${o.rare ? ' rare' : ''}"><div class="rays"></div><i class="ico ${o.k === 'diamond' ? 'dia' : o.k}"></i><b>\u00d7${o.n}</b></div>`).join('');
       $('end').classList.toggle('shine', P.shine);   // round 9: the shine only for extraordinary runs (CFG.results)
       q('r-stones').classList.toggle('none', !P.stones.length);
       let bank = 0; try { bank = Number(localStorage.getItem('grokdemo.coins') || 0) + P.final; localStorage.setItem('grokdemo.coins', String(bank)); } catch (e) { }
@@ -1498,7 +1478,7 @@ const RES = (() => {
       if (!P || done) return; skipped = true; AUD.results.skipAt = Math.round(performance.now() - t0);
       t0 = performance.now() - P.T.end - 1; step(P.T.end + 1); bump = 0; if (!raf) raf = requestAnimationFrame(frame);
     },
-    stop() { if (raf) cancelAnimationFrame(raf); raf = 0; P = null; idleT.forEach(clearTimeout); idleT = []; },
+    stop() { if (raf) cancelAnimationFrame(raf); raf = 0; P = null; },
     running() { return !!P && !done; },
     get P() { return P; },
   };
