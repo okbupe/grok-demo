@@ -18,7 +18,7 @@ Round 10's results screen is kept, with these fixes:
 - **DRONES row:** the ×0.4 chip is slimmer (22 px tall, was 28 px) and the drone count is taller (Luckiest Guy 60 px, was 52 px; about 50 px of digit ink). The DRONES + chip stack (47 px) is about as tall as the digits, and the icon, number and stack are vertically centred on each other. The row is centred in the card as a group.
 - **No flying drones in the drain:** only the drone number counts down. The coin total still ticks up with the tick sound and the bumps.
 - **Coin row:** the coin and the number are centred as a group in the card and vertically centred on each other. Luckiest Guy sits its digits high in the line box, so the number is nudged down 5 px (8 px for the drone count) based on the measured ink.
-- **Star sticker:** the purple ★ ×N chip now lives in a wrapper around the coin number. It always hangs off the last digit, overlapping its bottom-right corner, and tracks the number's width as it grows (3, 4, 5 digits) through the count-up, the punch and the landing. It has a hard, unblurred offset drop shadow and an 8° tilt, so it reads as a sticker.
+- **Star sticker:** the purple ★ ×N chip now lives in a wrapper around the coin number. It always hangs off the last digit, overlapping its bottom-right corner by a fixed 24 px (the chip is anchored by its left edge, so ×1.25 and ×1.5 overlap the same), and tracks the number's width as it grows (3, 4, 5 digits) through the count-up, the punch and the landing. It has a hard, unblurred offset drop shadow and an 8° tilt, so it reads as a sticker.
 - Round 10 (commit 2ea8b58) is frozen at `/v10/`.
 
 ## New in round 10

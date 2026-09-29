@@ -370,3 +370,5 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-acti
 /* Luckiest Guy's line box sits its digits high: nudge them so the ink is centred on the icon (measured: coin -5.2px, drones -8.1px) */
 #r-coinN{position:relative;top:5px}
 #r-droneN{position:relative;top:8px}
+/* the sticker is anchored by its LEFT edge so it covers the same 24px of the last digit whatever its own width (x1.25 vs x1.5) */
+#r-bonus{right:auto;left:calc(100% - 24px)}
