@@ -1,7 +1,7 @@
 import * as THREE from './vendor/three.module.min.js';
 
 // Grok Demo, round 6: Mission 1 "Get to Beacon" (round-5 base + snug squad, trauma shake with parallax, rapid fire,
-// crate loot, coins, Chitin naming, threat ranks).
+// crate loot, coins, Xora naming, threat ranks).
 const Q = new URLSearchParams(location.search);
 const VER = new URL(import.meta.url).searchParams.get('v') || '';   // cache-bust assets per build
 const BOT = Q.has('bot') || Q.has('autoplay');   // debug autoplay, off by default
@@ -58,7 +58,7 @@ const CFG = {
   swipeMinPx: 45, swipeMaxMs: 320, swipeMinV: 0.35, swipeRatio: 2.0, swipeRadius: 115,
   // --- screen shake (round 6): trauma model. Events add trauma (0..1), shake = trauma^2, trauma decays fast.
   // Offsets come from smooth noise plus a little roll, applied to the cameras with parallax: the ground layer
-  // moves most, the cloud layer less, the gameplay layer (plane, squad, Chitin) slightly. The HUD never shakes,
+  // moves most, the cloud layer less, the gameplay layer (plane, squad, Xora) slightly. The HUD never shakes,
   // except during the Omega Beam, when it rumbles with the world.
   shake: {
     decay: 2.7,          // trauma lost per second (a 0.85 burst is calm again in ~0.3 s)
@@ -70,7 +70,7 @@ const CFG = {
     hud: 9,              // HUD rumble during Omega only (CSS px at shake = 1)
     add: { pickup: 0.4, medium: 0.6, gateMax: 0.4, thud: 0.9, omega: 0.85, omegaEnd: 0.95, bomb: 0.62, bossFinal: 1.0, death: 0.9, stomp: 0.8, star: 0.62 },
   },
-  // --- coins per Chitin killed (by type) and loot inside crates
+  // --- coins per Xora killed (by type) and loot inside crates
   coins: { spider: 1, redspider: 1, wasp: 2, brute: 5, beetle: 12, spitter: 12, carrier: 6, queen: 300 },
   loot: { coins: [18, 26], gems: [1, 2], gemCoins: 10, diamondCoins: 25 },
 };
@@ -692,6 +692,7 @@ function buildLevel() {
   // first choice: a red drone gate on one side, spiders on the other
   gate(6.0, 2.0, -24); rows(6.0, -2.3, 4, 2, 6);
   rows(7.8, 0, 8, 4, 8);
+  at(7.4, 'banner', { text: 'XORA SWARM INCOMING!', sub: 'Keep the squad firing', warn: true });
   // canister #1: bullets turn ORANGE
   at(11.6, 'tip', { text: 'Shoot the canister for more power!', target: 'can', dur: 3 });
   can(9.4, -2.1, 40, { power: 1 }); rows(9.8, 2.4, 4, 2, 8);
@@ -737,7 +738,7 @@ function buildLevel() {
   omegaOrb(59.6, 0); loot(61.0, 2.4, 190, 'diamond');
   ambush(57.2, 6, 38);
   rows(58.2, 0, 24, 8, 36); brutes(58.8, 2, 240);
-  // final: the Chitin Queen (round-2 boss)
+  // final: the Xora Queen (round-2 boss)
   at(BOSS_T - 3, 'warn');
   at(BOSS_T, 'boss');
   // never park a bug directly behind a gate: push it back to leave clear sky
@@ -1052,7 +1053,7 @@ function setRapid(n, x, z) {
   AUD.rapid.push({ t: +S.t.toFixed(2), lv: S.rapidLv, mul: m }); updateWeaponHud();
 }
 // ---------------------------------------------------------------- coins and loot (round 6)
-// Every Chitin kill pays coins by type (CFG.coins). Crates hold loot: a burst of coins, gems or a diamond,
+// Every Xora kill pays coins by type (CFG.coins). Crates hold loot: a burst of coins, gems or a diamond,
 // which pop out and fly to the HUD counters. The results card tallies it all.
 let coinFx = [];
 function lootTarget(kind) {
@@ -1243,7 +1244,7 @@ function endGame(win) {
   endTimers.forEach(clearTimeout); endTimers = []; EFX.reset();
   const e = $('end'); e.classList.remove('hidden', 'mega', 'nice', 'shk-big', 'shk-small', 'landed'); e.classList.toggle('lose', !win); e.classList.remove('play'); void e.offsetWidth; e.classList.add('play');
   $('endtitle').textContent = win ? 'BEACON IN SIGHT' : 'SHOT DOWN';
-  $('endsub').textContent = win ? 'The Chitin Queen is down. The squadron flies on to Beacon.' : ({ gate: 'A negative gate with no drones is fatal. Shoot it blue first!', crash: 'Flying into a canister with no drones hurts. Shoot it open!', beam: 'The beam drained you dry. Swipe down sooner!' }[S.deathBy] || 'The Chitin got you. Regroup, pilot!');
+  $('endsub').textContent = win ? 'The Xora Queen is down. The squadron flies on to Beacon.' : ({ gate: 'A negative gate with no drones is fatal. Shoot it blue first!', crash: 'Flying into a canister with no drones hurts. Shoot it open!', beam: 'The beam drained you dry. Swipe down sooner!' }[S.deathBy] || 'The Xora got you. Regroup, pilot!');
   $('st-kills').textContent = S.kills; $('st-drones').textContent = win ? S.drones : S.maxDrones; $('st-time').textContent = Math.round(S.t) + 's';
   coinTally(win);
   const hpF = S.hp / S.hpMax, okHp = hpF >= CFG_STARS.hp, okD = S.drones >= CFG_STARS.drones;
@@ -1275,13 +1276,13 @@ function endGame(win) {
     endLater(tEnd + 1600, () => EFX.confetti(120));
   } else if (stars === 2) endLater(tEnd, () => { e.classList.add('nice'); EFX.confetti(70); });
 }
-// results: coins earned (Chitin kills x value, plus loot), gems and diamonds, with a count-up
+// results: coins earned (Xora kills x value, plus loot), gems and diamonds, with a count-up
 function coinTally(win) {
   S.coinsShown = S.coins; S.gemsShown = S.gems; S.diamondsShown = S.diamonds; coinFx = []; updateLootHud(true);
   const kinds = Object.keys(S.killsBy).filter((k) => S.killsBy[k] > 0).sort((a, b) => (CFG.coins[b] || 0) - (CFG.coins[a] || 0));
   const NAME = { spider: 'Crawlers', redspider: 'Skitterers', wasp: 'Wasps', brute: 'Brutes', beetle: 'Beetles', spitter: 'Spitters', carrier: 'Carriers', queen: 'Queen' };
   $('cs-rows').innerHTML = `<div class="grid">${kinds.map((k) => `<div><span>${NAME[k] || k} ${S.killsBy[k]}\u00d7${CFG.coins[k] || 1}</span><b>${S.killsBy[k] * (CFG.coins[k] || 1)}</b></div>`).join('')}</div>` +
-    `<div class="sum">Chitin <b>${S.killCoins}</b> + crate loot <b>${S.lootCoins}</b></div>`;
+    `<div class="sum">Xora <b>${S.killCoins}</b> + crate loot <b>${S.lootCoins}</b></div>`;
   $('st-gems').textContent = S.gems; $('st-dia').textContent = S.diamonds;
   let bank = 0; try { bank = Number(localStorage.getItem('grokdemo.coins') || 0) + S.coins; localStorage.setItem('grokdemo.coins', String(bank)); } catch (e) { }
   $('cs-bank').textContent = bank ? `Bank ${bank}` : '';
@@ -2154,9 +2155,9 @@ function bossChain(bw) {
 }
 
 // ---------------------------------------------------------------- bosses
-// Mission 1 uses the round-2 Chitin Queen. Kingsting (round 3) stays in the table, dormant, for a later stage.
+// Mission 1 uses the round-2 Xora Queen. Kingsting (round 3) stays in the table, dormant, for a later stage.
 const BOSSES = {
-  queen: { name: 'CHITIN QUEEN', hp: 9000, sub: 'Shoot it down!' },
+  queen: { name: 'XORA QUEEN', hp: 9000, sub: 'Shoot it down!' },
   stinger: { name: 'KINGSTING', hp: 1000, sub: 'Colossal hornet \u00b7 bring it down!' },
 };
 const MISSION_BOSS = 'queen';
