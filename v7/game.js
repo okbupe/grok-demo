@@ -1,8 +1,7 @@
 import * as THREE from './vendor/three.module.min.js';
 
-// Grok Demo, round 8: Mission 1 "Get to Beacon" (round-7 base + smaller Xora with a perspective approach scale,
-// denser hordes and a filler stream so the sky is never empty, longer bullet reach, a full-height Omega Beam that
-// hits everything it touches, and front-line crawlers: only wasps and red skitterers cling).
+// Grok Demo, round 7: Mission 1 "Get to Beacon" (round-6 base + a timed, visual Mission Complete sequence:
+// coins count up, drones cash in, star bonus, stones; rubies as a new rare loot type).
 const Q = new URLSearchParams(location.search);
 const VER = new URL(import.meta.url).searchParams.get('v') || '';   // cache-bust assets per build
 const BOT = Q.has('bot') || Q.has('autoplay');   // debug autoplay, off by default
@@ -29,7 +28,7 @@ const srand = (a, b) => { seed = (seed * 1664525 + 1013904223) >>> 0; return a +
 // about 26 CSS px on a 390-px-wide phone. Bug sizes live in BUG[] below but are all scaled by bugScale.
 const CFG = {
   // --- sizes (world units)
-  planeW: 2.8, droneW: 1.2, gateW: 2.6, bugScale: 0.66, bossW: 5.6, podScale: 1.0,   // round 8: Xora at 0.66x near the plane (the boss keeps its size)
+  planeW: 2.8, droneW: 1.2, gateW: 2.6, bugScale: 1.0, bossW: 5.6, podScale: 1.0,
   cocoonW: 2.3, carrierW: 2.6, omegaOrbW: 1.6, cocoonHoldZ: -10,
   // --- speeds (world units per second)
   scroll: 12,          // ground scroll (the plane flies flat out)
@@ -37,15 +36,7 @@ const CFG = {
   steerRange: 3.3,     // how far left/right the plane can go
   bugSpeed: 1.0,       // multiplier on every bug's approach speed
   huntSpeed: 6.5,      // how fast hunters close in on the squad once near
-  huntRadius: 13,      // clinging types (wasps, red skitterers) closer than this (in z) stop scrolling and hunt the squad
-  // --- round 8: perspective approach. Xora far away at the top edge are farScale x their near size and grow
-  // smoothly (smoothstep) to full size by nearZ, so they read as approaching. Hit radii follow the visual scale.
-  farScale: 0.55, nearZ: -7,
-  clingTypes: ['wasp', 'redspider'],   // only these latch on; everything else fights at the squad's front line
-  crawlScroll: 0.6,    // front-line types drift with only this fraction of the scroll, so crowds come on slower and die higher up
-  // --- round 8: denser hordes (smaller Xora) and a filler stream so the sky is never empty
-  hordeMul: 1.7, hordeHp: 0.8, hordeSpacing: 0.78,   // crowd counts x hordeMul, hp x hordeHp, spacing x hordeSpacing
-  filler: { min: 3, max: 5, every: 0.28, lull: 2.0, hp0: 5, hpPerS: 0.32 },   // keep >= min Xora on screen; pause lull s after an Omega Beam ends
+  huntRadius: 13,      // bugs closer than this (in z) stop scrolling and hunt the squad
   // --- camera (gameplay tele camera)
   camPos: [0, 16, 12], camLook: [0, 0, -8], camFov: 21,
   // --- squad
@@ -55,8 +46,7 @@ const CFG = {
   // --- gates
   gateMax: 1000, gateGrow: 0.20,   // +20% size at MAX, linear from 0
   // --- weapons
-  bulletReach: 0.88,   // bullets fade out at this fraction of the screen height (from the bottom); round 8: 0.75 -> 0.88
-  tracerW: 0.85,       // round 8: tracers a little thinner (x this width)
+  bulletReach: 0.75,   // bullets fade out at this fraction of the screen height (from the bottom)
   beamGrace: 5, beamDrain: 7, beamMinHp: 12,   // seconds free, then hp per second; the beam shuts off at beamMinHp
   omegaDmg: 900, omegaBossDmg: 1500, omegaTime: 1.3,
   rapidMul: [1, 1.5, 2],   // RAPID FIRE canister: fire-rate multiplier per level (plane and drones); separate from the bullet tiers
@@ -730,15 +720,13 @@ function buildLevel() {
   const ambush = (T, n, hp) => L.push({ t: T, k: 'ambush', n, hp });
   // round-2 swarms: staggered rows of yellow-eyed spiders
   const rows = (T, xc, n, cols, hp, sp = 1.1) => {
-    // round 8: smaller Xora, denser crowds (CFG.hordeMul more of them, a bit tighter and a bit weaker each)
-    n = Math.round(n * CFG.hordeMul); cols = Math.max(cols, Math.round(cols * 1.3)); sp *= CFG.hordeSpacing; hp = Math.max(3, Math.round(hp * CFG.hordeHp));
     for (let i = 0; i < n; i++) {
       const r = Math.floor(i / cols), c = i % cols, inRow = Math.min(cols, n - r * cols);
       const x = xc + (c - (inRow - 1) / 2) * sp + (r % 2 ? sp * 0.3 : 0) + srand(-0.15, 0.15);
       bug(T + r * 0.3 + srand(-0.05, 0.05), clamp(x, -4, 4), 'spider', hp);
     }
   };
-  const wedge = (T, xc, n, hp) => { n = Math.round(n * CFG.hordeMul); hp = Math.max(3, Math.round(hp * CFG.hordeHp)); for (let i = 0; i < n; i++) { const r = Math.ceil(i / 2), s = i % 2 ? 1 : -1; bug(T + r * 0.2, clamp(xc + s * r * 0.8 * CFG.hordeSpacing, -4, 4), 'spider', hp); } };
+  const wedge = (T, xc, n, hp) => { for (let i = 0; i < n; i++) { const r = Math.ceil(i / 2), s = i % 2 ? 1 : -1; bug(T + r * 0.28, clamp(xc + s * r * 0.8, -4, 4), 'spider', hp); } };
   const brutes = (T, n, hp) => { for (let i = 0; i < n; i++) bug(T + i * 0.5, (i % 2 ? 1 : -1) * srand(0.8, 2.6), 'brute', hp); };
   const wasps = (T, n) => { for (let i = 0; i < n; i++) bug(T + i * 0.55, (i % 2 ? 1 : -1) * srand(2.4, 3.6), 'wasp', 16); };
 
@@ -822,7 +810,7 @@ function resetGame(play) {
     tier: 0, primary: 'gun', rocketLv: 0, bazookaLv: 0, fireT: 0, missileT: 0.8, cannonT: 1, laserT: 0, gunSide: 0, smokeT: 0, endT: 0, maxDrones: 0, ended: false, deathBy: '',
     beamOwned: false, beamOn: false, beamT: 0, beamHintShown: false, beamStopHint: false, beamSmokeT: 0,
     omega: 0, omegaT: 0, omegaHint: false, combo: 0, comboT: 0, cleanT: 0, rescued: false, shakeT: 0, shakeHint: false, drainHurt: 0, latched: 0,
-    rapidLv: 0, fillT: 0, lullUntil: 0, visBugs: 0, coins: 0, coinsShown: 0, killCoins: 0, lootCoins: 0, gems: 0, gemsShown: 0, rubies: 0, rubiesShown: 0, diamonds: 0, diamondsShown: 0, killsBy: {} });
+    rapidLv: 0, coins: 0, coinsShown: 0, killCoins: 0, lootCoins: 0, gems: 0, gemsShown: 0, rubies: 0, rubiesShown: 0, diamonds: 0, diamondsShown: 0, killsBy: {} });
   coinFx = []; setMood(false); $('threat').className = ''; updateLootHud(true);
   slowmo = 1; trauma = 0; flashRed = 0; weaponFlash = 0; omegaFlash = 0;
   level = buildLevel(); levelIdx = 0;
@@ -898,13 +886,10 @@ const BUG = {
   spitter: { tex: 'spitter', w: 2.0, cy: 0.4, r: 0.95, spd: [1.0, 1.2], turn: 1.5, pdmg: 8, ddmg: 10, dps: 6, ddps: 6, hunt: 0.8, elite: true, anim: 11, hover: 0.35 },
 };
 const bugW = (B) => B.w * CFG.bugScale;
-// round 8: perspective approach scale (farScale at the top edge -> 1 at CFG.nearZ, smoothstep); also used for hit radii
-function persp(z) { const k = clamp((z - TOP_Z) / (CFG.nearZ - TOP_Z), 0, 1), e = k * k * (3 - 2 * k); return CFG.farScale + (1 - CFG.farScale) * e; }
-const clings = (type) => CFG.clingTypes.includes(type);
 function newBug(x, z, type, hp, src = 'wave') {
   const B = BUG[type];
   const s = sprite(TEX[B.tex], bugW(B), 0.5, B.cy, type === 'wasp' ? 1.6 : 1);
-  const o = { sprite: s, type, x, z, hp, max: hp, r0: B.r * CFG.bugScale, r: B.r * CFG.bugScale * persp(z), ps: persp(z), cling: clings(type), fx: rand(-1, 1), vx: 0, vz: 0, spd: rand(B.spd[0], B.spd[1]) * CFG.bugSpeed, ph: rand(0, TAU), flash: 0, barT: 0, elite: !!B.elite, t: 0,
+  const o = { sprite: s, type, x, z, hp, max: hp, r: B.r * CFG.bugScale, vx: 0, vz: 0, spd: rand(B.spd[0], B.spd[1]) * CFG.bugSpeed, ph: rand(0, TAU), flash: 0, barT: 0, elite: !!B.elite, t: 0,
     state: 'in', holdT: 0, spitT: rand(0.6, 1.2), bx: x, src, seen: false, host: null, slot: -1, grip: CFG.grip, lx: 0, lz: 0, claw: rand(0, TAU) };
   s.position.set(x, 0.3, z);
   bugs.push(o); AUD.bugs++; return o;
@@ -1040,7 +1025,6 @@ function killBug(s, i) {
   explode(s.x, 0.4, s.z, B.big ? 1.6 : s.type === 'beetle' ? 1.7 : s.elite ? 1.3 : 0.85, true, s.type === 'spitter' ? [0.4, 0.95, 0.2] : [0.75, 0.1, 0.08]);
   if (B.big || s.elite) addShake('medium');
   scene.remove(s.sprite); bugs.splice(i, 1); S.kills++;
-  { const y = toScreen(s.x, 0.3, s.z)[1] / H, A = AUD.deathY || (AUD.deathY = { n: 0, sum: 0, hist: new Array(10).fill(0) }); if (y >= 0 && y <= 1) { A.n++; A.sum += y; A.hist[Math.min(9, Math.floor(y * 10))]++; A.mean = +(A.sum / A.n).toFixed(3); } }
   awardKill(s.src === 'carrier' ? 'carrier' : s.type, s.x, s.z);
   // Omega charge: every kill feeds it, more during a combo and while you stay clean
   S.combo = S.comboT > 0 ? S.combo + 1 : 1; S.comboT = 1.4;
@@ -1061,7 +1045,7 @@ function setTier(n, x, z) {
   n = clamp(n, 0, 2); if (n === S.tier) { flyIcons.push({ name: 'power', x, z, t: 0 }); sfx('power'); return; }
   S.tier = n; const T = T_();
   // every round already in the air changes colour and hits harder at once (drones copy the jet)
-  for (const b of shots) if (b.kind === 'bullet') { b.dmg = b.drone ? T.dDmg : T.dmg; b.w = T.w * CFG.tracerW * (b.drone ? 0.72 : 1); b.len = T.len * (b.drone ? 0.72 : 1); }
+  for (const b of shots) if (b.kind === 'bullet') { b.dmg = b.drone ? T.dDmg : T.dmg; b.w = T.w * (b.drone ? 0.72 : 1); b.len = T.len * (b.drone ? 0.72 : 1); }
   AUD.tiers.push({ t: +S.t.toFixed(2), tier: n, name: T.name, inAir: shots.length });
   weaponFlash = 1; upRing = { t: 0, col: n === 2 ? '#7cc4ff' : '#ffa040' };
   flyIcons.push({ name: 'power', x, z, t: 0 });
@@ -1625,7 +1609,7 @@ function botThink() {
 // ---------------------------------------------------------------- weapons
 function fire(x, z, vx, vz, drone) {
   const T = T_();
-  const b = { kind: 'bullet', x, z, vx, vz, dmg: drone ? T.dDmg : T.dmg, tick: 1, w: T.w * CFG.tracerW * (drone ? 0.72 : 1), len: T.len * (drone ? 0.72 : 1), drone };
+  const b = { kind: 'bullet', x, z, vx, vz, dmg: drone ? T.dDmg : T.dmg, tick: 1, w: T.w * (drone ? 0.72 : 1), len: T.len * (drone ? 0.72 : 1), drone };
   shots.push(b); return b;
 }
 function firePrimary(dt) {
@@ -1783,24 +1767,20 @@ function update(dt) {
   // latch on and claw ('latch') until shot or flung off. They never fly past the plane or off the bottom.
   const zFloor = BOT_Z - 0.7;
   let onPlane = 0;
-  // round 8: the squad's front line (crawlers, brutes and elites stop here and fight; only wasps/red skitterers cling)
-  let sqHW = 1.6, frontZ = -1.3;
-  for (const w of wingmen) { if (w.delay > 0) continue; sqHW = Math.max(sqHW, Math.abs(w.x - S.px) + 0.8); frontZ = Math.min(frontZ, w.z - 0.7); }
   for (let i = bugs.length - 1; i >= 0; i--) {
     const s = bugs[i]; s.t += dt; const B = BUG[s.type];
-    s.ps = persp(s.z); s.r = s.r0 * s.ps;
     if (!play && s.state !== 'flee') { s.state = 'flee'; s.host = null; }
     if (s.state === 'in' || s.state === 'hold') {
       let hx = S.px, turn = B.turn, spd = s.spd, extraZ = 0, held = false;
       if (s.type === 'wasp' && s.z < -15) { hx = s.bx + Math.sin(s.t * 2.3 + s.ph) * 2.6; spd = s.spd * 0.8; }
       if (s.type === 'spitter') {
-        if (s.state === 'in' && s.z > -16 && !s.didHold) { s.state = 'hold'; s.holdT = 0; s.didHold = true; }
+        if (s.state === 'in' && s.z > -16) { s.state = 'hold'; s.holdT = 0; }
         if (s.state === 'hold') {
-          s.holdT += dt; extraZ = -dz * (s.cling ? 1 : CFG.crawlScroll); // hangs back: keeps its distance
+          s.holdT += dt; extraZ = -dz; // hangs back: keeps its distance
           s.vx = lerp(s.vx, clamp((S.px - s.x) * 0.5, -1.2, 1.2), 1 - Math.exp(-dt * 2)); s.vz = lerp(s.vz, 0, 1 - Math.exp(-dt * 3));
           s.spitT -= dt;
           if (play && s.spitT <= 0) { s.spitT = 2.0; lob(s.x, s.z + 0.6, S.px + S.vx * 0.25, 1.7); sfx('spit'); }
-          if (s.holdT > 7.5) s.state = s.cling ? 'hunt' : 'in';
+          if (s.holdT > 7.5) s.state = 'hunt';
         }
       }
       // never close in on a gate from behind: hold station and slide round it
@@ -1810,33 +1790,14 @@ function update(dt) {
         if (gap > 0 && gap < GAP_Z && Math.abs(s.x - g.x) < GATE_W / 2 + s.r) { held = true; hx = g.x + (s.x < g.x ? -1 : 1) * (GATE_W / 2 + s.r + 0.8); }
       }
       if (s.state === 'in') {
-        if (!s.cling && !held) {   // round 8: crowds come straight down, then converge on the squad's width (y ~ 0.4-0.6)
-          const near = clamp((s.z + 22) / 12, 0, 1);
-          hx = lerp(s.bx, S.px + s.fx * sqHW, near); turn = B.turn * (0.35 + near);
-        }
-        const dx = hx - s.x, dzz = (s.cling ? 0.2 : frontZ) - s.z, d = Math.hypot(dx, dzz) || 1;
+        const dx = hx - s.x, dzz = 0.2 - s.z, d = Math.hypot(dx, dzz) || 1;
         const k = 1 - Math.exp(-dt * turn);
         s.vx = lerp(s.vx, dx / d * spd, k); s.vz = lerp(s.vz, dzz / d * spd, k);
       }
       if (held && s.vz > 0) s.vz = 0;
       const lim = hwAt(s.z);
-      s.x = clamp(s.x + (s.vx + Math.sin(s.ph * 0.3) * 0.2) * dt, -lim, lim); s.z += dz * (s.cling ? 1 : CFG.crawlScroll) + extraZ + s.vz * dt;
-      if (s.state === 'in' && s.cling && s.z > -CFG.huntRadius) { s.state = 'hunt'; s.vz = Math.max(0, s.vz - dz * 0.5); }
-      else if (s.state === 'in' && !s.cling && s.z >= frontZ - 0.4) { s.state = 'front'; AUD.frontArrivals = (AUD.frontArrivals || 0) + 1; }
-    } else if (s.state === 'front') {
-      // round 8: hold the squad's front line and fight there: bite the nearest plane/drone in reach, never pass it
-      let bx = S.px, bz = -0.2, bw = null, bd = Math.hypot(S.px - s.x, (-0.2 - s.z) * 0.7);
-      for (const w of wingmen) { if (w.delay > 0) continue; const d = Math.hypot(w.x - s.x, (w.z - s.z) * 0.7); if (d < bd) { bd = d; bw = w; bx = w.x; bz = w.z; } }
-      const tx = bx + s.fx * 0.35, tz = bz - 0.75 - s.r * 0.5;
-      const k = 1 - Math.exp(-dt * 4), sp = s.spd * 1.3 + 1;
-      const dx = tx - s.x, dzz = tz - s.z, d = Math.hypot(dx, dzz) || 1;
-      s.vx = lerp(s.vx, dx / d * Math.min(sp, d * 4), k); s.vz = lerp(s.vz, dzz / d * Math.min(sp, d * 4), k);
-      s.x += s.vx * dt; s.z = Math.min(s.z + s.vz * dt, tz + 0.2);
-      if (play && bd < 1.05 + s.r) {
-        s.claw += dt * 13;
-        if (!bw) { drainPlayer(B.dps * 0.6 * dt, 'bug'); if (Math.random() < dt * 4) spark(s.x, 0.7, s.z + 0.3, false, [1, 0.8, 0.4]); }
-        else { bw.hp -= B.ddps * dt; bw.barT = 1.6; if (bw.hp <= 0) removeWingman(wingmen.indexOf(bw)); }
-      }
+      s.x = clamp(s.x + (s.vx + Math.sin(s.ph * 0.3) * 0.2) * dt, -lim, lim); s.z += dz + extraZ + s.vz * dt;
+      if (s.state === 'in' && s.z > -CFG.huntRadius) { s.state = 'hunt'; s.vz = Math.max(0, s.vz - dz * 0.5); }
     } else if (s.state === 'hunt') {
       // chase: keep pace with the plane (no more scrolling) and home in on a clinging spot
       if (s.host && s.host !== 'plane' && !wingmen.includes(s.host)) s.host = null;
@@ -1876,19 +1837,6 @@ function update(dt) {
     }
     s.ph += dt * B.anim; s.barT = Math.max(0, s.barT - dt);
   }
-  // round 8: FILLER STREAM. Between hordes a trickle of crawlers keeps coming in from beyond the top edge, so the
-  // sky is never empty (>= CFG.filler.min on screen or about to enter). Paused for CFG.filler.lull s after an Omega Beam.
-  if (play) {
-    const F = CFG.filler; let vis = 0, pend = 0; S.fillT -= dt;
-    for (const b of bugs) { if (b.state === 'flee') continue; if (b.z < TOP_Z) { if (b.z > TOP_Z - 9) pend++; } else if (b.z < BOT_Z) vis++; }
-    S.visBugs = vis;
-    const quiet = S.t < S.lullUntil || (boss && boss.state === 'dying') || S.t < 1.2;
-    if (!quiet && vis + pend < F.min && S.fillT <= 0) {
-      const n = vis === 0 ? 2 : 1, hw = hwAt(TOP_Z) * 0.8;
-      for (let k = 0; k < n; k++) { const b = newBug(rand(-hw, hw), TOP_Z - rand(0.3, 1.8), 'spider', Math.round(F.hp0 + S.t * F.hpPerS), 'filler'); b.bx = b.x; }
-      S.fillT = F.every; AUD.filler = (AUD.filler || 0) + n;
-    }
-  }
   S.latched = onPlane; AUD.latchPlaneMax = Math.max(AUD.latchPlaneMax, onPlane);
   if (onPlane > 0 && !S.shakeHint && play) { S.shakeHint = true; tips.push({ text: 'Wiggle hard to shake them off!', target: 'plane', t: 0, dur: 3 }); }
   // keep swarms from collapsing into one blob (clinging bugs stay put)
@@ -1906,7 +1854,7 @@ function update(dt) {
   // clear sky behind gates: a bug may not move into the zone just behind a gate (within GAP_Z and overlapping it)
   for (const s of bugs) {
     if (s.state === 'latch' || s.state === 'flee') { s.okx = s.x; s.okz = s.z; continue; }
-    const sdz = s.state === 'in' || s.state === 'hold' ? dz * (s.cling ? 1 : CFG.crawlScroll) : 0;
+    const sdz = s.state === 'in' || s.state === 'hold' ? dz : 0;
     if (inGateShadow(s.x, s.z, s.r)) {
       if (s.okx !== undefined && !inGateShadow(s.okx, s.okz + sdz, s.r)) { s.x = s.okx; s.z = s.okz + sdz; if (s.vz > 0) s.vz = 0; }
       else {   // no safe previous spot (e.g. a gate appeared in front of it): step sideways out of the gate's lane
@@ -1923,7 +1871,7 @@ function update(dt) {
   }
   for (let i = bugs.length - 1; i >= 0; i--) {
     const s = bugs[i]; const B = BUG[s.type];
-    const sp = s.sprite, w0 = bugW(B) * s.ps * (s.state === 'latch' ? 0.82 : 1), img = sp.material.map.image;
+    const sp = s.sprite, w0 = bugW(B) * (s.state === 'latch' ? 0.82 : 1), img = sp.material.map.image;
     if (B.r2) {   // round-2 scuttle
       sp.position.set(s.x, 0.25 + Math.abs(Math.sin(s.ph)) * 0.12 + (s.state === 'latch' ? 0.35 : 0), s.z);
       sp.scale.set(w0 * (1 + Math.sin(s.ph * 2) * 0.03), w0 * img.height / img.width * (1 - Math.sin(s.ph * 2) * 0.05), 1);
@@ -2002,7 +1950,7 @@ function update(dt) {
   if (boss && boss.state !== 'enter' && boss.state !== 'dying' && boss.z > RANGE_Z - 1.5) targets.push([boss, 'b', boss.hitW, boss.hitD]);
   for (const c of cocoons) {
     if (c.stage < 2 && c.state !== 'leave' && c.z > RANGE_Z - 1) targets.push([c, 'c', CFG.cocoonW * 0.36, 1.0]);
-    if (c.carrier.alive && c.state !== 'leave' && c.carrier.z > RANGE_Z - 1) targets.push([c.carrier, 'k', CFG.carrierW * 0.46 * (c.carrier.ks || 1), 0.55]);
+    if (c.carrier.alive && c.state !== 'leave' && c.carrier.z > RANGE_Z - 1) targets.push([c.carrier, 'k', CFG.carrierW * 0.46, 0.55]);
   }
   const alive = (t, k) => k === 's' ? bugs.includes(t) : k === 'p' ? pods.includes(t) : k === 'b' ? boss === t && t.state !== 'dying' : k === 'c' ? t.stage < 2 && cocoons.includes(t) : k === 'k' ? t.alive : !t.passed;
 
@@ -2275,33 +2223,19 @@ function collectOmegaOrb(p) {
 }
 function fireOmega() {
   if (S.mode !== 'play' || S.omega < 1 || S.omegaT > 0 || !planeSprite.visible) return false;
-  S.omega = 0; S.omegaT = CFG.omegaTime; S.omegaTick = 0; AUD.omegaFires++; S.lullUntil = S.t + CFG.omegaTime + CFG.filler.lull;
+  S.omega = 0; S.omegaT = CFG.omegaTime; S.omegaTick = 0; AUD.omegaFires++;
   omegaFlash = 1; addShake('omega'); buzz([90, 40, 90, 40, 90, 40, 90, 40, 160]); sfx('omega'); banner(ORB_TIER.toUpperCase() + ' BEAM!', '', false, 1.2);
   omegaStrike(1);
   return true;
 }
-// round 8: the Omega Beam reaches the top edge of the screen and hits EVERYTHING visible that its cone touches
-// (Xora, the boss, crates, canisters, orbs, gates, the cocoon and its carrier), plus a blast around the nose that
-// knocks clingers off. The footprint is the drawn cone: 34 px wide at the nose, 1.5x the screen width at the top.
-function omegaTouches(x, y, z, rw) {
-  const [sx, sy] = toScreen(x, y, z), rp = rw * unitPx(x, y, z), [nx, ny] = toScreen(S.px, 0.6, -1.3);
-  if (sy < -rp || sy > H + rp || sx < -rp || sx > W + rp) return false;   // only what is on screen
-  if (Math.hypot(sx - nx, sy - ny) < 130 + rp) return sy;                  // the nose blast
-  if (sy > ny) return false;
-  const hw = lerp(W * 0.75, 34, clamp(sy / Math.max(1, ny), 0, 1));
-  return Math.abs(sx - nx) <= hw + rp ? Math.max(sy, 0.0001) : false;
-}
-function omegaLog(kind, sy) { if (sy === false) return false; const f = sy / H, A = AUD.omegaHit || (AUD.omegaHit = { n: 0, topY: 1, topKind: '', byKind: {} }); A.n++; A.byKind[kind] = (A.byKind[kind] || 0) + 1; if (f < A.topY) { A.topY = +f.toFixed(4); A.topKind = kind; } return true; }
+// huge damage to everything ahead of the plane (and blasts clingers off it)
 function omegaStrike(mul) {
   let n = 0;
-  for (let j = bugs.length - 1; j >= 0; j--) { const s = bugs[j]; if (!s) continue; if (s.state === 'latch' || omegaLog('xora:' + s.type, omegaTouches(s.x, 0.4, s.z, s.r))) { damage(s, 's', CFG.omegaDmg * mul, j); n++; } }
-  for (let j = pods.length - 1; j >= 0; j--) { const p = pods[j]; if (p && p.z < -0.8 && omegaLog('pod:' + p.kind, omegaTouches(p.x, 0.5, p.z, p.w * 0.42))) damage(p, 'p', CFG.omegaDmg * mul, j); }
-  for (const c of cocoons.slice()) {
-    if (c.carrier.alive && omegaLog('carrier', omegaTouches(c.carrier.x, 1.2, c.carrier.z, CFG.carrierW * 0.46 * (c.carrier.ks || 1)))) hitCarrier(c.carrier, CFG.omegaDmg * mul);
-    if (c.stage < 2 && omegaLog('cocoon', omegaTouches(c.x, 0.6, c.z, CFG.cocoonW * 0.36))) hitCocoon(c, CFG.omegaDmg * mul);
-  }
-  for (const g of gates) if (!g.passed && g.z < -1 && omegaLog('gate', omegaTouches(g.x, 0.6, g.z, GATE_W / 2))) hitGate(g, Math.round(150 * mul));
-  if (boss && boss.state !== 'enter' && boss.state !== 'dying' && omegaLog('boss', omegaTouches(boss.x, 1.5, boss.z, boss.hitW))) { damage(boss, 'b', CFG.omegaBossDmg * mul); if (mul >= 1) pop(String(Math.round(CFG.omegaBossDmg * mul)), boss.x, 3, boss.z, '#f0d8ff', 1.3, '#2a0a4a', 0, true); }
+  for (let j = bugs.length - 1; j >= 0; j--) { const s = bugs[j]; if (!s || s.z < TOP_Z - 2) continue; damage(s, 's', CFG.omegaDmg * mul, j); n++; }
+  for (let j = pods.length - 1; j >= 0; j--) { const p = pods[j]; if (p && p.z < -0.8 && p.z > TOP_Z - 1) damage(p, 'p', CFG.omegaDmg * mul, j); }
+  for (const c of cocoons.slice()) { if (c.carrier.alive && c.z > TOP_Z) hitCarrier(c.carrier, CFG.omegaDmg * mul); if (c.stage < 2 && c.z > TOP_Z) hitCocoon(c, CFG.omegaDmg * mul); }
+  for (const g of gates) if (!g.passed && g.z < -1 && g.z > TOP_Z) hitGate(g, Math.round(150 * mul));
+  if (boss && boss.state !== 'enter' && boss.state !== 'dying') { damage(boss, 'b', CFG.omegaBossDmg * mul); if (mul >= 1) pop(String(Math.round(CFG.omegaBossDmg * mul)), boss.x, 3, boss.z, '#f0d8ff', 1.3, '#2a0a4a', 0, true); }
   AUD.omegaHits += n;
 }
 let hudBeamKey = '';
@@ -2395,8 +2329,7 @@ function updateCocoons(dt, dz) {
       K.ph += dt * 30; K.flash = Math.max(0, K.flash - dt * 8); K.barT = Math.max(0, K.barT - dt);
       K.x = c.x; K.z = c.z - 1.0;
       const img = K.sprite.material.map.image, fl = Math.sin(K.ph) * 0.07;
-      K.sprite.position.set(K.x, 1.2 + Math.sin(c.ph * 3) * 0.06, K.z); K.ks = CFG.bugScale * persp(K.z); const kw = CFG.carrierW * K.ks;   // round 8: carriers follow the Xora size + perspective scale
-      K.sprite.scale.set(kw * (1 + fl), kw * img.height / img.width * (1 - fl * 0.4), 1);
+      K.sprite.position.set(K.x, 1.2 + Math.sin(c.ph * 3) * 0.06, K.z); K.sprite.scale.set(CFG.carrierW * (1 + fl), CFG.carrierW * img.height / img.width * (1 - fl * 0.4), 1);
       K.sprite.material.rotation = c.state === 'in' ? -c.side * 0.35 : Math.sin(c.ph * 1.7) * 0.06;
       K.sprite.material.color.setScalar(1 + K.flash * 1.4);
     }

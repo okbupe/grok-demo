@@ -1,9 +1,9 @@
-# Grok Demo: Mission 1, "Get to Beacon" (round 7)
+# Grok Demo: Mission 1, "Get to Beacon" (round 8)
 
 A portrait, touch-first sky shooter for mobile browsers, and a prototype of *Jetcraft: Invasion Earth*. Atlas flies the biplane across the Channel coast to **Beacon**, the base. On the way you build a drone squad, shoot gates positive, crack weapon canisters, smash loot crates, rescue a cocooned pilot and bring down the **Xora Queen**. The alien race is the **Xora**.
 
 **Play:** https://okbupe.github.io/grok-demo/
-Earlier rounds are kept frozen for comparison: **Round 6** at https://okbupe.github.io/grok-demo/v6/, **Round 5** at https://okbupe.github.io/grok-demo/v5/, **Round 4** at https://okbupe.github.io/grok-demo/v4/, **Round 3** at https://okbupe.github.io/grok-demo/v3/ and **Round 2** at https://okbupe.github.io/grok-demo/v2/. The title screen links to all five under "Previous versions".
+Earlier rounds are kept frozen for comparison: **Round 7** at https://okbupe.github.io/grok-demo/v7/, **Round 6** at https://okbupe.github.io/grok-demo/v6/, **Round 5** at https://okbupe.github.io/grok-demo/v5/, **Round 4** at https://okbupe.github.io/grok-demo/v4/, **Round 3** at https://okbupe.github.io/grok-demo/v3/ and **Round 2** at https://okbupe.github.io/grok-demo/v2/. The title screen links to all six on one line ("Previous versions: 7 · 6 · 5 · 4 · 3 · 2").
 
 ## Controls
 - **Steer:** drag left or right anywhere. Firing is automatic from the first frame.
@@ -12,6 +12,15 @@ Earlier rounds are kept frozen for comparison: **Round 6** at https://okbupe.git
 - **Shake off clinging Xora:** steer hard left and right.
 - **Desktop:** arrow keys or A/D to steer, W/↑ for beam on, S/↓ for beam off, Space or E for Omega. Mouse drag and clicking the plane also work.
 - **Gesture rules:** a flick must start within 115 px of the plane, last under 320 ms, travel at least 45 px, be mostly vertical (|dy| > 2·|dx|) and move at least 0.35 px/ms. A tap must start within 72 px of the plane, last under 180 ms and move under 10 px. Steering drags, resting your thumb, and lifting then putting it down to drag never count as a flick or a tap.
+
+## New in round 8
+- **Unchanged:** plane position and size, drone size, camera and player row.
+- **Smaller Xora with a perspective approach:** crawlers are **0.66×** their round-7 size near the squad (`CFG.bugScale`). On top of the camera's own perspective, each Xora is drawn at **0.55×** (`CFG.farScale`) when it enters at the top and grows smoothly (smoothstep) to full size by `CFG.nearZ`, so they read as approaching rather than growing. Elites, brutes, wasps, spitters and the cocoon carrier use the same factors. The Queen keeps her size. Hit radii follow the drawn scale every frame.
+- **No dull moments:** a **filler stream** (`CFG.filler`) keeps at least 3 to 5 Xora on screen or about to enter between hordes, so the sky is never empty. Filler crawlers spawn off-screen at the top and their HP grows with mission time. The only lull is right after an Omega Beam: the stream pauses for `filler.lull` (2.0 s) after the beam ends. Hordes are **1.7× denser** (`hordeMul`) with slightly tighter spacing and 0.8× HP per bug. Coins come out a bit higher than in round 7 (about 1,090 stage coins vs 890 in an autoplay run).
+- **Longer bullet reach:** bullets now travel to **0.88 of the screen height** above the plane (`CFG.bulletReach`, was 0.75), so fights happen further up the screen. The colour ladder is unchanged. Tracers are 15% thinner (`CFG.tracerW`).
+- **Omega Beam reaches the top edge.** It damages everything visible that its cone touches, all the way to the top of the screen: Xora, the Queen, gates, crates, canisters, the cocoon and its carrier. Clinging Xora are always hit. The rumble and HUD shake are unchanged. `window.__AUDIT.omegaHit` logs hits by kind and the highest hit (`topY`, 0 = top edge).
+- **Who clings:** only wasps and fast red spiders hunt and latch (`CFG.clingTypes`). Basic crawlers and the other types advance in crowds to a front line just ahead of the squad and bite from there. They never pass the player. All spawns stay off-screen at the top.
+- The title's "Previous versions" link now shows just the numbers (7 · 6 · 5 · 4 · 3 · 2) and stays on one line. Round 7 (commit e003488) is frozen at `/v7/`.
 
 ## New in round 7
 - **Mission Complete is now a timed, visual payout sequence** with very few words. The gold banner stomp, the star thuds and the celebration by star count are unchanged. Times are from the end of the mission (3 stars, 45 drones):
@@ -58,7 +67,7 @@ Earlier rounds are kept frozen for comparison: **Round 6** at https://okbupe.git
 - The base is now called **Beacon** ("BEACON IN SIGHT").
 
 ## Rules of the sky
-- Open sky: no lanes, dots or dividers. Nothing casts a shadow. Bullets reach three quarters of the way up the screen.
+- Open sky: no lanes, dots or dividers. Nothing casts a shadow. Bullets reach about 0.88 of the screen height above the plane. The Omega Beam reaches the top edge.
 - One gate per row, with a canister, crate or Xora beside it. No Xora sit directly behind a gate.
 - **Gates:** every bullet adds +1 (rockets and shells add more). At **1000** a gate turns gold and shows **MAX**. A blue gate gives drones and restores health. A red gate takes drones.
 - **Bullet tiers:** standard, then orange, then blue.
@@ -70,9 +79,9 @@ All sizes, speeds, camera, gesture thresholds, shake (trauma decay, layer amplit
 ## Tech
 - Three.js is vendored at build time, so there is no CDN at runtime. A 2D canvas overlay draws numbers, bars, badges, sparkles and beams. The HUD is HTML/CSS, and the sound is WebAudio.
 - Sprites are stored as `art/*.webp.b64`. `tools/cut_cocoon.py` cuts the three cocoon stages from the reference sheet with the shared alpha matte from `tools/cut_art.py`, so there is no white halo.
-- `tools/build.sh` builds the site, stamps a cache-busting version, copies `fonts/`, and copies the frozen `v2/`, `v3/`, `v4/`, `v5/` and `v6/` builds (v5 = commit f19e5cd, v6 = commit b4f3de1). `.github/workflows/pages.yml` publishes to `gh-pages`.
+- `tools/build.sh` builds the site, stamps a cache-busting version, copies `fonts/`, and copies the frozen `v2/`, `v3/`, `v4/`, `v5/`, `v6/` and `v7/` builds (v5 = commit f19e5cd, v6 = commit b4f3de1, v7 = commit e003488). `.github/workflows/pages.yml` publishes to `gh-pages`.
 - Font: Luckiest Guy by Astigmatic, from Google Fonts, vendored as `fonts/luckiest.woff2` (Apache License 2.0, see `fonts/LICENSE-LuckiestGuy.txt`).
 - **Debug URL flags** (all off by default): `?autoplay` (a bot flies the mission), `&ts=2`, `&warp=60`, `&drones=20`, `&tier=0|1|2`, `&weapon=beam|gun`, `&beamon=1`, `&rockets=1`, `&bazooka=1`, `&bosshp=`, `&hp=`, `&omega=0..1` (starting charge), `&cocoon=T` (cocoon time in seconds), `&rapid=0|1|2`, `&ruby=1` (every ruby roll succeeds).
-- **Audit:** `window.__AUDIT` records spawns (`seen`, `maxY`, `viol` for mid-screen pop-ins, `brood`, `gatePairs`, `minGap`), hunters (`bottomExit`, `bugMaxScreenY`, `removedOffscreen`, `latchTotal`, `latchPlaneMax`, `flung`), the cocoon event log (`cocoon`, `carriers`), Omega (`omegaFires`, `omegaHits`, `orbs`), the beam (`beamOn`, `beamOff`, `beamDrainHp`, `beamSmoke`), gates (`gateMaxScale`, `gateScaleAtMax`), `shakes` by kind (`{n, peak}`), `shakeLog`, `omegaRumble` (per-frame shake during Omega), `bossChain` and `bossTrace` (the death chain), `shotsPlane`/`shotsDrone`, `rapid`, `loot`, `coins` by type, `results`, `threat`, `vibrate`, `slots`, `maxDrones`, `bombs`, `stars`, `rubies` (ruby drops) and `results` (round 7: stage, drones, droneBonus, starMult, final, shown, skipped, timeline). `window.__G.GLOG` logs every gesture decision.
+- **Audit:** `window.__AUDIT` records spawns (`seen`, `maxY`, `viol` for mid-screen pop-ins, `brood`, `gatePairs`, `minGap`), hunters (`bottomExit`, `bugMaxScreenY`, `removedOffscreen`, `latchTotal`, `latchPlaneMax`, `flung`), the cocoon event log (`cocoon`, `carriers`), Omega (`omegaFires`, `omegaHits`, `orbs`), the beam (`beamOn`, `beamOff`, `beamDrainHp`, `beamSmoke`), gates (`gateMaxScale`, `gateScaleAtMax`), `shakes` by kind (`{n, peak}`), `shakeLog`, `omegaRumble` (per-frame shake during Omega), `bossChain` and `bossTrace` (the death chain), `shotsPlane`/`shotsDrone`, `rapid`, `loot`, `coins` by type, `results`, `threat`, `vibrate`, `slots`, `maxDrones`, `bombs`, `stars`, `rubies` (ruby drops), `omegaHit` and `deathY` (round 8: Omega hits by kind with the highest hit, and the screen y of each Xora death) and `results` (round 7: stage, drones, droneBonus, starMult, final, shown, skipped, timeline). `window.__G.GLOG` logs every gesture decision.
 
 Local build: `pip install numpy scipy opencv-python-headless pillow && bash tools/build.sh _site`, then serve `_site/`.
