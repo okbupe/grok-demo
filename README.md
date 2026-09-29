@@ -1,17 +1,45 @@
-# Grok Demo: Mission 1, "Get to Beacon" (round 11)
+# Grok Demo: Mission 1, "Get to Beacon" (round 12)
 
 A portrait, touch-first sky shooter for mobile browsers, and a prototype of *Jetcraft: Invasion Earth*. Atlas flies the biplane across the Channel coast to **Beacon**, the base. On the way you build a drone squad, shoot gates positive, crack weapon canisters, smash loot crates, rescue a cocooned pilot and bring down the **Xora Queen**. The alien race is the **Xora**.
 
 **Play:** https://okbupe.github.io/grok-demo/
-Earlier rounds are kept frozen for comparison: **Round 10** at https://okbupe.github.io/grok-demo/v10/, **Round 9** at https://okbupe.github.io/grok-demo/v9/, **Round 8** at https://okbupe.github.io/grok-demo/v8/, **Round 7** at https://okbupe.github.io/grok-demo/v7/, **Round 6** at https://okbupe.github.io/grok-demo/v6/, **Round 5** at https://okbupe.github.io/grok-demo/v5/, **Round 4** at https://okbupe.github.io/grok-demo/v4/, **Round 3** at https://okbupe.github.io/grok-demo/v3/ and **Round 2** at https://okbupe.github.io/grok-demo/v2/. The title screen links to all nine on one line ("Previous versions: 10 · 9 · 8 · 7 · 6 · 5 · 4 · 3 · 2").
+Earlier rounds are kept frozen for comparison: **Round 11** at https://okbupe.github.io/grok-demo/v11/, **Round 10** at https://okbupe.github.io/grok-demo/v10/, **Round 9** at https://okbupe.github.io/grok-demo/v9/, **Round 8** at https://okbupe.github.io/grok-demo/v8/, **Round 7** at https://okbupe.github.io/grok-demo/v7/, **Round 6** at https://okbupe.github.io/grok-demo/v6/, **Round 5** at https://okbupe.github.io/grok-demo/v5/, **Round 4** at https://okbupe.github.io/grok-demo/v4/, **Round 3** at https://okbupe.github.io/grok-demo/v3/ and **Round 2** at https://okbupe.github.io/grok-demo/v2/. The title screen links to all ten on one line ("Previous versions: 11 · 10 · 9 · 8 · 7 · 6 · 5 · 4 · 3 · 2", 264 px wide at 390 px).
 
 ## Controls
-- **Steer:** drag left or right anywhere. Firing is automatic from the first frame.
-- **Beam** (after you collect the BEAM canister): flick **up** from the plane to switch it on, and flick **down** to switch it off. The first 5 s are free. After that it drains your health and the plane smokes. It shuts off by itself at 12 HP.
-- **Omega Beam:** when the purple HUD bar is full, the plane's nose soaks up energy. **Tap the plane** (a quick touch and release) to fire a screen-wide beam.
+All gestures work **anywhere on the screen**.
+- **Steer:** drag left or right. Firing is automatic from the first frame.
+- **Beam** (after you collect the BEAM canister): **swipe up** to switch it on, **swipe down** to switch it off. The first 5 s are free. After that it drains your health and the plane smokes. The drain eases off as you get close to the 12 HP cut-off, where it shuts off by itself.
+- **Omega Beam:** when the purple HUD bar is full, **double-tap** to fire a screen-wide beam.
 - **Shake off clinging Xora:** steer hard left and right.
-- **Desktop:** arrow keys or A/D to steer, W/↑ for beam on, S/↓ for beam off, Space or E for Omega. Mouse drag and clicking the plane also work.
-- **Gesture rules:** a flick must start within 115 px of the plane, last under 320 ms, travel at least 45 px, be mostly vertical (|dy| > 2·|dx|) and move at least 0.35 px/ms. A tap must start within 72 px of the plane, last under 180 ms and move under 10 px. Steering drags, resting your thumb, and lifting then putting it down to drag never count as a flick or a tap.
+- **Desktop:** arrow keys or A/D to steer, W/↑ for beam on, S/↓ for beam off, Space or E for Omega, Enter to continue an explainer.
+- **Gesture rules (`CFG`):**
+  - **Swipe:** must travel at least 55 px (`swipeMinPx`) within 300 ms of touch-down (`swipeMaxMs`).
+  - It must be mostly vertical, with |dy| > 2.2·|dx| (`swipeRatio`), and move at least 0.45 px/ms (`swipeMinV`).
+  - It must have less than 34 px of sideways travel before it (`swipeMaxPathX`). The flick's own few px of steering are handed back.
+  - **Tap:** under 200 ms (`tapMs`) and under 12 px of movement (`tapPx`).
+  - **Double tap:** the second tap starts within 300 ms of the first ending (`dblTapMs`) and within 70 px of it (`dblTapPx`).
+  - A single tap does nothing in play. Steering drags, slow or diagonal drags, and a drag that ends in an upward flick never count as a swipe or a tap.
+
+## New in round 12
+- **Bullet-time tutorials** replace every tutorial bubble.
+  - **How it looks:** the game eases into near-frozen slow motion (down to 3 % speed over 0.7 s). Everything except your plane turns grey and dims, with a soft vignette. The cameras push in toward the plane with a little parallax. It eases back out over 0.5 s.
+  - **Order:**
+    1. Omega full: a hand double-taps, "DOUBLE TAP".
+    2. About 2 s after the first Omega ends: a hand points at the Omega bar, with pictures of what fills it (orb +++, MAX gate ++, elite kill ×3) and a meter filling in steps.
+    3. First BEAM pickup: a hand swipes up.
+    4. After the 5 s free beam: a hand swipes down.
+    5. About 2 s after the beam goes off: beam + stopwatch 5 → smoking, flashing plane, and a heart with a draining health bar that slows before its cut-off mark.
+  - **Continuing:** doing the gesture continues the game (and also fires the Omega or toggles the beam). The two explainers continue on a tap.
+  - **Repeats:** each tutorial shows once (localStorage `grokdemo.tut`). `?tut=1` resets them and `?tut=0` turns them off.
+  - **Autoplay:** the bot performs each gesture after 1.4 s (`&btbot=N` changes the delay).
+- **New controls:** Omega is a double-tap anywhere, and the beam is a swipe up/down anywhere (see Controls).
+- **Title screen:** the instructions are gone. A cartoon hand now sways left/right over the plane between two pulsing arrows, above TAP TO FLY, the threat card and the Previous versions link.
+- **Boss warning:** "B-RANK THREAT APPROACHING" is now a dark plate hanging under the hazard tape. B-RANK is in the B badge's red-orange and the rest is in white. It pulses with the tape.
+  - The old "WARNING! XORA QUEEN INBOUND" banner and the Queen's name banner on arrival are gone. The tape shows once per boss approach.
+- **Pickup popups:** RAPID FIRE, ORANGE/BLUE ROUNDS, BEAM!, ROCKETS, BAZOOKA!, PILOT RESCUED!, OVERHEAT! and LOW HP! are now compact popups above the plane instead of full-screen banners.
+- **Gates:** no more "Shoot the gates" bubble, and a gate now inflates up to +40 % (`gateGrow`).
+- **HUD:** the full Omega bar shows two blinking tap dots instead of "TAP THE PLANE!".
+- Round 11 (commit 91fa01f) is frozen at `/v11/`.
 
 ## New in round 11
 Round 10's results screen is kept, with these fixes:
@@ -98,12 +126,12 @@ The round-9 sequence, sizes and impact are kept, with these changes:
 - Health bars change colour. Something happens every 1 to 2 seconds.
 
 ## Tuning
-All sizes, speeds, camera, gesture thresholds, shake (trauma decay, layer amplitudes, Omega rumble), rapid-fire steps, coin values, loot (including ruby chances), the drone payout (`droneCoinBase`, per-plane `planes.*.droneCoinMult`) and the star bonus (`starBonus`), the results shine rule (`results`) live in the **`CFG` block at the top of `game.js`**: plane, drone, gate, Xora, boss, cocoon and orb sizes; scroll, object and Xora speed; hunter speed and radius; camera position and FOV; drone spacing; beam grace and drain; Omega damage; tap and swipe thresholds. Star rules are in `CFG_STARS`.
+All sizes, speeds, camera, gesture thresholds, shake (trauma decay, layer amplitudes, Omega rumble), rapid-fire steps, coin values, loot (including ruby chances), the drone payout (`droneCoinBase`, per-plane `planes.*.droneCoinMult`) and the star bonus (`starBonus`), the results shine rule (`results`), bullet time (`bt`: ease in/out, slowest speed, dim, per-layer zoom, bot delay), the beam's low-HP drain easing (`beamDrainLow`) live in the **`CFG` block at the top of `game.js`**: plane, drone, gate, Xora, boss, cocoon and orb sizes; scroll, object and Xora speed; hunter speed and radius; camera position and FOV; drone spacing; beam grace and drain; Omega damage; tap and swipe thresholds. Star rules are in `CFG_STARS`.
 
 ## Tech
 - Three.js is vendored at build time, so there is no CDN at runtime. A 2D canvas overlay draws numbers, bars, badges, sparkles and beams. The HUD is HTML/CSS, and the sound is WebAudio.
 - Sprites are stored as `art/*.webp.b64`. `tools/cut_cocoon.py` cuts the three cocoon stages from the reference sheet with the shared alpha matte from `tools/cut_art.py`, so there is no white halo.
-- `tools/build.sh` builds the site, stamps a cache-busting version, copies `fonts/`, and copies the frozen `v2/`, `v3/`, `v4/`, `v5/`, `v6/`, `v7/`, `v8/`, `v9/` and `v10/` builds (v5 = commit f19e5cd, v6 = commit b4f3de1, v7 = commit e003488, v8 = commit eb1161c, v9 = commit 0cbb2ac, v10 = commit 2ea8b58). `.github/workflows/pages.yml` publishes to `gh-pages`.
+- `tools/build.sh` builds the site, stamps a cache-busting version, copies `fonts/`, and copies the frozen `v2/`, `v3/`, `v4/`, `v5/`, `v6/`, `v7/`, `v8/`, `v9/`, `v10/` and `v11/` builds (v5 = commit f19e5cd, v6 = commit b4f3de1, v7 = commit e003488, v8 = commit eb1161c, v9 = commit 0cbb2ac, v10 = commit 2ea8b58, v11 = commit 91fa01f). `.github/workflows/pages.yml` publishes to `gh-pages`.
 - Font: Luckiest Guy by Astigmatic, from Google Fonts, vendored as `fonts/luckiest.woff2` (Apache License 2.0, see `fonts/LICENSE-LuckiestGuy.txt`).
 - **Debug URL flags** (all off by default): `?autoplay` (a bot flies the mission), `&ts=2`, `&warp=60`, `&drones=20`, `&tier=0|1|2`, `&weapon=beam|gun`, `&beamon=1`, `&rockets=1`, `&bazooka=1`, `&bosshp=`, `&hp=`, `&omega=0..1` (starting charge), `&cocoon=T` (cocoon time in seconds), `&rapid=0|1|2`, `&ruby=1` (every ruby roll succeeds).
 - **Audit:** `window.__AUDIT` records spawns (`seen`, `maxY`, `viol` for mid-screen pop-ins, `brood`, `gatePairs`, `minGap`), hunters (`bottomExit`, `bugMaxScreenY`, `removedOffscreen`, `latchTotal`, `latchPlaneMax`, `flung`), the cocoon event log (`cocoon`, `carriers`), Omega (`omegaFires`, `omegaHits`, `orbs`), the beam (`beamOn`, `beamOff`, `beamDrainHp`, `beamSmoke`), gates (`gateMaxScale`, `gateScaleAtMax`), `shakes` by kind (`{n, peak}`), `shakeLog`, `omegaRumble` (per-frame shake during Omega), `bossChain` and `bossTrace` (the death chain), `shotsPlane`/`shotsDrone`, `rapid`, `loot`, `coins` by type, `results`, `threat`, `vibrate`, `slots`, `maxDrones`, `bombs`, `stars`, `rubies` (ruby drops), `omegaHit` and `deathY` (round 8: Omega hits by kind with the highest hit, and the screen y of each Xora death) and `results` (round 7: stage, drones, droneBonus, starMult, final, shown, skipped, timeline). `window.__G.GLOG` logs every gesture decision.

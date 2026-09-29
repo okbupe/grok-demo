@@ -1,7 +1,5 @@
 import * as THREE from './vendor/three.module.min.js';
 
-// Round 12: bullet-time tutorials (greyscale slow motion, colour plane) instead of bubbles; double-tap Omega and swipe up/down beam anywhere;
-// a hand-only title; B-RANK plate under the boss tape; pickups as popups above the plane; gates inflate up to +40%.
 // Round 11: slimmer x0.4 chip, taller drone count, no flying drones in the drain, centred coin row, star sticker pinned to the last digit.
 // Round 10: round-6 BEACON IN SIGHT title and coin-number format, a rebuilt DRONES row (x0.4 under the label), idle stone glints/glow/sparkles.
 // Round 9: medium-size Mission Complete in Lilita One, shine only for extraordinary runs (CFG.results, &shine=1),
@@ -59,24 +57,19 @@ const CFG = {
   droneHug: 0.16,      // how much of a drone may tuck under the main plane's silhouette (0..1); slots hug the real art
   droneHugPad: 1,      // extra clearance (mask pixels) kept between drone and plane silhouettes
   // --- gates
-  gateMax: 1000, gateGrow: 0.40,   // round 12: +40% size at MAX, linear from 0
+  gateMax: 1000, gateGrow: 0.20,   // +20% size at MAX, linear from 0
   // --- weapons
   bulletReach: 0.88,   // bullets fade out at this fraction of the screen height (from the bottom); round 8: 0.75 -> 0.88
   tracerW: 0.85,       // round 8: tracers a little thinner (x this width)
-  beamGrace: 5, beamDrain: 7, beamDrainLow: 0.35, beamMinHp: 12,   // seconds free, then hp per second; the beam shuts off at beamMinHp
+  beamGrace: 5, beamDrain: 7, beamMinHp: 12,   // seconds free, then hp per second; the beam shuts off at beamMinHp
   omegaDmg: 900, omegaBossDmg: 1500, omegaTime: 1.3,
   rapidMul: [1, 1.5, 2],   // RAPID FIRE canister: fire-rate multiplier per level (plane and drones); separate from the bullet tiers
   // --- hunters that latch on
   ambushSpeed: 1.6, ambushArmour: 0.3,   // hunter packs dive in faster and shrug off most damage until they reach the squad
   shakeOffV: 9, grip: 0.55,        // steer faster than this (units/s) for `grip` seconds to fling clingers off
   // --- touch gestures (CSS px / ms)
-  // round 12 gestures (anywhere on screen): tap < tapMs and < tapPx; double tap = 2nd tap starts <= dblTapMs after the
-  // 1st ends, within dblTapPx; swipe = |dy| >= swipeMinPx within swipeMaxMs, |dy| > swipeRatio*|dx|, >= swipeMinV px/ms,
-  // and < swipeMaxPathX of sideways travel before it (so steering drags never become swipes)
-  tapMs: 200, tapPx: 12, dblTapMs: 300, dblTapPx: 70,
-  swipeMinPx: 55, swipeMaxMs: 300, swipeMinV: 0.45, swipeRatio: 2.2, swipeMaxPathX: 34,
-  // round 12 bullet time: ease in over inS, out over outS, down to slow x game speed; dim = brightness of everything but the plane
-  bt: { inS: 0.7, outS: 0.5, slow: 0.03, dim: 0.3, uiDim: 0.5, zoom: [0.05, 0.035, 0.1], botDelay: 1.4 },
+  tapMs: 180, tapPx: 10, tapRadius: 72,
+  swipeMinPx: 45, swipeMaxMs: 320, swipeMinV: 0.35, swipeRatio: 2.0, swipeRadius: 115,
   // --- screen shake (round 6): trauma model. Events add trauma (0..1), shake = trauma^2, trauma decays fast.
   // Offsets come from smooth noise plus a little roll, applied to the cameras with parallax: the ground layer
   // moves most, the cloud layer less, the gameplay layer (plane, squad, Xora) slightly. The HUD never shakes,
@@ -338,7 +331,7 @@ function setupWorld() {
   smokeFx = new Particles(1400, THREE.NormalBlending, T_PUFF, 3);
   fx = new Particles(1800, THREE.AdditiveBlending, T_GLOW, 6);
   ringFx = new FlatBatch(T_RING, 40, THREE.AdditiveBlending, 5);
-  planeSprite = sprite(TEX.plane, PLANE_W, 0.5, 0.5, 3); planeSprite.layers.set(1); camera.layers.enable(1);   // round 12: layer 1 = drawn in full colour during bullet time
+  planeSprite = sprite(TEX.plane, PLANE_W, 0.5, 0.5, 3);
   for (let i = 0; i < 9; i++) spawnCloud(rand(-420, 10));
   for (let i = 0; i < 5; i++) spawnSmoke(rand(-420, -40));
 }
@@ -643,7 +636,7 @@ let bugs = [], pods = [], gates = [], shots = [], shells = [], missiles = [], ac
 let cocoons = [], pilots = [], orbFx = [], bombs = [];
 let boss = null, trauma = 0, shakePh = 0, flashRed = 0, slowmo = 1, godMode = false, upRing = null, weaponFlash = 0, omegaFlash = 0;
 // debug audit for automated runs: where each enemy first became visible, gate rows, bullet tiers, round-5 checks
-const AUD = { btMin: 1, pickups: [], tut: [], bt: [], gest: [], bugs: 0, seen: 0, maxY: 0, worst: '', viol: [], brood: 0, broodMaxY: 0, gates: 0, gatePairs: 0, minGap: 99, tiers: [], firstShotT: -1,
+const AUD = { bugs: 0, seen: 0, maxY: 0, worst: '', viol: [], brood: 0, broodMaxY: 0, gates: 0, gatePairs: 0, minGap: 99, tiers: [], firstShotT: -1,
   bottomExit: 0, bottomExitWho: [], bugMaxScreenY: 0, removedOffscreen: 0, latchPlaneMax: 0, latchTotal: 0, flung: 0, carriers: [], cocoon: [],
   omegaFires: 0, omegaHits: 0, orbs: 0, beamOn: 0, beamOff: 0, beamDrainHp: 0, beamSmoke: 0, gateMaxScale: 0, gateScaleAtMax: [], shakes: {}, maxDrones: 0, stars: -1,
   shakeLog: [], omegaRumble: [], bossChain: [], bossTrace: [], hudMove: { still: 0, omega: 0 }, shotsPlane: 0, shotsDrone: 0, rapid: [], loot: [], rubies: [], coins: {}, threat: null, vibrate: 0 };
@@ -707,8 +700,8 @@ function updateWeaponHud() {
   const name = S.primary === 'beam' ? 'BEAM' : t.name;
   const ic = S.primary === 'beam' ? '' : `<img src="assets/icon_minigun.webp?v=${VER}" alt="">`;
   let h = `${ic}<b style="color:${t.hud}">${name}</b>`;
-  if (S.beamOwned && !S.beamOn) h += ` <i class="bm">BEAM \u2191</i>`;
-  if (S.beamOn) { const left = CFG.beamGrace - S.beamT; h += left > 0 ? ` <i class="bm">${Math.ceil(left)}s \u2193</i>` : ` <i class="bm drain">\u2212HP \u2193</i>`; }
+  if (S.beamOwned && !S.beamOn) h += ` <i class="bm">BEAM \u2191 swipe up</i>`;
+  if (S.beamOn) { const left = CFG.beamGrace - S.beamT; h += left > 0 ? ` <i class="bm">${Math.ceil(left)}s \u00b7 \u2193 stop</i>` : ` <i class="bm drain">DRAINING HP \u00b7 \u2193 stop</i>`; }
   if (S.rapidLv) h += ` <i class="rf">\u26a1RAPID \u00d7${CFG.rapidMul[S.rapidLv]}</i>`;
   if (S.rocketLv) h += ` <i>ROCKETS \u00d7${S.rocketLv * 2}</i>`;
   if (S.bazookaLv) h += ` <i>BAZOOKA</i>`;
@@ -760,6 +753,7 @@ function buildLevel() {
   at(0.3, 'tip', { text: 'Drag to steer!', target: 'plane', dur: 2.6 });
   rows(-1.0, 0, 5, 5, 5);
   gate(1.6, 0, 2);
+  at(4.2, 'tip', { text: 'Shoot the gates to raise them!', target: 'gate', dur: 3 });
   rows(3.0, -2.2, 6, 3, 6);
   rows(4.2, 2.2, 3, 3, 6);
   // first choice: a red drone gate on one side, spiders on the other
@@ -809,6 +803,7 @@ function buildLevel() {
   ambush(57.2, 6, 38);
   rows(58.2, 0, 24, 8, 36); brutes(58.8, 2, 240);
   // final: the Xora Queen (round-2 boss)
+  at(BOSS_T - 3, 'warn');
   at(BOSS_T, 'boss');
   // never park a bug directly behind a gate: push it back to leave clear sky
   const gs = L.filter((e) => e.k === 'gate');
@@ -942,9 +937,11 @@ function spawnEvent(e) {
     g.sprite = new THREE.Sprite(m); g.sprite.center.set(0.5, 0.02); g.sprite.scale.set(GATE_W, GATE_H, 1); g.sprite.renderOrder = 1.2; scene.add(g.sprite);
     g.sprite.position.set(g.x, 0, z);
     gates.push(g);
-  } else if (e.k === 'tip') { /* round 12: no tutorial bubbles */ }
+  } else if (e.k === 'tip') tips.push({ text: e.text, target: e.target, t: 0, dur: e.dur || 3 });
   else if (e.k === 'banner') banner(e.text, e.sub, e.warn, 2);
-  else if (e.k === 'threat') showThreat();   // round 12: the old 'WARNING! ... INBOUND' banner is gone; the tape is the only boss warning
+  else if (e.k === 'warn') {
+    banner('WARNING!', BOSSES[MISSION_BOSS].name + ' INBOUND', true, 2.8); sfx('warn'); setTimeout(() => sfx('warn'), 450); setTimeout(() => sfx('warn'), 900);
+  } else if (e.k === 'threat') showThreat();
   else if (e.k === 'boss') spawnBoss(MISSION_BOSS);
   else if (e.k === 'cocoon') spawnCocoon(e);
   else if (e.k === 'ambush') spawnAmbush(e.n, e.hp);
@@ -1017,8 +1014,6 @@ function buzz(p) {
   try { navigator.vibrate(p); AUD.vibrate++; } catch (e) { }
 }
 let bannerT = 0;
-// round 12: pickups/power-ups announce in a compact comic popup above the plane (not across the screen)
-function pickup(text, col = '#fff3a0', stroke = '#3a2208', size = 0.8, z = -3.0) { pop(text, S.px, 2.6, z, col, size, stroke, 0, true); AUD.pickups.push([+S.t.toFixed(2), text]); }
 function banner(text, sub, warn, dur = 1.6) {
   const b = $('banner'); b.innerHTML = text + (sub ? `<small>${sub}</small>` : ''); b.className = 'show' + (warn ? ' warn' : ''); bannerT = dur;
 }
@@ -1077,7 +1072,7 @@ function setTier(n, x, z) {
   AUD.tiers.push({ t: +S.t.toFixed(2), tier: n, name: T.name, inAir: shots.length });
   weaponFlash = 1; upRing = { t: 0, col: n === 2 ? '#7cc4ff' : '#ffa040' };
   flyIcons.push({ name: 'power', x, z, t: 0 });
-  pickup(n === 1 ? 'ORANGE ROUNDS!' : 'BLUE ROUNDS!', n === 1 ? '#ffb347' : '#8fe0ff', n === 1 ? '#4a1e00' : '#0b2440');
+  banner(n === 1 ? 'ORANGE ROUNDS!' : 'BLUE ROUNDS!', n === 1 ? 'Hotter bullets, more damage' : 'Maximum firepower', false, 1.6);
   updateWeaponHud(); sfx('power');
 }
 function giveReward(R, x = S.px, z = -6) {
@@ -1086,24 +1081,24 @@ function giveReward(R, x = S.px, z = -6) {
   if (R.loot) { dropLoot(R.loot, x, z); return; }
   if (R.weapon === 'beam') {
     S.beamOwned = true; weaponFlash = 1; upRing = { t: 0, col: '#9fe0ff' }; flyIcons.push({ name: 'beam', x, z, t: 0 });
-    pickup('BEAM!', '#bfe9ff', '#0b2440'); updateWeaponHud(); sfx('power'); TUT.want('beamOn');
-
+    banner('BEAM!', 'Swipe up from the plane to fire', false, 1.8); updateWeaponHud(); sfx('power');
+    if (!S.beamHintShown) { S.beamHintShown = true; tips.push({ text: 'Swipe up to fire beam', target: 'plane', t: 0, dur: 4, arrow: -1 }); }
     return;
   }
   if (R.rockets) {
     S.rocketLv = Math.min(2, S.rocketLv + 1); upRing = { t: 0, col: '#ffd84a' }; flyIcons.push({ name: 'rockets', x, z, t: 0 });
-    pickup('ROCKETS \u00d7' + S.rocketLv * 2, '#ffd0a0', '#4a1e00'); updateWeaponHud(); sfx('power'); return;
+    banner('ROCKETS!', 'Homing salvo \u00d7' + S.rocketLv * 2, false, 1.6); updateWeaponHud(); sfx('power'); return;
   }
   if (R.bazooka) {
     S.bazookaLv = Math.min(2, S.bazookaLv + 1); weaponFlash = 1; upRing = { t: 0, col: '#ffd84a' }; flyIcons.push({ name: 'bazooka', x, z, t: 0 });
-    pickup('BAZOOKA!', '#ffd0a0', '#4a1e00'); updateWeaponHud(); sfx('power'); return;
+    banner('BAZOOKA!', 'Huge explosive shells', false, 1.6); updateWeaponHud(); sfx('power'); return;
   }
   if (R.drones) {
     const got = gainDrones(R.drones, x, z);
     if (R.pilot) {
       pop('+' + R.drones, S.px, 2.6, -2.6, '#ffe066', 1.7, '#3a1d00', 0, true);
       pop('PILOT RESCUED!', S.px, 3.4, -4.4, '#ffe066', 0.95, '#3a1d00', 0.12, true);
-      pickup('PILOT RESCUED!' + (got ? ' +' + got : ''), '#fff3a0', '#3a2208', 0.85); S.rescued = true; upRing = { t: 0, col: '#ffd84a' };
+      banner('PILOT RESCUED!', '+' + got + ' drones join up', false, 1.8); S.rescued = true; upRing = { t: 0, col: '#ffd84a' };
     } else pop('+' + R.drones, x, 2.4, z, '#ffe066', 1.2, '#4a2e00', 0, true);
     sfx('gate');
   }
@@ -1121,7 +1116,7 @@ function setRapid(n, x, z) {
   const was = S.rapidLv; S.rapidLv = clamp(n, 0, CFG.rapidMul.length - 1);
   flyIcons.push({ name: 'rapid', x, z, t: 0 }); upRing = { t: 0, col: '#c8ff5a' }; weaponFlash = 0.8; sfx('power');
   const m = CFG.rapidMul[S.rapidLv];
-  pickup(`RAPID FIRE${S.rapidLv >= CFG.rapidMul.length - 1 ? ' MAX' : ''}`, '#fff27a', '#3a2a00', 0.8, -4.6);   // round 12: compact pop above the plane, over the \u26a1\u00d7m pop
+  banner(S.rapidLv === was ? 'RAPID FIRE MAX!' : 'RAPID FIRE!', `Fire rate \u00d7${m}${S.rapidLv >= CFG.rapidMul.length - 1 ? ' \u00b7 MAX' : ''} \u00b7 drones too`, false, 1.8);
   pop('\u26a1 \u00d7' + m, S.px, 2.6, -2.6, '#d8ff6a', 1.2, '#1f3a00', 0.1, true);
   AUD.rapid.push({ t: +S.t.toFixed(2), lv: S.rapidLv, mul: m }); updateWeaponHud();
 }
@@ -1194,7 +1189,7 @@ const THREAT = { mission: 'C', boss: 'B' };
 function showThreat() {
   const name = BOSSES[MISSION_BOSS].name, el = $('threat');
   // round 9: hazard tape across the screen, the boss's name in chunky 3D letters overhanging the tape, pulsing in contrast
-  el.innerHTML = `<div class="tape"></div><div class="tr-name">${name}</div><div class="tr-sub"><span class="tr-b">${THREAT.boss}-RANK</span> THREAT APPROACHING</div>`;
+  el.innerHTML = `<div class="tape"></div><div class="tr-name">${name}</div><div class="tr-sub">${THREAT.boss}-RANK THREAT APPROACHING</div>`;
   el.className = ''; void el.offsetWidth; el.className = 'show';
   sfx('siren'); setMood(true); flashRed = Math.max(flashRed, 0.5); addShake('medium', 0.8);
   AUD.threat = { t: +S.t.toFixed(2), text: `${THREAT.boss}-RANK THREAT: ${name} APPROACHING`, bossT: BOSS_T, mood: moodOn, audio: !!ac };
@@ -1239,167 +1234,51 @@ function passGate(g) {
   for (let k = 0; k < 40; k++) fx.spawn({ x: g.x + rand(-1.2, 1.2), y: rand(0.3, 1.8), z: g.z, vx: rand(-3, 3), vy: rand(-1, 3), vz: rand(-2, 4), life: rand(0.3, 0.7), s0: 0.5, s1: 0.1, r: c[0], g: c[1], b: c[2], a: 1, world: true });
 }
 
-// ---------------------------------------------------------------- BULLET TIME + tutorials (round 12)
-// Bullet time eases the whole game into near-frozen slow motion (CFG.bt.inS), greys and dims everything except the
-// player's plane (a post-process pass: the scene renders into a target, a greyscale/dim shader draws it, then the plane
-// alone is drawn on top in full colour) and pushes the cameras in toward the plane with a little parallax. Game logic
-// keeps running at the slowed rate, so nothing is skipped or piled up; leaving eases back out (CFG.bt.outS).
-const BT = { on: false, p: 0, k: 0, s: 1, anchor: null, since: 0 };
-function btEnter() { if (!BT.on) { BT.on = true; if (BT.p <= 0.001) BT.anchor = planeScreen(); AUD.bt.push(['in', +S.t.toFixed(2)]); sfx('whooshDown'); } }
-function btExit() { if (BT.on) { BT.on = false; AUD.bt.push(['out', +S.t.toFixed(2)]); sfx('whoosh'); } }
-function btUpdate(rdt) {
-  const C = CFG.bt; BT.p = clamp(BT.p + (BT.on ? rdt / C.inS : -rdt / C.outS), 0, 1);
-  const e = BT.p * BT.p * (3 - 2 * BT.p); BT.k = e; BT.s = 1 + (C.slow - 1) * e;
-  if (BT.p <= 0) BT.anchor = null;
-  const f = BT.k > 0.002 ? `grayscale(${e.toFixed(3)}) brightness(${(1 - (1 - C.uiDim) * e).toFixed(3)})` : '';
-  if (uic.style.filter !== f) uic.style.filter = f;
-  if (BT.k > 0.5 && AUD.btMin > BT.s) AUD.btMin = +BT.s.toFixed(3);
-}
-const _btSz = new THREE.Vector2(); let btRT = null;
-const btMat = new THREE.ShaderMaterial({
-  uniforms: { tDiffuse: { value: null }, k: { value: 0 }, dim: { value: 0.3 } }, depthTest: false, depthWrite: false,
-  vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
-  fragmentShader: `uniform sampler2D tDiffuse; uniform float k; uniform float dim; varying vec2 vUv;
-    void main() { vec4 c = texture2D(tDiffuse, vUv); float l = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
-      vec3 g = mix(c.rgb, vec3(l), k) * mix(1.0, dim, k); float v = smoothstep(0.35, 0.95, distance(vUv, vec2(0.5, 0.42)));
-      g *= 1.0 - v * 0.55 * k; gl_FragColor = vec4(g, 1.0);
-      #include <colorspace_fragment>
-    }` });
-const btQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), btMat); btQuad.frustumCulled = false;
-const btScene = new THREE.Scene(); btScene.add(btQuad); const btCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-function renderScenes() {
-  if (BT.k > 0.002 && planeSprite) {
-    renderer.getDrawingBufferSize(_btSz);
-    if (!btRT || btRT.width !== _btSz.x || btRT.height !== _btSz.y) { if (btRT) btRT.dispose(); btRT = new THREE.WebGLRenderTarget(_btSz.x, _btSz.y, { type: THREE.HalfFloatType, samples: 4 }); btMat.uniforms.tDiffuse.value = btRT.texture; }
-    btMat.uniforms.k.value = BT.k; btMat.uniforms.dim.value = CFG.bt.dim;
-    renderer.setRenderTarget(btRT); renderer.clear(); renderer.render(world, wcam); renderer.render(cloudScene, ccam); renderer.clearDepth();
-    camera.layers.set(0); renderer.render(scene, camera);
-    renderer.setRenderTarget(null); renderer.clear(); renderer.render(btScene, btCam);
-    renderer.clearDepth(); camera.layers.set(1); renderer.render(scene, camera); camera.layers.enableAll();
-    return;
-  }
-  renderer.clear(); renderer.render(world, wcam); renderer.render(cloudScene, ccam); renderer.clearDepth(); renderer.render(scene, camera);
-}
-
-// the cartoon glove with a pointing finger (drawn here, no emoji)
-const HAND_SVG = `<svg class="hand" viewBox="0 0 64 84" aria-hidden="true"><g stroke="#16203a" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">
-  <rect x="14" y="66" width="34" height="14" rx="4" fill="#3d8bff"/><path d="M24 40 V10 a7 7 0 0 1 14 0 V36" fill="#fff"/>
-  <path d="M12 44 q-6 4 -2 12 q6 12 14 14 h16 q14 -2 16 -16 V42 q0 -6 -6 -6 q-4 0 -6 3 q-1 -5 -6 -5 q-5 0 -6 4 q-2 -3 -6 -3 q-3 0 -4 2 V52 q-4 -12 -10 -8z" fill="#fff"/>
-  <path d="M38 40 v8 M46 42 v7" fill="none" stroke-width="2.4"/></g><ellipse cx="28" cy="12" rx="3" ry="4" fill="#fff" opacity=".9"/></svg>`;
-const TAP_SVG = `<svg class="tapico" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="8" fill="#fff"/><circle cx="20" cy="20" r="14" fill="none" stroke="#fff" stroke-width="3" opacity=".6"/><circle cx="20" cy="20" r="19" fill="none" stroke="#fff" stroke-width="2" opacity=".3"/></svg>`;
-const HEART_SVG = `<svg class="heart" viewBox="0 0 32 28" aria-hidden="true"><path d="M16 27 C6 19 1 14 1 8 C1 4 4 1 8.5 1 C12 1 14.5 3 16 6 C17.5 3 20 1 23.5 1 C28 1 31 4 31 8 C31 14 26 19 16 27Z" fill="#ff4d5e" stroke="#3a0008" stroke-width="2.4"/><ellipse cx="9" cy="8" rx="3" ry="2" fill="#fff" opacity=".7"/></svg>`;
-// Tutorials: each shows once (localStorage 'grokdemo.tut'); ?tut=1 resets them, ?tut=0 turns them off. Performing
-// the gesture resumes the game; the explainers continue on a tap. The autoplay bot performs the gesture itself.
-const TUT = (() => {
-  const KEY = 'grokdemo.tut'; let done = {};
-  try { if (Q.get('tut') === '1') localStorage.removeItem(KEY); done = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { done = {}; }
-  const off = Q.get('tut') === '0';
-  let cur = null, queue = [], t = 0, lastOmegaT = 0, omegaEnd = -1, lastBeam = false, beamOffAt = -1;
-  const img = (src, cls = '') => `<img class="${cls}" src="${src}" alt="">`;
-  const asset = (n) => `assets/${n}.webp?v=${VER}`;
-  const orb = () => TEX.omegaorb && TEX.omegaorb.image && TEX.omegaorb.image.toDataURL ? TEX.omegaorb.image.toDataURL() : '';
-  const beamIco = () => (ICON_IMG.beam && ICON_IMG.beam.toDataURL ? ICON_IMG.beam.toDataURL() : '');
-  const DEF = {
-    omega: { need: 'dbltap', build: () => `<div class="tut-hand dbl" style="left:50%;top:52%">${HAND_SVG}<i class="rip r1"></i><i class="rip r2"></i></div>
-      <div class="tut-plate" style="top:30%">${img(orb(), 'pi orb')}<b>DOUBLE TAP</b></div>` },
-    omegaFill: { need: 'tap', build: () => {
-      const r = $('omega').getBoundingClientRect();
-      return `<div class="tut-hand point" style="left:${Math.round(r.left + r.width * 0.55)}px;top:${Math.round(r.bottom + 6)}px">${HAND_SVG}</div>
-      <div class="tut-card fill" style="top:${Math.round(r.bottom + 96)}px">
-        <div class="srcs"><span class="src s1">${img(orb(), 'pi orb')}<em>+++</em></span><span class="src s2"><i class="maxchip">MAX</i><em>++</em></span>
-        <span class="src s3"><i class="elite">${img(asset('r2_spider'), 'pi')}<i class="star">\u2605</i></i><em>\u00d73</em></span></div>
-        <div class="mini om"><i></i></div>${TAP_SVG}</div>`; } },
-    beamOn: { need: 'swipe-up', build: () => `<div class="tut-trail up" style="left:50%;top:40%"></div><div class="tut-hand swu" style="left:50%;top:58%">${HAND_SVG}</div>
-      <div class="tut-plate" style="top:30%">${img(beamIco(), 'pi beam')}<b>SWIPE \u2191</b></div>` },
-    beamOff: { need: 'swipe-down', build: () => `<div class="tut-trail down" style="left:50%;top:40%"></div><div class="tut-hand swd" style="left:50%;top:40%">${HAND_SVG}</div>
-      <div class="tut-plate" style="top:30%">${img(beamIco(), 'pi beam')}<b>SWIPE \u2193</b></div>` },
-    beamRisk: { need: 'tap', build: () => `<div class="tut-card risk" style="top:30%">
-        <div class="row">${img(beamIco(), 'pi beam')}<span class="clock"><svg viewBox="0 0 40 44" aria-hidden="true"><rect x="16" y="1" width="8" height="5" rx="2" fill="#fff"/><circle cx="20" cy="25" r="16" fill="#1a2440" stroke="#fff" stroke-width="3.5"/><path class="sweep" d="M20 25 V13" stroke="#ffcf3a" stroke-width="3.5" stroke-linecap="round"/></svg><b>5</b></span><span class="arrow">\u279c</span><span class="smokey">${img(asset('r2_plane'), 'pi plane')}<i class="puff p1"></i><i class="puff p2"></i><i class="puff p3"></i></span></div>
-        <div class="row">${HEART_SVG}<div class="mini hp"><i></i><s></s></div></div>${TAP_SVG}</div>` },
-  };
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(done)); } catch (e) { } }
-  function want(id) { if (off || done[id] || (cur && cur.id === id) || queue.includes(id) || !DEF[id]) return; queue.push(id); }
-  function start(id) {
-    cur = { id, def: DEF[id] }; t = 0; const el = $('tut'); el.innerHTML = cur.def.build(); el.className = 'show ' + id;
-    btEnter(); AUD.tut.push([id, 'start', +S.t.toFixed(2)]);
-  }
-  function end(how) {
-    if (!cur) return; const id = cur.id; done[id] = 1; save(); AUD.tut.push([id, how, +S.t.toFixed(2), +t.toFixed(2)]);
-    cur = null; const el = $('tut'); el.className = 'hide'; setTimeout(() => { if (!cur) { el.innerHTML = ''; el.className = ''; } }, 400); btExit();
-  }
-  function update(rdt) {
-    if (S.mode !== 'play') { if (cur) end('abort'); queue = []; lastOmegaT = 0; return; }
-    // omega explainer ~2 s after the first Omega Beam ends and the meter is empty; beam risk ~2 s after the beam goes off
-    if (lastOmegaT > 0 && S.omegaT <= 0) omegaEnd = S.t; lastOmegaT = S.omegaT;
-    if (done.omega && !done.omegaFill && omegaEnd >= 0 && S.t > omegaEnd + 2 && S.omega < 0.95) want('omegaFill');
-    if (lastBeam && !S.beamOn) beamOffAt = S.t; lastBeam = S.beamOn;
-    if (done.beamOff && !done.beamRisk && beamOffAt >= 0 && S.t > beamOffAt + 2 && !S.beamOn) want('beamRisk');
-    if (!cur && queue.length && S.omegaT <= 0 && !(boss && boss.state === 'dying') && BT.p <= 0.05) {
-      const id = queue.shift();
-      if (id === 'omega' && S.omega < 1) return; if (id === 'beamOff' && !S.beamOn) return; if (id === 'beamOn' && (S.beamOn || !S.beamOwned)) return;
-      start(id);
-    }
-    if (cur) { t += rdt; if (BOT && t > (Number(Q.get('btbot')) || CFG.bt.botDelay)) doGesture(cur.def.need, { bot: true }); }
-  }
-  function gesture(g) { if (cur && g === cur.def.need && t > 0.25) end('done'); }
-  return { want, update, gesture, get active() { return !!cur; }, get busy() { return !!cur || queue.length > 0; }, get holdBeam() { return !off && !!done.beamOff && !done.beamRisk; }, get holdOmega() { return !off && !!done.omega && !done.omegaFill; }, get id() { return cur ? cur.id : null; }, get done() { return { ...done }; }, off };
-})();
-
 // ---------------------------------------------------------------- input
-// Round 12 controls, all anywhere on the screen:
-//  - STEER: drag left/right.
-//  - BEAM on/off: a SWIPE up/down: fast (< swipeMaxMs from touch-down), mostly vertical (|dy| > swipeRatio * |dx|),
-//    at least swipeMinPx long and at least swipeMinV px/ms, with less than swipeMaxPathX of sideways travel before it.
-//    The few px of steering the flick itself caused are given back, so the plane does not lurch.
-//  - OMEGA: a DOUBLE TAP: two taps (each < tapMs, moving < tapPx), the second starting within dblTapMs of the first
-//    ending and within dblTapPx of it. A drag is never a tap, and a lone tap does nothing (except continue an explainer).
+// Steering: drag left/right anywhere. Gestures on the plane (round 5):
+//  - SWIPE UP from near the plane opens the beam, SWIPE DOWN closes it: a fast (< swipeMaxMs), mostly vertical
+//    (|dy| > swipeRatio * |dx|) flick of at least swipeMinPx that starts within swipeRadius px of the plane.
+//  - TAP on the plane fires the Omega Beam when it is charged: touch and release within tapMs, moving < tapPx,
+//    starting within tapRadius px of the plane. Resting a thumb (too long) or dragging (too far) never fires.
 let dragging = false, lastX = 0, keyL = false, keyR = false;
-const gest = { id: null, x0: 0, y0: 0, t0: 0, maxD: 0, pathX: 0, lx: 0, steer: 0, used: false };
-let lastTap = null;
+const gest = { id: null, x0: 0, y0: 0, t0: 0, maxD: 0, nearSwipe: false, nearTap: false, used: false };
 const GLOG = [];   // gesture log for automated tests
 function planeScreen() { return toScreen(S.px, 0.55, -0.15); }
 function localXY(e) { const r = wrap.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
-function doGesture(g, info = {}) {
-  let r = null;
-  if (g === 'swipe-up') r = setBeam(true); else if (g === 'swipe-down') r = setBeam(false); else if (g === 'dbltap') r = fireOmega();
-  GLOG.push({ g, t: +S.t.toFixed(2), ...info, changed: r, beamOn: S.beamOn, omega: +S.omega.toFixed(2), tut: TUT.id });
-  TUT.gesture(g); return r;
-}
 function onDown(e) {
   initAudio(); userGestured = true;
   dragging = true; lastX = e.clientX;
   if (S.mode === 'title' && ready) { startGame(); gest.id = null; return; }
   if (S.mode !== 'play') return;
-  const [x, y] = localXY(e);
-  Object.assign(gest, { id: e.pointerId, x0: x, y0: y, t0: e.timeStamp || performance.now(), maxD: 0, pathX: 0, lx: x, steer: 0, used: false });
+  const [x, y] = localXY(e), [px, py] = planeScreen(), d = Math.hypot(x - px, y - py);
+  Object.assign(gest, { id: e.pointerId, x0: x, y0: y, t0: e.timeStamp || performance.now(), maxD: 0, nearSwipe: d < CFG.swipeRadius, nearTap: d < CFG.tapRadius, used: false, d0: d });
 }
 function checkSwipe(e) {
-  if (gest.id !== e.pointerId || gest.used || S.mode !== 'play') return;
-  const C = CFG, [x, y] = localXY(e), dt = (e.timeStamp || performance.now()) - gest.t0, dx = x - gest.x0, dy = y - gest.y0;
-  if (dt > C.swipeMaxMs || gest.pathX > C.swipeMaxPathX || Math.abs(dy) < C.swipeMinPx || Math.abs(dy) < Math.abs(dx) * C.swipeRatio || Math.abs(dy) / Math.max(dt, 1) < C.swipeMinV) return;
-  gest.used = true; lastTap = null;
-  S.tx = clamp(S.tx - gest.steer, -XMAX, XMAX); gest.steer = 0;   // give back the flick's own steering
-  doGesture(dy < 0 ? 'swipe-up' : 'swipe-down', { dx: Math.round(dx), dy: Math.round(dy), ms: Math.round(dt) });
+  if (gest.id !== e.pointerId || gest.used || !gest.nearSwipe || S.mode !== 'play') return;
+  const [x, y] = localXY(e), dt = (e.timeStamp || performance.now()) - gest.t0, dx = x - gest.x0, dy = y - gest.y0;
+  if (dt > CFG.swipeMaxMs || Math.abs(dy) < CFG.swipeMinPx || Math.abs(dy) < Math.abs(dx) * CFG.swipeRatio || Math.abs(dy) / Math.max(dt, 1) < CFG.swipeMinV) return;
+  gest.used = true;
+  const dir = dy < 0 ? 'up' : 'down', r = dir === 'up' ? setBeam(true) : setBeam(false);
+  GLOG.push({ g: 'swipe-' + dir, t: +S.t.toFixed(2), dx: Math.round(dx), dy: Math.round(dy), ms: Math.round(dt), changed: r, beamOn: S.beamOn });
 }
 wrap.addEventListener('pointerdown', onDown);
 wrap.addEventListener('touchend', () => initAudio());
 wrap.addEventListener('click', () => initAudio());
 window.addEventListener('pointermove', (e) => {
   if (!dragging) return; const dx = e.clientX - lastX; lastX = e.clientX;
-  if (S.mode === 'play') { const was = S.tx; S.tx = clamp(S.tx + dx * (2 * XMAX) / (W * 0.62), -XMAX, XMAX); if (gest.id === e.pointerId) gest.steer += S.tx - was; }
-  if (gest.id === e.pointerId) { const [x, y] = localXY(e); gest.maxD = Math.max(gest.maxD, Math.hypot(x - gest.x0, y - gest.y0)); gest.pathX += Math.abs(x - gest.lx); gest.lx = x; checkSwipe(e); }
+  if (S.mode === 'play') S.tx = clamp(S.tx + dx * (2 * XMAX) / (W * 0.62), -XMAX, XMAX);
+  if (gest.id === e.pointerId) { const [x, y] = localXY(e); gest.maxD = Math.max(gest.maxD, Math.hypot(x - gest.x0, y - gest.y0)); checkSwipe(e); }
 });
 const up = (e) => {
   dragging = false;
   if (e && e.type === 'pointerup' && gest.id === e.pointerId && S.mode === 'play') {
     const [x, y] = localXY(e); gest.maxD = Math.max(gest.maxD, Math.hypot(x - gest.x0, y - gest.y0));
     checkSwipe(e);
-    const now = e.timeStamp || performance.now(), ms = now - gest.t0;
+    const ms = (e.timeStamp || performance.now()) - gest.t0;
     if (!gest.used) {
-      const isTap = ms < CFG.tapMs && gest.maxD < CFG.tapPx;
-      if (isTap && lastTap && gest.t0 - lastTap.t <= CFG.dblTapMs && Math.hypot(x - lastTap.x, y - lastTap.y) < CFG.dblTapPx) { lastTap = null; doGesture('dbltap', { ms: Math.round(ms) }); }
-      else if (isTap) { lastTap = { t: now, x, y }; doGesture('tap', { ms: Math.round(ms), moved: Math.round(gest.maxD) }); }
-      else { lastTap = null; GLOG.push({ g: 'release', t: +S.t.toFixed(2), ms: Math.round(ms), moved: Math.round(gest.maxD), pathX: Math.round(gest.pathX) }); }
+      const isTap = gest.nearTap && ms < CFG.tapMs && gest.maxD < CFG.tapPx;
+      const fired = isTap ? fireOmega() : false;
+      GLOG.push({ g: isTap ? 'tap' : 'release', t: +S.t.toFixed(2), ms: Math.round(ms), moved: Math.round(gest.maxD), d0: Math.round(gest.d0), fired, omega: +S.omega.toFixed(2) });
     }
   }
   gest.id = null;
@@ -1412,10 +1291,9 @@ window.addEventListener('keydown', (e) => {
   userGestured = true;
   if (['ArrowLeft', 'a', 'A'].includes(e.key)) keyL = true;
   if (['ArrowRight', 'd', 'D'].includes(e.key)) keyR = true;
-  if (S.mode === 'play' && ['ArrowUp', 'w', 'W'].includes(e.key)) doGesture('swipe-up', { key: 1 });
-  if (S.mode === 'play' && ['ArrowDown', 's', 'S'].includes(e.key)) doGesture('swipe-down', { key: 1 });
-  if (S.mode === 'play' && (e.key === ' ' || e.key === 'e' || e.key === 'E')) doGesture('dbltap', { key: 1 });
-  if (S.mode === 'play' && e.key === 'Enter') doGesture('tap', { key: 1 });
+  if (S.mode === 'play' && ['ArrowUp', 'w', 'W'].includes(e.key)) setBeam(true);
+  if (S.mode === 'play' && ['ArrowDown', 's', 'S'].includes(e.key)) setBeam(false);
+  if (S.mode === 'play' && (e.key === ' ' || e.key === 'e' || e.key === 'E')) fireOmega();
   if ((e.key === ' ' || e.key === 'Enter') && S.mode === 'title' && ready) { initAudio(); startGame(); }
 });
 window.addEventListener('keyup', (e) => {
@@ -1429,7 +1307,7 @@ $('again').addEventListener('pointerdown', (e) => { e.stopPropagation(); initAud
 
 function startGame() {
   $('start').classList.add('hidden'); $('end').classList.add('hidden'); $('hud').classList.remove('hidden'); $('bossbar').classList.add('hidden');
-  planeSprite.visible = true; resetGame(true); BT.on = false; BT.p = 0; BT.k = 0; BT.s = 1; BT.anchor = null;
+  planeSprite.visible = true; resetGame(true);
   if (!Q.get('warp')) banner('MISSION 1', 'Get to Beacon', false, 1.8);
 }
 // ---------------------------------------------------------------- Mission Complete (round 5): stomp, cartoon stars, celebration
@@ -1769,13 +1647,12 @@ function botThink() {
   S.tx = clamp(best, -XMAX, XMAX);
   // clingers on the plane: wiggle hard to shake them off
   if (S.latched > 0) { S.botWig = (S.botWig || 0) + 1; S.tx = clamp(S.px + (Math.floor(S.t * 5) % 2 ? 2.4 : -2.4), -XMAX, XMAX); }
-  if (TUT.busy) return;   // round 12: during a bullet-time tutorial the bot waits and then performs the gesture (TUT.update)
   // beam: swipe it on when there is something to shoot and health to spare, off before the drain hurts too much
   const ahead = bugs.filter((s) => s.z < -2 && s.z > RANGE_Z && Math.abs(s.x - S.px) < 1.5).length + (boss && boss.state === 'fight' ? 4 : 0);
-  if (S.beamOwned && !S.beamOn && S.hp > 60 && ahead >= 3 && !TUT.holdBeam) doGesture('swipe-up', { bot: true });
-  if (S.beamOn && (S.beamT > CFG.beamGrace + 1.2 || S.hp < 45)) doGesture('swipe-down', { bot: true });
+  if (S.beamOwned && !S.beamOn && S.hp > 60 && ahead >= 3) setBeam(true);
+  if (S.beamOn && (S.beamT > CFG.beamGrace + 1.2 || S.hp < 45)) setBeam(false);
   // Omega: tap the plane when charged and there is a crowd, a boss, or clingers
-  if (S.omega >= 1 && ((boss && boss.state === 'fight') || bugs.filter((s) => s.z > TOP_Z + 4).length >= 14 || S.latched >= 3) && !TUT.holdOmega) doGesture('dbltap', { bot: true });
+  if (S.omega >= 1 && ((boss && boss.state === 'fight') || bugs.filter((s) => s.z > TOP_Z + 4).length >= 14 || S.latched >= 3)) fireOmega();
 }
 
 // ---------------------------------------------------------------- weapons
@@ -2046,7 +1923,7 @@ function update(dt) {
     }
   }
   S.latched = onPlane; AUD.latchPlaneMax = Math.max(AUD.latchPlaneMax, onPlane);
-
+  if (onPlane > 0 && !S.shakeHint && play) { S.shakeHint = true; tips.push({ text: 'Wiggle hard to shake them off!', target: 'plane', t: 0, dur: 3 }); }
   // keep swarms from collapsing into one blob (clinging bugs stay put)
   for (let i = 0; i < bugs.length; i++) {
     const a = bugs[i]; if (a.z < -50) continue;
@@ -2190,9 +2067,9 @@ function update(dt) {
   // BEAM (round 2): pierces everything in a narrow column up to the range limit. Wider and bluer at higher tiers.
   if (play && S.beamOn) {
     S.beamT += dt;
-    if (S.beamT > CFG.beamGrace && !S.beamStopHint) { S.beamStopHint = true; TUT.want('beamOff'); }
+    if (S.beamT > 1.4 && !S.beamStopHint) { S.beamStopHint = true; tips.push({ text: 'Swipe down to stop', target: 'plane', t: 0, dur: 3.2, arrow: 1 }); }
     if (S.beamT > CFG.beamGrace) {
-      const lowK = clamp((S.hp - CFG.beamMinHp) / 45, 0, 1), d = CFG.beamDrain * (CFG.beamDrainLow + (1 - CFG.beamDrainLow) * lowK * lowK * (3 - 2 * lowK)) * dt; drainPlayer(d, 'beam');   // round 12: the drain eases off as health runs low AUD.beamDrainHp += d;
+      const d = CFG.beamDrain * dt; drainPlayer(d, 'beam'); AUD.beamDrainHp += d;
       // the plane smokes while the beam eats its health
       S.beamSmokeT -= dt;
       while (S.beamSmokeT <= 0) {
@@ -2201,7 +2078,7 @@ function update(dt) {
         smokeFx.spawn({ x: ex, y: 0.8, z: rand(-0.5, 0.4), vx: rand(-0.5, 0.5), vy: rand(0.6, 1.2), vz: rand(1.5, 3.2), life: rand(1.0, 1.5), s0: 0.8, s1: rand(2.2, 3.2), r: gr, g: gr * 0.95, b: gr * 1.05, a: 0.85, drag: 0.97 });
         if (Math.random() < 0.4) fx.spawn({ x: ex, y: 0.7, z: rand(-0.4, 0.2), vx: rand(-0.3, 0.3), vy: 0.4, vz: rand(2, 3), life: 0.25, s0: 0.9, s1: 0.2, r: 1, g: 0.45, b: 0.1, a: 1 });
       }
-      if (S.hp <= CFG.beamMinHp && S.mode === 'play') { setBeam(false); pickup('OVERHEAT!', '#ff8a7a', '#3a0b0b'); }
+      if (S.hp <= CFG.beamMinHp && S.mode === 'play') { setBeam(false); banner('BEAM OVERHEAT!', 'Fly through blue gates to heal', true, 1.8); }
     }
   }
   if (play && S.primary === 'beam' && planeSprite.visible) {
@@ -2407,7 +2284,7 @@ function flingOff(s, i) {
 function setBeam(on, quiet) {
   if (on && !S.beamOwned) return false;
   if (on === S.beamOn) return false;
-  if (on && S.hp <= CFG.beamMinHp + 2) { pickup('LOW HP!', '#ff8a7a', '#3a0b0b'); return false; }
+  if (on && S.hp <= CFG.beamMinHp + 2) { banner('TOO DAMAGED', 'Heal at a blue gate first', true, 1.2); return false; }
   S.beamOn = on; S.primary = on ? 'beam' : 'gun'; S.beamT = 0; S.beamSmokeT = 0;
   if (!quiet) { if (on) { AUD.beamOn++; sfx('beamOn'); weaponFlash = 0.6; } else { AUD.beamOff++; sfx('beamOff'); } }
   tips = tips.filter((t) => !(on && t.arrow === -1) && !(!on && t.arrow === 1));
@@ -2419,8 +2296,8 @@ function omegaGain(a) {
   if (S.mode !== 'play' || S.omega >= 1 || a <= 0) return;
   S.omega = Math.min(1, S.omega + a);
   if (S.omega >= 1) {
-    sfx('charge');
-    if (!S.omegaHint) { S.omegaHint = true; TUT.want('omega'); }
+    sfx('charge'); pop(ORB_TIERS[ORB_TIER].name + ' READY!', S.px, 2.4, -2.2, '#e8d0ff', 0.8, '#2a0a4a', 0, true);
+    if (!S.omegaHint) { S.omegaHint = true; tips.push({ text: 'Tap the plane to fire OMEGA!', target: 'plane', t: 0, dur: 3.5 }); }
   }
 }
 function collectOmegaOrb(p) {
@@ -2432,7 +2309,7 @@ function collectOmegaOrb(p) {
 function fireOmega() {
   if (S.mode !== 'play' || S.omega < 1 || S.omegaT > 0 || !planeSprite.visible) return false;
   S.omega = 0; S.omegaT = CFG.omegaTime; S.omegaTick = 0; AUD.omegaFires++; S.lullUntil = S.t + CFG.omegaTime + CFG.filler.lull;
-  omegaFlash = 1; addShake('omega'); buzz([90, 40, 90, 40, 90, 40, 90, 40, 160]); sfx('omega');
+  omegaFlash = 1; addShake('omega'); buzz([90, 40, 90, 40, 90, 40, 90, 40, 160]); sfx('omega'); banner(ORB_TIER.toUpperCase() + ' BEAM!', '', false, 1.2);
   omegaStrike(1);
   return true;
 }
@@ -2499,7 +2376,7 @@ function spawnCocoon(e) {
   cocoons.push(c);
   AUD.carriers.push({ t: +S.t.toFixed(2), spawnX: +sx.toFixed(2), halfWidth: +hw.toFixed(2), startsOffscreen: Math.abs(sx) - CFG.carrierW / 2 > hw });
   AUD.cocoon.push({ ev: 'spawn', t: +S.t.toFixed(2) });
-  pop('PILOT IN DANGER!', 0, 2.5, -6.5, '#ff6a5a', 0.85, '#3a0b0b', 0, true); sfx('warn');
+  pop('PILOT IN DANGER!', 0, 2.5, -6.5, '#ff6a5a', 0.85, '#3a0b0b', 0, true); tips.push({ text: 'Free the pilot!', target: 'cocoon', t: -1.2, dur: 2.6 }); sfx('warn');
 }
 function setCocoonTex(c, name) {
   const t = TEX[name]; c.sprite.material.map = t; c.sprite.material.needsUpdate = true;
@@ -2616,7 +2493,7 @@ function updateQueen(dt, dz) {
   if (b.state === 'enter') {
     b.z += dz + 9 * dt;
     if (b.z >= b.hoverZ) {
-      b.z = b.hoverZ; b.state = 'fight'; b.t = 0; sfx('roar');   // round 12: no name banner; the tape warned already
+      b.z = b.hoverZ; b.state = 'fight'; b.t = 0; banner(BOSSES.queen.name, BOSSES.queen.sub, true, 1.8); sfx('roar');
       $('bossbar').classList.remove('hidden');
     }
   } else if (b.state === 'fight') {
@@ -3129,10 +3006,6 @@ function drawOmegaBeam(now) {
 }
 
 // ---------------------------------------------------------------- resize / loop
-function placeSteerHand() {   // round 12 title: the pointing hand sits over the plane and sways left/right
-  const el = $('steerhand'); if (!el || !planeSprite) return; if (!el.querySelector('svg')) el.querySelector('.sh').innerHTML = HAND_SVG;
-  const p = toScreen(0, 0.55, -0.15); el.style.left = Math.round(p[0]) + 'px'; el.style.top = Math.round(p[1]) + 'px';
-}
 function resize() {
   W = wrap.clientWidth; H = wrap.clientHeight; DPR = Math.min(window.devicePixelRatio || 1, 2);
   renderer.setPixelRatio(DPR); renderer.setSize(W, H, false);
@@ -3162,7 +3035,6 @@ function resize() {
   world.background = makeSky();
   pxScale = (H * DPR) / (2 * tg);
   if (fx) { fx.mat.uniforms.uScale.value = pxScale; smokeFx.mat.uniforms.uScale.value = pxScale; worldFx.mat.uniforms.uScale.value = (H * DPR) / (2 * t); }
-  placeSteerHand();
 }
 window.addEventListener('resize', resize);
 document.addEventListener('visibilitychange', () => { if (!ac) return; if (document.hidden) ac.suspend(); else ac.resume(); });
@@ -3174,11 +3046,14 @@ function loop(t) {
   let dt = Math.min(0.05, (t - lastT) / 1000 || 0.016); lastT = t;
   if (!ready) return;
   frames++; fpsT += dt; if (fpsT > 1) { window.__fps = frames / fpsT; frames = 0; fpsT = 0; }
-  TUT.update(dt); btUpdate(dt);
-  let total = dt * slowmo * TS * BT.s;
+  let total = dt * slowmo * TS;
   while (total > 1e-5) { const st = Math.min(total, 1 / 30); update(st); total -= st; }
   applyShake(dt * TS);
-  renderScenes();
+  renderer.clear();
+  renderer.render(world, wcam);
+  renderer.render(cloudScene, ccam);
+  renderer.clearDepth();
+  renderer.render(scene, camera);
   drawOverlay();
 }
 
@@ -3193,14 +3068,13 @@ function applyShake(dt) {
   wcam.position.set(CAM_POS.x + S.px * 0.25, CAM_POS.y, CAM_POS.z); wcam.lookAt(CAM_LOOK.x + S.px * 0.2, CAM_LOOK.y, CAM_LOOK.z);
   camera.position.set(GCAM_POS.x + S.px * 0.22, GCAM_POS.y, GCAM_POS.z); camera.lookAt(GCAM_LOOK.x + S.px * 0.18, GCAM_LOOK.y, GCAM_LOOK.z);
   ccam.copy(wcam);
-  const layer = (cam, f, zf) => {
-    const z = 1 + zf * BT.k;   // round 12: bullet-time push-in toward the plane (each layer by its own amount: parallax)
-    if (sh < 1e-4 && z < 1.0005) { if (cam.view && cam.view.enabled) cam.clearViewOffset(); return 0; }
-    const ox = nx * C.ground * f * sh, oy = ny * C.ground * f * sh * 0.8, a = BT.anchor || [W / 2, H * 0.8];
-    cam.setViewOffset(W, H, a[0] * (1 - 1 / z) + ox, a[1] * (1 - 1 / z) + oy, W / z, H / z); if (sh >= 1e-4) cam.rotateZ(nr * C.roll * f * sh);
+  const layer = (cam, f) => {
+    if (sh < 1e-4) { if (cam.view && cam.view.enabled) cam.clearViewOffset(); return 0; }
+    const ox = nx * C.ground * f * sh, oy = ny * C.ground * f * sh * 0.8;
+    cam.setViewOffset(W, H, ox, oy, W, H); cam.rotateZ(nr * C.roll * f * sh);
     return Math.hypot(ox, oy);
   };
-  const ZF = CFG.bt.zoom, g = layer(wcam, 1, ZF[0]), c = layer(ccam, C.clouds, ZF[1]), p = layer(camera, C.game, ZF[2]);
+  const g = layer(wcam, 1), c = layer(ccam, C.clouds), p = layer(camera, C.game);
   camera.updateMatrixWorld();
   S.shakePx = [+g.toFixed(1), +c.toFixed(1), +p.toFixed(1)];
   if (omega) {
@@ -3224,7 +3098,7 @@ async function boot() {
   PLANE_AR = TEX.plane.image.height / TEX.plane.image.width;
   TEX.omegaorb = makeOmegaOrbTex();
   setupIcons(); setupWorld(); resize(); computeSlots(); resetGame(false);
-  ready = true; $('loading').textContent = ''; placeSteerHand();
+  ready = true; $('loading').textContent = '';
   if (Q.has('autostart') || Q.has('autoplay')) startGame();
 }
 requestAnimationFrame(loop);
@@ -3237,6 +3111,5 @@ window.__G = { S, AUD, get bugs() { return bugs; }, get pods() { return pods; },
   hurt: (d) => hurtPlayer(d), setDrones: (n) => setDrones(n), toScreen, start: () => startGame(), camera, resize, unitPx, bosses: BOSSES,
   get cocoons() { return cocoons; }, get pilots() { return pilots; }, GLOG, CFG, get SLOTS() { return SLOTS; }, MAXD, get trauma() { return trauma; }, dropLoot: (w, x = 0, z = -8) => dropLoot(w, x, z), setRapid: (n) => setRapid(n, S.px, -6),
   showThreat: () => showThreat(), get coinFx() { return coinFx; }, get mood() { return moodOn; }, addShake: (k, m) => addShake(k, m), get BOT_Z() { return BOT_Z; }, planeScreen,
-  BT, btEnter: () => btEnter(), btExit: () => btExit(), TUT, doGesture: (g, i) => doGesture(g, i), tutWant: (id) => TUT.want(id),
   fireOmega: () => fireOmega(), setBeam: (v) => setBeam(v), omega: (v) => { S.omega = v; }, spawnCocoon: (o) => spawnCocoon(Object.assign({ x: -2.2, side: -1, hp: 260, drones: 8 }, o || {})),
   spawnBug: (x, z, type = 'spider', hp = 20) => newBug(x, z, type, hp), spawnGate: (x, val, z) => { spawnEvent({ k: 'gate', x, val, d: S.dist + (z ? -z : 30) }); return gates[gates.length - 1]; } };

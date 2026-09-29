@@ -9,11 +9,11 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="icon" href="data:,">
 <title>Grok Demo · Mission 1: Get to Beacon</title>
-<link rel="preload" href="assets/terrain.jpg?v=__BUILD__" as="image" crossorigin>
+<link rel="preload" href="assets/terrain.jpg?v=r11-91fa01f" as="image" crossorigin>
 <link rel="preload" href="fonts/nunito.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/lilita.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/luckiest.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=__BUILD__">
+<link rel="stylesheet" href="style.css?v=r11-91fa01f">
 </head>
 <body>
 <div id="wrap">
@@ -25,7 +25,7 @@
       <div id="prog"><div id="progfill"></div><div id="progboss"></div></div>
       <button id="mute" aria-label="Toggle sound">🔊</button>
     </div>
-    <div id="omega"><div id="omegafill"></div><span class="ol">OMEGA</span><span class="or"><i class="dtap"></i><i class="dtap d2"></i></span></div>
+    <div id="omega"><div id="omegafill"></div><span class="ol">OMEGA</span><span class="or">TAP THE PLANE!</span></div>
     <div id="weap"></div>
     <div id="loot">
       <span id="coinBox" class="lb"><i id="coinico" class="ico coin"></i><b id="coinN">0</b></span>
@@ -40,7 +40,6 @@
   </div>
   <div id="banner"></div>
   <div id="threat"></div>
-  <div id="tut"></div>
   <div id="start" class="screen">
     <div class="logo">
       <div class="logo-top">GROK DEMO</div>
@@ -49,9 +48,9 @@
     <div class="threatcard"><span class="rank c">C</span><span>This mission is filled with <b>C-RANK</b> threats.<br><em>Ready?</em></span></div>
     <div class="spacer"></div>
     <div class="tap">TAP TO FLY</div>
-    <div id="steerhand" aria-hidden="true"><div class="track"><i class="al">◀</i><i class="ar">▶</i></div><div class="sh"></div></div>
+    <div class="hint">Drag left / right to steer · Auto fire<br>Shoot <b class="b">gates</b> to raise them · Break <b>canisters</b> for new guns<br><b class="b">Swipe up</b> on the plane for the beam · <b class="p">Tap</b> it for OMEGA</div>
     <div id="loading">Loading…</div>
-    <div id="prevver" onpointerdown="event.stopPropagation()">Previous versions: <a href="v11/">11</a> · <a href="v10/">10</a> · <a href="v9/">9</a> · <a href="v8/">8</a> · <a href="v7/">7</a> · <a href="v6/">6</a> · <a href="v5/">5</a> · <a href="v4/">4</a> · <a href="v3/">3</a> · <a href="v2/">2</a></div>
+    <div id="prevver" onpointerdown="event.stopPropagation()">Previous versions: <a href="../v10/">Round 10</a> · <a href="../v9/">9</a> · <a href="../v8/">8</a> · <a href="../v7/">7</a> · <a href="../v6/">6</a> · <a href="../v5/">5</a> · <a href="../v4/">4</a> · <a href="../v3/">3</a> · <a href="../v2/">2</a></div>
   </div>
   <div id="end" class="screen hidden">
     <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
@@ -93,6 +92,6 @@
     <canvas id="endfx"></canvas>
   </div>
 </div>
-<script type="module" src="game.js?v=__BUILD__"></script>
+<script type="module" src="game.js?v=r11-91fa01f"></script>
 </body>
 </html>
