@@ -1,6 +1,5 @@
 import * as THREE from './vendor/three.module.min.js';
 
-// Round 11: slimmer x0.4 chip, taller drone count, no flying drones in the drain, centred coin row, star sticker pinned to the last digit.
 // Round 10: round-6 BEACON IN SIGHT title and coin-number format, a rebuilt DRONES row (x0.4 under the label), idle stone glints/glow/sparkles.
 // Round 9: medium-size Mission Complete in Lilita One, shine only for extraordinary runs (CFG.results, &shine=1),
 // stone counts beside their icons, and a hazard-tape boss warning with the boss name in 3D letters.
@@ -1466,7 +1465,7 @@ const RES = (() => {
     // drones: one launches every dTick and flies into the coin total
     const L = launchedAt(t), A = arrivedAt(t);
     if (!skipped) {
-      while (lastLaunch < L) { lastLaunch++; dBump = 0.2; }   // round 11: no drone icons flying into the coins, only the count goes down
+      while (lastLaunch < L) { lastLaunch++; sfx('zip'); dBump = 0.2; EFX.droneIn(q('r-droneico'), q('r-coinico'), T.fly / 1000); }
       if (A > lastArr) { lastArr = A; sfx('dcoin', A / Math.max(1, P.D)); bump = Math.max(bump, 0.16); }
     } else { lastLaunch = L; lastArr = A; }
     const c = coinAt(t); if (c !== shown.c) { shown.c = c; q('r-coinN').textContent = c; }

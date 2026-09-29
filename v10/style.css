@@ -351,22 +351,3 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-acti
 #r-drones .r-dtop{gap:8px}
 #r-droneico{width:70px;height:58px}
 #r-droneN{font-size:52px;line-height:52px;min-width:0;text-align:left;margin-right:6px}
-/* ---- round 11 ---- */
-/* coin row: coin + number centred as a group in the card and on each other; the star sticker hangs off the last digit */
-#r-coins{width:auto;min-width:0;justify-content:center;gap:10px}
-#r-coinico{margin:0}
-#r-coinW{position:relative;display:inline-flex;align-items:center}
-#r-coinN{min-width:0;padding-top:var(--lgPad,7px);padding-bottom:0}
-#r-bonus{right:-38px;bottom:-16px;top:auto;box-shadow:3px 4px 0 #1c0414;border-color:#fff}
-@keyframes rSticker{0%{opacity:0;transform:scale(0) rotate(-40deg)}100%{opacity:1;transform:scale(1) rotate(-8deg)}}
-@keyframes rStickerUsed{0%{opacity:1;transform:scale(1.4) rotate(-8deg)}100%{opacity:1;transform:scale(.86) rotate(-8deg)}}
-/* drones row: centred group; taller count; slimmer x0.4 chip; the DRONES + chip stack centred on the number */
-#r-drones{width:auto;min-width:0;justify-content:center}
-#r-drones .r-dtop{align-items:center;gap:10px}
-#r-droneN{font-size:60px;line-height:60px;padding-top:var(--lgPadD,7px);margin-right:4px}
-.r-dlab{gap:3px;justify-content:center}
-.r-dlab span{font-size:22px;line-height:22px}
-#r-mult{font-size:15px;line-height:15px;padding:2px 9px 1px;border-width:2px;border-radius:8px;box-shadow:0 2px 0 #6a2e00}
-/* Luckiest Guy's line box sits its digits high: nudge them so the ink is centred on the icon (measured: coin -5.2px, drones -8.1px) */
-#r-coinN{position:relative;top:5px}
-#r-droneN{position:relative;top:8px}

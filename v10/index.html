@@ -9,11 +9,11 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="icon" href="data:,">
 <title>Grok Demo · Mission 1: Get to Beacon</title>
-<link rel="preload" href="assets/terrain.jpg?v=__BUILD__" as="image" crossorigin>
+<link rel="preload" href="assets/terrain.jpg?v=r10-2ea8b58" as="image" crossorigin>
 <link rel="preload" href="fonts/nunito.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/lilita.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/luckiest.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=__BUILD__">
+<link rel="stylesheet" href="style.css?v=r10-2ea8b58">
 </head>
 <body>
 <div id="wrap">
@@ -50,7 +50,7 @@
     <div class="tap">TAP TO FLY</div>
     <div class="hint">Drag left / right to steer · Auto fire<br>Shoot <b class="b">gates</b> to raise them · Break <b>canisters</b> for new guns<br><b class="b">Swipe up</b> on the plane for the beam · <b class="p">Tap</b> it for OMEGA</div>
     <div id="loading">Loading…</div>
-    <div id="prevver" onpointerdown="event.stopPropagation()">Previous versions: <a href="v10/">10</a> · <a href="v9/">9</a> · <a href="v8/">8</a> · <a href="v7/">7</a> · <a href="v6/">6</a> · <a href="v5/">5</a> · <a href="v4/">4</a> · <a href="v3/">3</a> · <a href="v2/">2</a></div>
+    <div id="prevver" onpointerdown="event.stopPropagation()">Previous versions: <a href="../v9/">Round 9</a> · <a href="../v8/">8</a> · <a href="../v7/">7</a> · <a href="../v6/">6</a> · <a href="../v5/">5</a> · <a href="../v4/">4</a> · <a href="../v3/">3</a> · <a href="../v2/">2</a></div>
   </div>
   <div id="end" class="screen hidden">
     <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
@@ -82,7 +82,7 @@
     <!-- round 7: the Mission Complete sequence (coins, drones, star bonus, stones, total) -->
     <div id="res">
       <div id="r-name">BEACON IN SIGHT</div>
-      <div id="r-coins"><div class="r-halo"></div><i id="r-coinico" class="ico coin"></i><span id="r-coinW"><b id="r-coinN">0</b><div id="r-bonus"></div></span></div>
+      <div id="r-coins"><div class="r-halo"></div><i id="r-coinico" class="ico coin"></i><b id="r-coinN">0</b><div id="r-bonus"></div></div>
       <div id="r-drones"><div class="r-dtop"><i id="r-droneico" class="ico drone"></i><b id="r-droneN">0</b><div class="r-dlab"><span>DRONES</span><div id="r-mult">&times;0.4</div></div></div></div>
       <div id="r-stones"></div>
       <button id="again2" class="againbtn">CONTINUE</button>
@@ -92,6 +92,6 @@
     <canvas id="endfx"></canvas>
   </div>
 </div>
-<script type="module" src="game.js?v=__BUILD__"></script>
+<script type="module" src="game.js?v=r10-2ea8b58"></script>
 </body>
 </html>

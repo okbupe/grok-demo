@@ -1,9 +1,9 @@
-# Grok Demo: Mission 1, "Get to Beacon" (round 10)
+# Grok Demo: Mission 1, "Get to Beacon" (round 11)
 
 A portrait, touch-first sky shooter for mobile browsers, and a prototype of *Jetcraft: Invasion Earth*. Atlas flies the biplane across the Channel coast to **Beacon**, the base. On the way you build a drone squad, shoot gates positive, crack weapon canisters, smash loot crates, rescue a cocooned pilot and bring down the **Xora Queen**. The alien race is the **Xora**.
 
 **Play:** https://okbupe.github.io/grok-demo/
-Earlier rounds are kept frozen for comparison: **Round 9** at https://okbupe.github.io/grok-demo/v9/, **Round 8** at https://okbupe.github.io/grok-demo/v8/, **Round 7** at https://okbupe.github.io/grok-demo/v7/, **Round 6** at https://okbupe.github.io/grok-demo/v6/, **Round 5** at https://okbupe.github.io/grok-demo/v5/, **Round 4** at https://okbupe.github.io/grok-demo/v4/, **Round 3** at https://okbupe.github.io/grok-demo/v3/ and **Round 2** at https://okbupe.github.io/grok-demo/v2/. The title screen links to all eight on one line ("Previous versions: 9 · 8 · 7 · 6 · 5 · 4 · 3 · 2").
+Earlier rounds are kept frozen for comparison: **Round 10** at https://okbupe.github.io/grok-demo/v10/, **Round 9** at https://okbupe.github.io/grok-demo/v9/, **Round 8** at https://okbupe.github.io/grok-demo/v8/, **Round 7** at https://okbupe.github.io/grok-demo/v7/, **Round 6** at https://okbupe.github.io/grok-demo/v6/, **Round 5** at https://okbupe.github.io/grok-demo/v5/, **Round 4** at https://okbupe.github.io/grok-demo/v4/, **Round 3** at https://okbupe.github.io/grok-demo/v3/ and **Round 2** at https://okbupe.github.io/grok-demo/v2/. The title screen links to all nine on one line ("Previous versions: 10 · 9 · 8 · 7 · 6 · 5 · 4 · 3 · 2").
 
 ## Controls
 - **Steer:** drag left or right anywhere. Firing is automatic from the first frame.
@@ -12,6 +12,14 @@ Earlier rounds are kept frozen for comparison: **Round 9** at https://okbupe.git
 - **Shake off clinging Xora:** steer hard left and right.
 - **Desktop:** arrow keys or A/D to steer, W/↑ for beam on, S/↓ for beam off, Space or E for Omega. Mouse drag and clicking the plane also work.
 - **Gesture rules:** a flick must start within 115 px of the plane, last under 320 ms, travel at least 45 px, be mostly vertical (|dy| > 2·|dx|) and move at least 0.35 px/ms. A tap must start within 72 px of the plane, last under 180 ms and move under 10 px. Steering drags, resting your thumb, and lifting then putting it down to drag never count as a flick or a tap.
+
+## New in round 11
+Round 10's results screen is kept, with these fixes:
+- **DRONES row:** the ×0.4 chip is slimmer (22 px tall, was 28 px) and the drone count is taller (Luckiest Guy 60 px, was 52 px; about 50 px of digit ink). The DRONES + chip stack (47 px) is about as tall as the digits, and the icon, number and stack are vertically centred on each other. The row is centred in the card as a group.
+- **No flying drones in the drain:** only the drone number counts down. The coin total still ticks up with the tick sound and the bumps.
+- **Coin row:** the coin and the number are centred as a group in the card and vertically centred on each other. Luckiest Guy sits its digits high in the line box, so the number is nudged down 5 px (8 px for the drone count) based on the measured ink.
+- **Star sticker:** the purple ★ ×N chip now lives in a wrapper around the coin number. It always hangs off the last digit, overlapping its bottom-right corner, and tracks the number's width as it grows (3, 4, 5 digits) through the count-up, the punch and the landing. It has a hard, unblurred offset drop shadow and an 8° tilt, so it reads as a sticker.
+- Round 10 (commit 2ea8b58) is frozen at `/v10/`.
 
 ## New in round 10
 The round-9 sequence, sizes and impact are kept, with these changes:
@@ -95,7 +103,7 @@ All sizes, speeds, camera, gesture thresholds, shake (trauma decay, layer amplit
 ## Tech
 - Three.js is vendored at build time, so there is no CDN at runtime. A 2D canvas overlay draws numbers, bars, badges, sparkles and beams. The HUD is HTML/CSS, and the sound is WebAudio.
 - Sprites are stored as `art/*.webp.b64`. `tools/cut_cocoon.py` cuts the three cocoon stages from the reference sheet with the shared alpha matte from `tools/cut_art.py`, so there is no white halo.
-- `tools/build.sh` builds the site, stamps a cache-busting version, copies `fonts/`, and copies the frozen `v2/`, `v3/`, `v4/`, `v5/`, `v6/`, `v7/`, `v8/` and `v9/` builds (v5 = commit f19e5cd, v6 = commit b4f3de1, v7 = commit e003488, v8 = commit eb1161c, v9 = commit 0cbb2ac). `.github/workflows/pages.yml` publishes to `gh-pages`.
+- `tools/build.sh` builds the site, stamps a cache-busting version, copies `fonts/`, and copies the frozen `v2/`, `v3/`, `v4/`, `v5/`, `v6/`, `v7/`, `v8/`, `v9/` and `v10/` builds (v5 = commit f19e5cd, v6 = commit b4f3de1, v7 = commit e003488, v8 = commit eb1161c, v9 = commit 0cbb2ac, v10 = commit 2ea8b58). `.github/workflows/pages.yml` publishes to `gh-pages`.
 - Font: Luckiest Guy by Astigmatic, from Google Fonts, vendored as `fonts/luckiest.woff2` (Apache License 2.0, see `fonts/LICENSE-LuckiestGuy.txt`).
 - **Debug URL flags** (all off by default): `?autoplay` (a bot flies the mission), `&ts=2`, `&warp=60`, `&drones=20`, `&tier=0|1|2`, `&weapon=beam|gun`, `&beamon=1`, `&rockets=1`, `&bazooka=1`, `&bosshp=`, `&hp=`, `&omega=0..1` (starting charge), `&cocoon=T` (cocoon time in seconds), `&rapid=0|1|2`, `&ruby=1` (every ruby roll succeeds).
 - **Audit:** `window.__AUDIT` records spawns (`seen`, `maxY`, `viol` for mid-screen pop-ins, `brood`, `gatePairs`, `minGap`), hunters (`bottomExit`, `bugMaxScreenY`, `removedOffscreen`, `latchTotal`, `latchPlaneMax`, `flung`), the cocoon event log (`cocoon`, `carriers`), Omega (`omegaFires`, `omegaHits`, `orbs`), the beam (`beamOn`, `beamOff`, `beamDrainHp`, `beamSmoke`), gates (`gateMaxScale`, `gateScaleAtMax`), `shakes` by kind (`{n, peak}`), `shakeLog`, `omegaRumble` (per-frame shake during Omega), `bossChain` and `bossTrace` (the death chain), `shotsPlane`/`shotsDrone`, `rapid`, `loot`, `coins` by type, `results`, `threat`, `vibrate`, `slots`, `maxDrones`, `bombs`, `stars`, `rubies` (ruby drops), `omegaHit` and `deathY` (round 8: Omega hits by kind with the highest hit, and the screen y of each Xora death) and `results` (round 7: stage, drones, droneBonus, starMult, final, shown, skipped, timeline). `window.__G.GLOG` logs every gesture decision.
