@@ -29,5 +29,7 @@ if [ -d v5 ]; then cp -r v5 "$OUT/v5"; fi
 if [ -d v6 ]; then cp -r v6 "$OUT/v6"; fi
 # Frozen round-7 build (commit e003488), served at /v7/
 if [ -d v7 ]; then cp -r v7 "$OUT/v7"; fi
+# Frozen round-8 build (commit eb1161c), served at /v8/
+if [ -d v8 ]; then cp -r v8 "$OUT/v8"; fi
 touch "$OUT/.nojekyll"
 du -sh "$OUT"

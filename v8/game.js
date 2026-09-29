@@ -1,7 +1,5 @@
 import * as THREE from './vendor/three.module.min.js';
 
-// Round 9: medium-size Mission Complete in Lilita One, shine only for extraordinary runs (CFG.results, &shine=1),
-// stone counts beside their icons, and a hazard-tape boss warning with the boss name in 3D letters.
 // Grok Demo, round 8: Mission 1 "Get to Beacon" (round-7 base + smaller Xora with a perspective approach scale,
 // denser hordes and a filler stream so the sky is never empty, longer bullet reach, a full-height Omega Beam that
 // hits everything it touches, and front-line crawlers: only wasps and red skitterers cling).
@@ -92,9 +90,6 @@ const CFG = {
   planes: { lawnmower: { name: 'Lawnmower', droneCoinMult: 0.4 } },   // per-plane drone value multiplier (Lawnmower = base plane)
   droneCoinBase: 10,                       // coins per drone before the plane multiplier (45 drones x 10 x 0.4 = 180)
   starBonus: { 1: 1.0, 2: 1.25, 3: 1.5 },   // coin multiplier by stars earned
-  // --- round 9: results look. The shine (coin halo, holy rays behind rare stones, glows) is only for extraordinary runs:
-  // final >= typicalFinal x coinX, or a coin boost (artifact/booster, S.coinBoost) >= boost, or an exceptional stone haul. Debug: &shine=1 forces it, &shine=0 forbids it.
-  results: { shineOnlyIfExtraordinary: true, typicalFinal: 1900, coinX: 2.5, boost: 2, stones: { gem: 12, ruby: 3, diamond: 3 } },
 };
 // Orb tiers (future design ladder). Only OMEGA is active for now: every player has the Omega Beam.
 const ORB_TIERS = {
@@ -1186,8 +1181,7 @@ function updateCoins(dt) {
 const THREAT = { mission: 'C', boss: 'B' };
 function showThreat() {
   const name = BOSSES[MISSION_BOSS].name, el = $('threat');
-  // round 9: hazard tape across the screen, the boss's name in chunky 3D letters overhanging the tape, pulsing in contrast
-  el.innerHTML = `<div class="tape"></div><div class="tr-name">${name}</div><div class="tr-sub">${THREAT.boss}-RANK THREAT APPROACHING</div>`;
+  el.innerHTML = `<div class="tr-rank">${THREAT.boss}</div><div class="tr-txt"><b>${THREAT.boss}-RANK THREAT</b><small>${name} APPROACHING</small></div>`;
   el.className = ''; void el.offsetWidth; el.className = 'show';
   sfx('siren'); setMood(true); flashRed = Math.max(flashRed, 0.5); addShake('medium', 0.8);
   AUD.threat = { t: +S.t.toFixed(2), text: `${THREAT.boss}-RANK THREAT: ${name} APPROACHING`, bossT: BOSS_T, mood: moodOn, audio: !!ac };
@@ -1330,7 +1324,7 @@ function celebrate(stars) {
 }
 function endGame(win) {
   endTimers.forEach(clearTimeout); endTimers = []; celTimers.forEach(clearTimeout); celTimers = []; celebrated = false; EFX.reset(); RES.stop();
-  const e = $('end'); e.classList.remove('hidden', 'mega', 'nice', 'shk-big', 'shk-small', 'landed', 'win', 'skipped', 'shine'); e.classList.toggle('lose', !win); e.classList.toggle('win', !!win); e.classList.remove('play'); void e.offsetWidth; e.classList.add('play');
+  const e = $('end'); e.classList.remove('hidden', 'mega', 'nice', 'shk-big', 'shk-small', 'landed', 'win', 'skipped'); e.classList.toggle('lose', !win); e.classList.toggle('win', !!win); e.classList.remove('play'); void e.offsetWidth; e.classList.add('play');
   $('badgewrap').classList.remove('shown');
   const hpF = S.hp / S.hpMax, okHp = hpF >= CFG_STARS.hp, okD = S.drones >= CFG_STARS.drones;
   const r = [win, win && (okHp || S.rescued), win && okHp && S.rescued && okD];
@@ -1390,11 +1384,7 @@ const RES = (() => {
     const stones = [['gem', S.gems], ['ruby', S.rubies], ['diamond', S.diamonds]].filter(([, n]) => n > 0);
     let tt = T.s1 + 760; const st = stones.map(([k, n]) => { const o = { k, n, at: tt, rare: k !== 'gem' }; tt += o.rare ? 780 : 500; return o; });
     T.stones = st.map((o) => o.at); T.f = st.length ? tt + 80 : T.s1 + 720; T.btn = T.f + 520; T.end = T.btn + 450;
-    const RC = CFG.results, boost = S.coinBoost || 1, why = [];
-    if (final >= RC.typicalFinal * RC.coinX) why.push('coins'); if (boost >= RC.boost) why.push('boost');
-    for (const [k, n] of stones) if (n >= RC.stones[k]) why.push(k);
-    const fq = Q.get('shine'), shine = fq === '1' ? true : fq === '0' ? false : (!RC.shineOnlyIfExtraordinary || why.length > 0);
-    return { stage, killCoins: S.killCoins, lootCoins: S.lootCoins, D, base: CFG.droneCoinBase, mult, per, droneBonus, stars, sm, pre, final, T, stones: st, plane: CFG.plane, shine, why: fq === '1' ? ['forced'] : why };
+    return { stage, killCoins: S.killCoins, lootCoins: S.lootCoins, D, base: CFG.droneCoinBase, mult, per, droneBonus, stars, sm, pre, final, T, stones: st, plane: CFG.plane };
   }
   function coinAt(t) {
     const T = P.T;
@@ -1424,8 +1414,7 @@ const RES = (() => {
       sfx('punch'); shakeEnd('big'); addShake('stomp'); vib(40); const fl = q('r-flash'); fl.classList.remove('go'); void fl.offsetWidth; fl.classList.add('go'); EFX.coinBurst(q('r-coinico'), P.stars >= 2 ? 36 : 22); bump = 0.55; } });
     P.stones.forEach((o, i) => E.push({ at: o.at, fn: (f) => { const el = q('r-stones').children[i]; el.classList.add('rin');
       if (f) return; sfx('pthud'); sfx(o.k === 'gem' ? 'gem' : o.k === 'ruby' ? 'ruby' : 'diamond'); shakeEnd('small');
-      const col = o.k === 'ruby' ? '#ff9aae' : o.k === 'diamond' ? '#dff8ff' : '#8dffb8';
-      if (o.rare) sfx('choir'); if (o.rare && P.shine) EFX.holy(el, col); else EFX.sparkAt(el, col, 18); } }));
+      if (o.rare) { sfx('choir'); EFX.holy(el, o.k === 'ruby' ? '#ff9aae' : '#dff8ff'); } else EFX.sparkAt(el, '#8dffb8', 18); } }));
     E.push({ at: T.f, fn: () => { q('r-coinN').textContent = P.final; shown.c = P.final; cls('r-coins', 'land', false); void q('r-coins').offsetWidth; cls('r-coins', 'land'); cls('r-coins', 'final');
       sfx('land'); setTimeout(() => sfx('fanfare'), 140); shakeEnd('big'); addShake('stomp'); vib(60); EFX.coinBurst(q('r-coinico'), 60, true); cls('r-bank', 'rin'); bump = 0;
       AUD.results.shown = Number(q('r-coinN').textContent); AUD.results.skipped = skipped; AUD.results.landedAt = Math.round(performance.now() - t0); } });
@@ -1464,12 +1453,11 @@ const RES = (() => {
       q('again2').className = 'againbtn'; q('r-flash').className = '';
       q('r-mult').textContent = '\u00d7' + P.mult; q('r-bonus').innerHTML = '';
       q('r-stones').innerHTML = P.stones.map((o) => `<div class="stone ${o.k}${o.rare ? ' rare' : ''}"><div class="rays"></div><i class="ico ${o.k === 'diamond' ? 'dia' : o.k}"></i><b>\u00d7${o.n}</b></div>`).join('');
-      $('end').classList.toggle('shine', P.shine);   // round 9: the shine only for extraordinary runs (CFG.results)
       q('r-stones').classList.toggle('none', !P.stones.length);
       let bank = 0; try { bank = Number(localStorage.getItem('grokdemo.coins') || 0) + P.final; localStorage.setItem('grokdemo.coins', String(bank)); } catch (e) { }
       q('r-bank').textContent = bank ? `BANK ${bank}` : '';
       AUD.results = { stage: P.stage, killCoins: P.killCoins, lootCoins: P.lootCoins, drones: P.D, droneCoinBase: P.base, droneCoinMult: P.mult, plane: P.plane, droneBonus: P.droneBonus,
-        stars: P.stars, starMult: P.sm, shine: P.shine, shineWhy: P.why, preStar: P.pre, final: P.final, expected: Math.round((P.stage + Math.round(P.D * P.base * P.mult)) * P.sm), gems: S.gems, rubies: S.rubies, diamonds: S.diamonds,
+        stars: P.stars, starMult: P.sm, preStar: P.pre, final: P.final, expected: Math.round((P.stage + Math.round(P.D * P.base * P.mult)) * P.sm), gems: S.gems, rubies: S.rubies, diamonds: S.diamonds,
         kills: S.kills, killsBy: { ...S.killsBy }, bank, timeline: { ...P.T, segs: P.T.segs }, shown: null, skipped: false, coins: S.coins, t0: 0 };
       q('r-coinN').textContent = '0'; q('r-droneN').textContent = P.D;
       t0 = performance.now(); AUD.results.t0 = t0; if (raf) cancelAnimationFrame(raf); raf = requestAnimationFrame(frame);

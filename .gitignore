@@ -31,3 +31,7 @@ __pycache__/
 !/v7/assets/
 !/v7/vendor/
 !/v7/fonts/
+# frozen round-8 build served at /v8/ (committed on purpose)
+!/v8/assets/
+!/v8/vendor/
+!/v8/fonts/
