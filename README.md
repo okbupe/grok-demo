@@ -1,38 +1,46 @@
-# Grok Demo: Mission 1, "Get to Ridgeback" (round 4)
+# Grok Demo: Mission 1, "Get to Beacon" (round 5)
 
-A portrait, touch-first sky shooter for mobile browsers. Atlas flies the biplane across the Channel coast to Ridgeback. On the way you build a drone squad, shoot gates positive, crack weapon canisters and bring down the **Chitin Queen**.
+A portrait, touch-first sky shooter for mobile browsers, and a prototype of *Jetcraft: Invasion Earth*. Atlas flies the biplane across the Channel coast to **Beacon**, the base. On the way you build a drone squad, shoot gates positive, crack weapon canisters, rescue a cocooned pilot and bring down the **Chitin Queen**.
 
 **Play:** https://okbupe.github.io/grok-demo/
-Earlier rounds, kept frozen for comparison: **Round 3** at https://okbupe.github.io/grok-demo/v3/ and **Round 2** at https://okbupe.github.io/grok-demo/v2/. The title screen has a small "Previous versions" link to both.
+Earlier rounds are kept frozen for comparison: **Round 4** at https://okbupe.github.io/grok-demo/v4/, **Round 3** at https://okbupe.github.io/grok-demo/v3/ and **Round 2** at https://okbupe.github.io/grok-demo/v2/. The title screen links to all three under "Previous versions".
 
 ## Controls
-- **Phone:** drag left or right anywhere to steer. Firing is automatic from the first frame.
-- **Desktop:** Arrow keys or A/D. Dragging with the mouse also works.
+- **Steer:** drag left or right anywhere. Firing is automatic from the first frame.
+- **Beam** (after you collect the BEAM canister): flick **up** from the plane to switch it on, and flick **down** to switch it off. The first 5 s are free. After that it drains your health and the plane smokes. It shuts off by itself at 12 HP.
+- **Omega Beam:** when the purple HUD bar is full, the plane's nose soaks up energy. **Tap the plane** (a quick touch and release) to fire a screen-wide beam.
+- **Shake off clinging bugs:** steer hard left and right.
+- **Desktop:** arrow keys or A/D to steer, W/↑ for beam on, S/↓ for beam off, Space or E for Omega. Mouse drag and clicking the plane also work.
+- **Gesture rules:** a flick must start within 115 px of the plane, last under 320 ms, travel at least 45 px, be mostly vertical (|dy| > 2·|dx|) and move at least 0.35 px/ms. A tap must start within 72 px of the plane, last under 180 ms and move under 10 px. Steering drags, resting your thumb, and lifting then putting it down to drag never count as a flick or a tap.
 
-## What round 4 is
-Round 4 mixes the round-2 feel with the round-3 mission structure:
-- **Plane and drones:** round 2's plane and drones, with round 2's banking, tilt, bob, propeller and contrails. The round-3 plane sprite is no longer used.
-- **Gates:** round 2's glass gates, flattened and made smaller, so three would fit side by side. A row never has more than one gate. Next to a gate there may be a canister, a crate, some bugs or nothing. Round 3's propeller gate banners stay in `art/` but are not used.
-- **Enemies:** round 2's yellow-eyed spiders (and the bigger brute) are the main enemies. Round 3's red spider, beetle, wasp and spitter only show up as two short elite moments.
-- **Spawning:** every enemy spawns above the top edge of the screen and flies in from ahead. Bugs keep clear sky behind gates: they stay at least about 1.5 gate-heights back or move to one side of the gate.
-- **Boss:** round 2's stationary **Chitin Queen**. Her brood emerges from her body, and she fires telegraphed acid volleys. Kingsting's code and config stay dormant in the `BOSSES` table as `stinger`, ready for a later mission.
-- **Pickups:** round 2's canisters are back, with a big gold icon on top that shows the weapon: POWER, ROCKETS, BAZOOKA, **BEAM** (restored) or DRONES. The glass weapon orb is about twice as big as before, and its icon fills most of it. Crates are used sparingly.
-- **Bullet tiers (as in Last War):** bullets start in the standard pale gold. The first power pickup makes them **ORANGE** with more damage, and the second makes them **BLUE** with even more damage. Every round already in the air changes colour at once, with a flash and an UP ring. Drones copy the tier. The beam and rockets are coloured by tier too.
+## New in round 5
+- **Packed squad:** drones fill the space closest to the plane first, in the same staggered formation style. The cap is **50** everywhere, including gate gains.
+- **Drone spawn effect:** each new drone pops in scaled up and stretched away from the squad, then eases into its slot inside a glowing sparkle swirl, with a chunky gold comic **+1** (Luckiest Guy font, vendored in `fonts/`).
+- **Hunters:** bugs come from ahead and never fly past the plane or off the bottom. When they get close they chase the squad, swing wide of the guns, and latch onto the plane or a drone, clawing it for damage over time until they are shot or shaken off. Drones shoot clinging bugs first. Hunter packs (fast red spiders) dive in from the top corners. Only gates, canisters, crates and orbs scroll past.
+- **Cocoon rescue** (about 50 s): a wasp brings a pilot's amber cocoon in from the side and holds it ahead of you. Its HP shows under the glass. It cracks at half HP. At 0 it shatters, the pilot flies to the squad and you get **+8 drones** and "PILOT RESCUED!". You can shoot the carrier too. If you don't free the pilot within 12 s, the carrier escapes with the cocoon.
+- **Gates inflate:** a gate grows linearly with its value, up to **+20% at MAX 1000**. Negative gates stay at their base size. A gate that starts positive stays at base size until its first hit. Every hit gives a short "feeding" pulse. Blue gates restore health, which matters now that the beam costs HP.
+- **Omega Beam:** the bar fills from kills (faster with combos and while you avoid damage), from maxed gates, and from **Omega orbs** (glowing purple-white pickups that scroll past). All players have the Omega tier for now. The code already has `ORB_TIERS` (Delta, Beta, Gamma, Alpha, Omega) with only Omega active.
+- **Screen shake only where it matters:** pickups (small), big or elite kills (medium), gate MAX (small), Omega, and the Queen's death as a rolling chain of 12 bombs over about 2.5 s, each with its own pulse. Normal shooting never shakes.
+- **Mission Complete:** the gold strip stomps in with a shake and a dust ring. The stars are cartoon style and each lands with a thud. **3 stars:** rays, glow, confetti, fireworks and "PERFECT!". **2 stars:** rays and a little confetti. **1 star:** the star simply appears.
+- **Star rules** (shown on the results card): ★ complete the mission; ★★ finish with at least 50% health **or** rescue the pilot; ★★★ at least 50% health **and** the pilot rescued **and** at least 15 drones at the end.
+- The base is now called **Beacon** ("BEACON IN SIGHT").
 
 ## Rules of the sky
 - Open sky: no lanes, dots or dividers. Nothing casts a shadow. Bullets reach three quarters of the way up the screen.
-- **Gates:** every bullet that hits a gate adds +1, and rockets and shells add more. Gates start negative and can be shot positive. At **1000** a gate turns gold and shows **MAX**. A blue gate gives you drones and restores health. A red gate takes that many drones, and flying through a red gate with no drones kills you.
-- **Drones:** the cap is 40, and they fly in formation around the plane. They fire ahead and only aim at bugs close to the plane.
-- Health bars change colour. The screen only shakes at key moments. Something happens every 1 to 2 seconds.
+- One gate per row, with a canister, crate or bugs beside it. No bugs sit directly behind a gate.
+- **Gates:** every bullet adds +1 (rockets and shells add more). At **1000** a gate turns gold and shows **MAX**. A blue gate gives drones and restores health. A red gate takes drones.
+- **Bullet tiers:** standard, then orange, then blue.
+- Health bars change colour. Something happens every 1 to 2 seconds.
 
-## Mission 1 (about 90 s)
-The mission opens with a +2 gate beside the first swarm. Next come a choice of gates, then build-up rows with rising negative gates and tougher bugs. The first POWER canister turns the bullets orange (about 16 s). A ROCKETS canister follows, then a weapon orb that turns them blue (about 38 s), a BEAM canister, an elite moment, a spitter moment and an optional bazooka canister. The Chitin Queen arrives at about 66 s. After her you get the Mission Complete badge with the biplane and "RIDGEBACK IN SIGHT".
+## Tuning
+All sizes, speeds, camera, gesture thresholds and shake amplitudes live in the **`CFG` block at the top of `game.js`**: plane, drone, gate, bug, boss, cocoon and orb sizes; scroll, object and bug speed; hunter speed and radius; camera position and FOV; drone spacing; beam grace and drain; Omega damage; tap and swipe thresholds. Star rules are in `CFG_STARS`.
 
 ## Tech
-- Three.js is vendored at build time, so there is no CDN at runtime. A 2D canvas overlay draws numbers, bars and badges. The HUD is HTML/CSS, and the sound is WebAudio.
-- Sprites are stored as `art/*.webp.b64`. The `r2_*` files are the round-2 plane, spider, boss and canister. The round-3 art stays in the repo for later stages.
-- `tools/build.sh` builds the site, stamps a cache-busting version and copies the frozen `v2/` and `v3/` builds into the output. `.github/workflows/pages.yml` publishes to `gh-pages`.
-- Debug URL flags, all off by default: `?autoplay` (a bot flies the mission), `&ts=2` (time scale), `&warp=60` (skip ahead), `&drones=20`, `&tier=0|1|2`, `&weapon=beam|gun`, `&rockets=1`, `&bazooka=1`, `&bosshp=`, `&hp=`.
-- **Spawn audit:** `window.__AUDIT` records each enemy's first visible position (`seen`, `maxY` as a fraction of screen height from the top, `viol` for anything first seen below 5%), the boss brood separately, gate pairs per row (`gatePairs`), the closest bug behind a gate (`minGap`), the tier timeline and the time of the first shot.
+- Three.js is vendored at build time, so there is no CDN at runtime. A 2D canvas overlay draws numbers, bars, badges, sparkles and beams. The HUD is HTML/CSS, and the sound is WebAudio.
+- Sprites are stored as `art/*.webp.b64`. `tools/cut_cocoon.py` cuts the three cocoon stages from the reference sheet with the shared alpha matte from `tools/cut_art.py`, so there is no white halo.
+- `tools/build.sh` builds the site, stamps a cache-busting version, copies `fonts/`, and copies the frozen `v2/`, `v3/` and `v4/` builds. `.github/workflows/pages.yml` publishes to `gh-pages`.
+- Font: Luckiest Guy by Astigmatic, from Google Fonts, vendored as `fonts/luckiest.woff2` (Apache License 2.0, see `fonts/LICENSE-LuckiestGuy.txt`).
+- **Debug URL flags** (all off by default): `?autoplay` (a bot flies the mission), `&ts=2`, `&warp=60`, `&drones=20`, `&tier=0|1|2`, `&weapon=beam|gun`, `&beamon=1`, `&rockets=1`, `&bazooka=1`, `&bosshp=`, `&hp=`, `&omega=0..1` (starting charge), `&cocoon=T` (cocoon time in seconds).
+- **Audit:** `window.__AUDIT` records spawns (`seen`, `maxY`, `viol` for mid-screen pop-ins, `brood`, `gatePairs`, `minGap`), hunters (`bottomExit`, `bugMaxScreenY`, `removedOffscreen`, `latchTotal`, `latchPlaneMax`, `flung`), the cocoon event log (`cocoon`, `carriers`), Omega (`omegaFires`, `omegaHits`, `orbs`), the beam (`beamOn`, `beamOff`, `beamDrainHp`, `beamSmoke`), gates (`gateMaxScale`, `gateScaleAtMax`), `shakes` by kind, `maxDrones`, `bombs` and `stars`. `window.__G.GLOG` logs every gesture decision.
 
 Local build: `pip install numpy scipy opencv-python-headless pillow && bash tools/build.sh _site`, then serve `_site/`.

@@ -8,12 +8,11 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="icon" href="data:,">
-<title>Grok Demo · Mission 1: Get to Beacon</title>
-<link rel="preload" href="assets/terrain.jpg?v=__BUILD__" as="image" crossorigin>
+<title>Grok Demo · Mission 1: Get to Ridgeback</title>
+<link rel="preload" href="assets/terrain.jpg?v=r4-2a2688c" as="image" crossorigin>
 <link rel="preload" href="fonts/nunito.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/lilita.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="fonts/luckiest.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=__BUILD__">
+<link rel="stylesheet" href="style.css?v=r4-2a2688c">
 </head>
 <body>
 <div id="wrap">
@@ -25,7 +24,6 @@
       <div id="prog"><div id="progfill"></div><div id="progboss"></div></div>
       <button id="mute" aria-label="Toggle sound">🔊</button>
     </div>
-    <div id="omega"><div id="omegafill"></div><span class="ol">OMEGA</span><span class="or">TAP THE PLANE!</span></div>
     <div id="weap"></div>
   </div>
   <div id="bossbar" class="hidden">
@@ -36,29 +34,23 @@
   <div id="start" class="screen">
     <div class="logo">
       <div class="logo-top">GROK DEMO</div>
-      <div class="logo-sub">MISSION 1 · GET TO BEACON</div>
+      <div class="logo-sub">MISSION 1 · GET TO RIDGEBACK</div>
     </div>
     <div class="spacer"></div>
     <div class="tap">TAP TO FLY</div>
-    <div class="hint">Drag left / right to steer · Auto fire<br>Shoot <b class="b">gates</b> to raise them · Break <b>canisters</b> for new guns<br><b class="b">Swipe up</b> on the plane for the beam · <b class="p">Tap</b> it for OMEGA</div>
+    <div class="hint">Drag left / right to steer · Auto fire<br>Shoot <b class="b">gates</b> to raise them · Break <b>canisters</b> for new guns</div>
     <div id="loading">Loading…</div>
-    <div id="prevver" onpointerdown="event.stopPropagation()">Previous versions: <a href="v4/">Round 4</a> · <a href="v3/">Round 3</a> · <a href="v2/">Round 2</a></div>
+    <div id="prevver" onpointerdown="event.stopPropagation()">Previous versions: <a href="../v3/">Round 3</a> · <a href="../v2/">Round 2</a></div>
   </div>
   <div id="end" class="screen hidden">
-    <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
-      <radialGradient id="sgOn" cx="40%" cy="32%" r="75%"><stop offset="0" stop-color="#fff9c4"/><stop offset=".4" stop-color="#ffd83a"/><stop offset=".8" stop-color="#f59a00"/><stop offset="1" stop-color="#d86f00"/></radialGradient>
-      <radialGradient id="sgOff" cx="40%" cy="32%" r="75%"><stop offset="0" stop-color="#8a93a6"/><stop offset="1" stop-color="#454c5c"/></radialGradient>
-    </defs></svg>
     <div id="badgewrap">
-      <div id="rays"></div>
       <img id="badge" src="assets/badge_complete.webp" alt="Mission complete">
       <div id="shine"></div>
-      <div class="bstar s1"></div><div class="bstar s2"></div><div class="bstar s3"></div>
+      <div class="bstar s1">★</div><div class="bstar s2">★</div><div class="bstar s3">★</div>
     </div>
     <div class="card">
       <div id="endtitle">MISSION COMPLETE</div>
       <div id="endsub"></div>
-      <div id="rules"></div>
       <div class="stats">
         <div><b id="st-kills">0</b><small>Bugs</small></div>
         <div><b id="st-drones">0</b><small>Drones</small></div>
@@ -66,9 +58,8 @@
       </div>
       <button id="again">FLY AGAIN</button>
     </div>
-    <canvas id="endfx"></canvas>
   </div>
 </div>
-<script type="module" src="game.js?v=__BUILD__"></script>
+<script type="module" src="game.js?v=r4-2a2688c"></script>
 </body>
 </html>

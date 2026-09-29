@@ -12,3 +12,10 @@ screenshots/
 !/v3/assets/
 !/v3/vendor/
 !/v3/fonts/
+# frozen round-4 build served at /v4/ (committed on purpose)
+!/v4/assets/
+!/v4/vendor/
+!/v4/fonts/
+# vendored fonts (round 5) are committed
+!/fonts/
+__pycache__/
