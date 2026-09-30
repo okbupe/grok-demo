@@ -24,7 +24,7 @@
     <div class="hudrow">
       <div id="hp"><div id="hpfill"></div><div id="hpseg"></div></div>
       <div id="prog"><div id="progfill"></div><div id="progboss"></div></div>
-      <button id="mute" aria-label="Toggle sound">🔊</button>
+      <button id="mute" aria-label="Toggle sound"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 12 H10 L18 5 V27 L10 20 H4 Z" fill="#fff" stroke="#14213d" stroke-width="2.4" stroke-linejoin="round"/><path class="mw" d="M22 11 Q25 16 22 21 M25.5 7.5 Q31 16 25.5 24.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path class="mx" d="M22 12 L30 20 M30 12 L22 20" stroke="#ff6a5a" stroke-width="3.4" stroke-linecap="round"/></svg></button>
     </div>
     <div id="omega"><div id="omegafill"></div><span class="ol">OMEGA</span><span class="or"><i class="dtap"></i><i class="dtap d2"></i></span></div>
     <div id="weap"></div>
@@ -43,16 +43,32 @@
   <div id="threat"></div>
   <div id="tut"></div>
   <div id="start" class="screen">
-    <div class="logo">
-      <div class="logo-top">GROK DEMO</div>
-      <div class="logo-sub">MISSION 1 · GET TO BEACON</div>
+    <!-- round 13: the home screen: Base, Store and Settings top left, the bank top right, the mission, the Depot, Hangar and Workshop cards (art drawn by meta.js) -->
+    <div id="t-left" class="t-ui">
+      <button class="t-ico" id="tb-base" data-open="base" aria-label="Base"><i class="t-btn" data-art="base"></i><span>BASE</span></button>
+      <button class="t-ico" id="tb-store" data-open="store" aria-label="Store"><i class="t-btn" data-art="store"></i><span>STORE</span></button>
+      <button class="t-ico" id="tb-settings" data-open="settings" aria-label="Settings"><i class="t-btn" data-art="settings"></i><span>SETTINGS</span></button>
     </div>
-    <div class="threatcard"><span class="rank c">C</span><span>This mission is filled with <b>C-RANK</b> threats.<br><em>Ready?</em></span></div>
+    <div id="t-bank" class="t-ui">
+      <span class="t-pill coins" id="tbk-coins"><i class="ico coin"></i><b>0</b></span>
+      <span class="t-pill gems" id="tbk-gems"><i class="ico gem"></i><b>0</b></span>
+      <span class="t-pill rubies" id="tbk-rubies"><i class="ico ruby"></i><b>0</b></span>
+      <span class="t-pill diamonds" id="tbk-diamonds"><i class="ico dia"></i><b>0</b></span>
+    </div>
+    <div id="t-mission">
+      <div class="tm-kick">MISSION 1</div>
+      <div class="tm-name">GET TO BEACON</div>
+      <div class="tm-threat"><span>MISSION THREAT</span><span class="rank c">C</span></div>
+    </div>
+    <div id="t-cards" class="t-ui">
+      <button class="t-card depot" id="tc-depot" data-open="depot" aria-label="Depot"><span class="tc-in"><span class="tc-art" data-art="depot"></span><i class="tc-glint"></i></span><span class="tc-name">DEPOT</span></button>
+      <button class="t-card hangar" id="tc-hangar" data-open="hangar" aria-label="Hangar"><span class="tc-in"><span class="tc-art" data-art="hangar"></span><i class="tc-glint"></i></span><span class="tc-name">HANGAR</span></button>
+      <button class="t-card workshop" id="tc-workshop" data-open="workshop" aria-label="Workshop"><span class="tc-in"><span class="tc-art" data-art="workshop"></span><i class="tc-glint"></i></span><span class="tc-name">WORKSHOP</span><i class="tc-badge" id="tc-ws-badge"></i></button>
+    </div>
     <div class="spacer"></div>
     <div class="tap">TAP TO FLY</div>
     <div id="steerhand" aria-hidden="true"><div class="track"><i class="al">◀</i><i class="ar">▶</i></div><div class="sh"></div></div>
     <div id="loading">Loading…</div>
-    <div id="prevver" onpointerdown="event.stopPropagation()">Previous versions: <a href="v11/">11</a> · <a href="v10/">10</a> · <a href="v9/">9</a> · <a href="v8/">8</a> · <a href="v7/">7</a> · <a href="v6/">6</a> · <a href="v5/">5</a> · <a href="v4/">4</a> · <a href="v3/">3</a> · <a href="v2/">2</a></div>
   </div>
   <div id="end" class="screen hidden">
     <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
@@ -64,22 +80,15 @@
       <img id="badge" src="assets/badge_complete.webp" alt="Mission complete">
       <div id="shine"></div>
       <div class="bstar s1"></div><div class="bstar s2"></div><div class="bstar s3"></div>
+      <div id="lplate"><b>SHOT DOWN</b></div>
     </div>
-    <div class="card">
-      <div id="endtitle">MISSION COMPLETE</div>
-      <div id="endsub"></div>
-      <div id="rules"></div>
-      <div class="stats">
-        <div><b id="st-kills">0</b><small>Xora</small></div>
-        <div><b id="st-drones">0</b><small>Drones</small></div>
-        <div><b id="st-time">0s</b><small>Time</small></div>
-      </div>
-      <div id="coinsum">
-        <div class="cs-top"><i class="ico coin"></i><b id="st-coins">0</b><small>COINS</small></div>
-        <div id="cs-rows"></div>
-        <div class="cs-gems"><span><i class="ico gem"></i>&times;<b id="st-gems">0</b></span><span><i class="ico dia"></i>&times;<b id="st-dia">0</b></span><span id="cs-bank"></span></div>
-      </div>
-      <button id="again">FLY AGAIN</button>
+    <!-- round 13: SHOT DOWN in the results style: how far you got, the coins you keep, one picture of the cause -->
+    <div id="lose">
+      <div id="l-dist"><div class="l-track"><div id="l-fill"></div><i id="l-plane"></i></div><i class="l-beacon" data-art="beacon"></i></div>
+      <div id="l-coins"><i class="ico coin"></i><b id="l-coinN">0</b></div>
+      <div id="l-stones"></div>
+      <div id="l-cause"><div class="l-pic"></div><b></b></div>
+      <div class="l-btns"><button id="upg">UPGRADE</button><button id="again">FLY AGAIN</button></div>
     </div>
     <!-- round 7: the Mission Complete sequence (coins, drones, star bonus, stones, total) -->
     <div id="res">
@@ -93,6 +102,9 @@
     <div id="r-flash"></div>
     <canvas id="endfx"></canvas>
   </div>
+  <!-- round 13: the panels (Workshop, Settings, Store, Depot, Hangar, Base) slide up over the title; meta.js fills them -->
+  <div id="meta" class="hidden"><div class="m-scrim"></div><div class="m-sheet"><div class="m-head"><div class="m-title"></div><button class="m-close" aria-label="Close"></button></div><div class="m-body"></div></div></div>
+  <div id="mfx"></div>
 </div>
 <script type="module" src="meta.js?v=__BUILD__"></script>
 <script type="module" src="game.js?v=__BUILD__"></script>

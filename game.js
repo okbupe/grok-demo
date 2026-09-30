@@ -1012,7 +1012,7 @@ function vnoise(t, s) {
 // phone vibration on big thuds, Omega and the boss explosions (only after a user gesture; always guarded)
 let userGestured = false, buzzLast = 0;
 function buzz(p) {
-  if (!userGestured || !navigator.vibrate) return;
+  if (!userGestured || !navigator.vibrate || (window.JCMETA && window.JCMETA.settings.vibe === false)) return;   // round 13: Settings, Vibration
   const n = performance.now(); if (n - buzzLast < 70) return; buzzLast = n;
   try { navigator.vibrate(p); AUD.vibrate++; } catch (e) { }
 }
@@ -1027,7 +1027,7 @@ function banner(text, sub, warn, dur = 1.6) {
 function hurtPlayer(dmg = 20, by = '') {
   if (S.inv > 0 || godMode || S.mode !== 'play') return;
   S.hp = Math.max(0, S.hp - dmg); S.inv = 0.6; S.barT = 2.2; flashRed = 1; updateHP(); sfx('hurt'); S.cleanT = 0;
-  if (navigator.vibrate && navigator.userActivation && navigator.userActivation.hasBeenActive) try { navigator.vibrate(80); } catch (e) { }
+  if (navigator.vibrate && navigator.userActivation && navigator.userActivation.hasBeenActive && !(window.JCMETA && window.JCMETA.settings.vibe === false)) try { navigator.vibrate(80); } catch (e) { }
   if (S.hp <= 0) { S.deathBy = by; killPlayer(); }
 }
 // damage over time (clinging bugs, beam drain): no invulnerability frames, a soft red pulse instead of a flash
@@ -1149,7 +1149,10 @@ function rollRuby(src, x, y, z) {
 }
 function awardKill(type, x, z) {
   if (type === 'carrier' || type === 'beetle' || type === 'spitter') rollRuby(type === 'carrier' ? 'carrier' : 'elite', x, 0.8, z);
-  const v = CFG.coins[type] || 1; S.coins += v; S.killCoins += v; S.killsBy[type] = (S.killsBy[type] || 0) + 1;
+  // round 13: the Workshop's Revenue multiplier. The fraction carries to the next kill, so a 1-coin crawler at x1.1 pays
+  // 1.1 on average instead of rounding back to 1; every kill still pays at least 1.
+  WSM.carry += (CFG.coins[type] || 1) * WSM.rev; const v = Math.max(1, Math.floor(WSM.carry + 1e-9)); WSM.carry = Math.max(0, WSM.carry - v);
+  S.coins += v; S.killCoins += v; S.killsBy[type] = (S.killsBy[type] || 0) + 1;
   AUD.coins[type] = (AUD.coins[type] || 0) + v;
   if (coinFx.length < 140) spawnCoins('coin', v >= 5 ? 3 : 1, v, x, 0.6, z, v >= 5 ? 0.9 : 0.5); else { S.coinsShown += v; updateLootHud(); }
 }
@@ -1281,11 +1284,15 @@ function renderScenes() {
   renderer.clear(); renderer.render(world, wcam); renderer.render(cloudScene, ccam); renderer.clearDepth(); renderer.render(scene, camera);
 }
 
-// the cartoon glove with a pointing finger (drawn here, no emoji)
+// the cartoon glove with a pointing finger (drawn here, no emoji). Round 13: the finger is a third shorter (the fingertip stays
+// at the same point, the fist sits higher) and it is drawn over the fist, so no outline crosses it where it meets the knuckles.
 const HAND_SVG = `<svg class="hand" viewBox="0 0 64 84" aria-hidden="true"><g stroke="#16203a" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">
-  <rect x="14" y="66" width="34" height="14" rx="4" fill="#3d8bff"/><path d="M24 40 V10 a7 7 0 0 1 14 0 V36" fill="#fff"/>
-  <path d="M12 44 q-6 4 -2 12 q6 12 14 14 h16 q14 -2 16 -16 V42 q0 -6 -6 -6 q-4 0 -6 3 q-1 -5 -6 -5 q-5 0 -6 4 q-2 -3 -6 -3 q-3 0 -4 2 V52 q-4 -12 -10 -8z" fill="#fff"/>
-  <path d="M38 40 v8 M46 42 v7" fill="none" stroke-width="2.4"/></g><ellipse cx="28" cy="12" rx="3" ry="4" fill="#fff" opacity=".9"/></svg>`;
+  <rect x="16" y="55" width="32" height="13" rx="4" fill="#3d8bff"/><path d="M19.5 58.6 h25" stroke="#9cc6ff" stroke-width="2"/>
+  <path d="M38 24 Q43 23.5 44 29 Q46 25.5 50 25.5 Q56.5 25.5 56.5 32 V44 Q55 58.5 40 59.5 H25 Q15 58.5 10.5 47 Q6 37.5 13 33.5 Q19 30.5 24 27 Z" fill="#fff"/>
+  <path d="M13.5 49 Q18 56.8 26 57 H40 Q52.5 56.5 54.4 46 Q55 57 40 57.6 H25.5 Q17 57.4 13.5 49Z" fill="#d3def3" stroke="none"/>
+  <path d="M24 31 V10 A7 7 0 0 1 38 10 V31 Z" fill="#fff" stroke="none"/><rect x="33" y="9" width="4.2" height="21" rx="2" fill="#dde6f6" stroke="none"/>
+  <path d="M24 27 V10 A7 7 0 0 1 38 10 V24" fill="none"/>
+  <path d="M44 29 v6.5 M24.5 33 Q24 41.5 16.5 46.5" fill="none" stroke-width="2.4"/></g></svg>`;
 const TAP_SVG = `<svg class="tapico" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="8" fill="#fff"/><circle cx="20" cy="20" r="14" fill="none" stroke="#fff" stroke-width="3" opacity=".6"/><circle cx="20" cy="20" r="19" fill="none" stroke="#fff" stroke-width="2" opacity=".3"/></svg>`;
 const HEART_SVG = `<svg class="heart" viewBox="0 0 32 28" aria-hidden="true"><path d="M16 27 C6 19 1 14 1 8 C1 4 4 1 8.5 1 C12 1 14.5 3 16 6 C17.5 3 20 1 23.5 1 C28 1 31 4 31 8 C31 14 26 19 16 27Z" fill="#ff4d5e" stroke="#3a0008" stroke-width="2.4"/><ellipse cx="9" cy="8" rx="3" ry="2" fill="#fff" opacity=".7"/></svg>`;
 // Tutorials: each shows once (localStorage 'grokdemo.tut'); ?tut=1 resets them, ?tut=0 turns them off. Performing
@@ -1422,9 +1429,28 @@ window.addEventListener('keyup', (e) => {
   if (['ArrowLeft', 'a', 'A'].includes(e.key)) keyL = false;
   if (['ArrowRight', 'd', 'D'].includes(e.key)) keyR = false;
 });
+// round 13: the in-game mute button is the Sound effects switch in Settings (kept in sync, saved in jc.settings)
 $('mute').addEventListener('pointerdown', (e) => {
-  e.stopPropagation(); initAudio(); muted = !muted; if (master) master.gain.value = muted ? 0 : 0.55; $('mute').textContent = muted ? '\ud83d\udd07' : '\ud83d\udd0a';
+  e.stopPropagation(); initAudio();
+  if (window.JCMETA && window.JCMETA.set) window.JCMETA.set('sfx', !window.JCMETA.settings.sfx); else muted = !muted;
+  applyAudioSettings();
 });
+// round 13: apply Settings to the audio. Sound effects off: the master gain is 0. Music off: the ambience and the boss mood
+// (moved onto their own music bus the first time they exist) are 0. Safe to call before the audio exists.
+let musicBus = null;
+const audRouted = { amb: null, mood: null };
+function applyAudioSettings() {
+  const st = (window.JCMETA && window.JCMETA.settings) || {};
+  if (window.JCMETA) muted = st.sfx === false;
+  const mb = $('mute'); if (mb) mb.classList.toggle('off', muted);
+  if (!ac || !master) return;
+  master.gain.value = muted ? 0 : 0.55;
+  if (!musicBus) { musicBus = ac.createGain(); musicBus.connect(ac.destination); }
+  musicBus.gain.value = st.music === false ? 0 : 0.55;
+  const route = (n) => { try { n.disconnect(); } catch (err) { } n.connect(musicBus); };
+  if (amb !== audRouted.amb) { if (amb) route(amb.gn); audRouted.amb = amb; }
+  if (moodNodes !== audRouted.mood) { if (moodNodes) { route(moodNodes.pg); route(moodNodes.dg); } audRouted.mood = moodNodes; }
+}
 $('again').addEventListener('pointerdown', (e) => { e.stopPropagation(); initAudio(); startGame(); });
 
 function startGame() {
@@ -1480,11 +1506,10 @@ function endGame(win) {
   const els = [...document.querySelectorAll('.bstar')];
   els.forEach((el, i) => { el.innerHTML = starSvg(i < stars); el.className = 'bstar s' + (i + 1) + (i < stars ? ' on' : ' off'); });
   $('hud').classList.add('hidden'); $('bossbar').classList.add('hidden'); setMood(false);
-  if (!win) {   // shot down: the round-6 card, unchanged
-    $('endtitle').textContent = 'SHOT DOWN';
-    $('endsub').textContent = ({ gate: 'A negative gate with no drones is fatal. Shoot it blue first!', crash: 'Flying into a canister with no drones hurts. Shoot it open!', beam: 'The beam drained you dry. Swipe down sooner!' }[S.deathBy] || 'The Xora got you. Regroup, pilot!');
-    $('st-kills').textContent = S.kills; $('st-drones').textContent = S.maxDrones; $('st-time').textContent = Math.round(S.t) + 's';
-    $('rules').innerHTML = ''; coinTally(false); return;
+  if (!win) {   // round 13: SHOT DOWN in the results style: the red plate stomps in like the gold banner (jolt and dust), then the card (coinTally)
+    const bw = $('badgewrap'); bw.classList.remove('stomp'); void bw.offsetWidth; bw.classList.add('stomp'); sfx('whooshDown');
+    endLater(330, () => { shakeEnd('big'); sfx('thud'); addShake('stomp'); EFX.dust(); e.classList.add('landed'); buzz(50); });
+    coinTally(false); return;
   }
   // 1) the gold strip STOMPS down: huge -> impact (shake + dust ring)
   const bw = $('badgewrap'); bw.classList.remove('stomp'); void bw.offsetWidth; bw.classList.add('stomp');
@@ -1626,8 +1651,9 @@ const RES = (() => {
       q('r-stones').innerHTML = P.stones.map((o) => `<div class="stone ${o.k}${o.rare ? ' rare' : ''}"><div class="rays"></div><i class="ico ${o.k === 'diamond' ? 'dia' : o.k}"><span class="gl"></span></i><b>\u00d7${o.n}</b></div>`).join('');
       $('end').classList.toggle('shine', P.shine);   // round 9: the shine only for extraordinary runs (CFG.results)
       q('r-stones').classList.toggle('none', !P.stones.length);
-      let bank = 0; try { bank = Number(localStorage.getItem('grokdemo.coins') || 0) + P.final; localStorage.setItem('grokdemo.coins', String(bank)); } catch (e) { }
-      q('r-bank').textContent = bank ? `BANK ${bank}` : '';
+      // round 13: the final total and the run's stones go into the bank (meta.js, jc.bank); BANK shows the coin bank
+      const bank = window.JCMETA ? window.JCMETA.bankAdd({ coins: P.final, gems: S.gems, rubies: S.rubies, diamonds: S.diamonds }).coins : 0;
+      q('r-bank').textContent = bank ? `BANK ${bank.toLocaleString('en-GB')}` : '';
       AUD.results = { stage: P.stage, killCoins: P.killCoins, lootCoins: P.lootCoins, drones: P.D, droneCoinBase: P.base, droneCoinMult: P.mult, plane: P.plane, droneBonus: P.droneBonus,
         stars: P.stars, starMult: P.sm, shine: P.shine, shineWhy: P.why, preStar: P.pre, final: P.final, expected: Math.round((P.stage + Math.round(P.D * P.base * P.mult)) * P.sm), gems: S.gems, rubies: S.rubies, diamonds: S.diamonds,
         kills: S.kills, killsBy: { ...S.killsBy }, bank, timeline: { ...P.T, segs: P.T.segs }, shown: null, skipped: false, coins: S.coins, t0: 0 };
@@ -1643,25 +1669,38 @@ const RES = (() => {
     get P() { return P; },
   };
 })();
-// results: coins earned (Xora kills x value, plus loot), gems and diamonds, with a count-up
+// round 13: the SHOT DOWN card: how far you got towards Beacon, the coins you keep (banked: you keep what you earned),
+// any stones, one picture of the cause, then FLY AGAIN and UPGRADE. Timers go through endLater and the count-up stops
+// when tallyToken changes, so teardownEnd() stops all of it.
 function coinTally(win) {
   S.coinsShown = S.coins; S.gemsShown = S.gems; S.rubiesShown = S.rubies; S.diamondsShown = S.diamonds; coinFx = []; updateLootHud(true);
-  const kinds = Object.keys(S.killsBy).filter((k) => S.killsBy[k] > 0).sort((a, b) => (CFG.coins[b] || 0) - (CFG.coins[a] || 0));
-  const NAME = { spider: 'Crawlers', redspider: 'Skitterers', wasp: 'Wasps', brute: 'Brutes', beetle: 'Beetles', spitter: 'Spitters', carrier: 'Carriers', queen: 'Queen' };
-  $('cs-rows').innerHTML = `<div class="grid">${kinds.map((k) => `<div><span>${NAME[k] || k} ${S.killsBy[k]}\u00d7${CFG.coins[k] || 1}</span><b>${S.killsBy[k] * (CFG.coins[k] || 1)}</b></div>`).join('')}</div>` +
-    `<div class="sum">Xora <b>${S.killCoins}</b> + crate loot <b>${S.lootCoins}</b></div>`;
-  $('st-gems').textContent = S.gems; $('st-dia').textContent = S.diamonds;
-  let bank = 0; try { bank = Number(localStorage.getItem('grokdemo.coins') || 0) + S.coins; localStorage.setItem('grokdemo.coins', String(bank)); } catch (e) { }
-  $('cs-bank').textContent = bank ? `Bank ${bank}` : '';
-  AUD.results = { coins: S.coins, killCoins: S.killCoins, lootCoins: S.lootCoins, gems: S.gems, diamonds: S.diamonds, killsBy: { ...S.killsBy }, kills: S.kills, bank };
-  const el = $('st-coins'); el.textContent = '0'; const t0 = performance.now() + (win ? 2300 : 700), dur = 1500, total = S.coins, tok = tallyToken;
-  const step = (t) => {
-    if (tok !== tallyToken) return;
-    const k = clamp((t - t0) / dur, 0, 1), v = Math.round(total * (1 - Math.pow(1 - k, 3)));
-    if (t >= t0) { if (el.textContent !== String(v)) { el.textContent = v; sfx('count'); } }
-    if (k < 1) requestAnimationFrame(step); else { el.textContent = total; $('coinsum').classList.remove('done'); void el.offsetWidth; $('coinsum').classList.add('done'); sfx('gate'); AUD.results.shown = total; }
-  };
-  $('coinsum').classList.remove('done'); requestAnimationFrame(step);
+  const M = window.JCMETA, bank = M ? M.bankAdd({ coins: S.coins, gems: S.gems, rubies: S.rubies, diamonds: S.diamonds }).coins : 0;
+  const far = clamp(S.t / BOSS_T, 0, 1), cause = M ? M.cause(S.deathBy) : { pic: '', words: '' }, total = S.coins, tok = tallyToken;
+  AUD.results = { coins: S.coins, killCoins: S.killCoins, lootCoins: S.lootCoins, gems: S.gems, rubies: S.rubies, diamonds: S.diamonds, killsBy: { ...S.killsBy }, kills: S.kills, bank, far: +far.toFixed(3), cause: S.deathBy || 'xora', shown: null };
+  const L = $('lose'); L.className = ''; $('l-fill').style.width = '0%'; $('l-plane').style.left = '0%';
+  const cn = $('l-coinN'); cn.textContent = '0';
+  const st = [['gem', 'gem', S.gems], ['ruby', 'ruby', S.rubies], ['diamond', 'dia', S.diamonds]].filter((x) => x[2] > 0);
+  $('l-stones').innerHTML = st.map(([k, ico, n]) => `<span class="l-stone ${k}"><i class="ico ${ico}"></i><b>\u00d7${n}</b></span>`).join('');
+  $('l-stones').classList.toggle('none', !st.length);
+  $('l-cause').querySelector('.l-pic').innerHTML = cause.pic; $('l-cause').querySelector('b').textContent = cause.words;
+  const t0 = 520, tBar = t0 + 260, tCoin = tBar + 420, dur = 900, tStone = tCoin + dur + 120, tCause = tStone + (st.length ? 380 : 60), tBtn = tCause + 420;
+  endLater(t0, () => { L.classList.add('rin'); sfx('whoosh'); });
+  endLater(tBar, () => { L.classList.add('bar'); $('l-fill').style.width = (far * 100).toFixed(1) + '%'; $('l-plane').style.left = (far * 100).toFixed(1) + '%'; sfx('riser'); });
+  endLater(tCoin, () => {
+    $('l-coins').classList.add('rin'); sfx('pthud');
+    const c0 = performance.now();
+    const step = (t) => {
+      if (tok !== tallyToken) return;
+      const k = clamp((t - c0) / dur, 0, 1), v = Math.round(total * (1 - Math.pow(1 - k, 3)));
+      if (cn.textContent !== String(v)) { cn.textContent = v; sfx('rtick', k); }
+      if (k < 1) requestAnimationFrame(step);
+      else { const w = $('l-coins'); w.classList.remove('land'); void w.offsetWidth; w.classList.add('land'); sfx('land'); shakeEnd('small'); AUD.results.shown = total; }
+    };
+    requestAnimationFrame(step);
+  });
+  st.forEach((x, i) => endLater(tStone + i * 140, () => { $('l-stones').children[i].classList.add('rin'); sfx(x[0] === 'gem' ? 'gem' : x[0] === 'ruby' ? 'ruby' : 'diamond'); }));
+  endLater(tCause, () => { L.classList.add('cause'); sfx('star'); shakeEnd('small'); });
+  endLater(tBtn, () => { L.classList.add('btns'); sfx('whoosh'); });
 }
 // end-screen effects canvas: dust ring, star puffs, confetti, fireworks
 const EFX = (() => {
@@ -1797,16 +1836,20 @@ function botThink() {
 }
 
 // ---------------------------------------------------------------- weapons
+// round 13: the Workshop multipliers. meta.js pushes them through the api when they change (only ever between runs),
+// so there is no per-bullet cost; carry is the Revenue fraction left over from the last kill.
+const WSM = { rate: 1, dmg: 1, rev: 1, carry: 0 };
 function fire(x, z, vx, vz, drone) {
   const T = T_();
-  const b = { kind: 'bullet', x, z, vx, vz, dmg: drone ? T.dDmg : T.dmg, tick: 1, w: T.w * CFG.tracerW * (drone ? 0.72 : 1), len: T.len * (drone ? 0.72 : 1), drone };
+  const b = { kind: 'bullet', x, z, vx, vz, dmg: (drone ? T.dDmg : T.dmg) * WSM.dmg, tick: 1, w: T.w * CFG.tracerW * (drone ? 0.72 : 1), len: T.len * (drone ? 0.72 : 1), drone };
   shots.push(b); return b;
 }
 function firePrimary(dt) {
+  if (amb !== audRouted.amb || moodNodes !== audRouted.mood) applyAudioSettings();   // round 13: ambience or boss-mood nodes made mid-run join the music bus
   if (S.primary === 'beam') return;   // the beam is drawn and applied in update()
   const T = T_(); S.fireT -= dt;
   while (S.fireT <= 0) {
-    S.fireT += 1 / (T.rate * rapidMul());
+    S.fireT += 1 / (T.rate * rapidMul() * WSM.rate);
     if (AUD.firstShotT < 0) AUD.firstShotT = +S.t.toFixed(3);
     const guns = T.twin ? [-0.55, 0.55] : [S.gunSide ? 0.55 : -0.55]; S.gunSide ^= 1;
     AUD.shotsPlane += guns.length;
@@ -1822,7 +1865,7 @@ function fireWingmen(dt) {
   for (const w of wingmen) {
     w.fireT -= dt;
     if (w.fireT > 0) continue;
-    w.fireT += 1 / (3 * rapidMul()); AUD.shotsDrone++;
+    w.fireT += 1 / (3 * rapidMul() * WSM.rate); AUD.shotsDrone++;
     // straight ahead, unless a bug is right on top of the main plane: then nearby drones turn to shoot it
     // clinging bugs first (drones shoot them off the plane and each other), then bugs close to the plane
     let tgt = null, best = 1e9;
@@ -1852,7 +1895,7 @@ function fireSecondary(dt) {
       if (targets.length) {
         for (let i = 0; i < S.rocketLv * 2; i++) {
           const side = i % 2 ? 1 : -1; const t = targets[Math.floor(Math.random() * targets.length)];
-          missiles.push({ x: S.px + side * 1.2, y: 0.75, z: 0.1, vx: side * rand(6, 9), vz: -rand(2, 5), t, life: 2.6, delay: Math.floor(i / 2) * 0.12 });
+          missiles.push({ x: S.px + side * 1.2, y: 0.75, z: 0.1, vx: side * rand(6, 9), vz: -rand(2, 5), t, life: 2.6, delay: Math.floor(i / 2) * 0.12, mul: WSM.dmg });   // round 13: mul = Workshop Damage
         }
         sfx('rocket');
       }
@@ -1862,7 +1905,7 @@ function fireSecondary(dt) {
     S.cannonT -= dt;
     if (S.cannonT <= 0) {
       S.cannonT = S.bazookaLv >= 2 ? 0.9 : 1.25;
-      shells.push({ x: S.px, z: -1.4, vz: -30, dmg: 30 * S.bazookaLv * (1 + S.tier * 0.5) });
+      shells.push({ x: S.px, z: -1.4, vz: -30, dmg: 30 * S.bazookaLv * (1 + S.tier * 0.5) * WSM.dmg });
       fx.spawn({ x: S.px, y: 0.6, z: -1.5, vx: 0, vy: 0, vz: 0, life: 0.12, s0: 2.6, s1: 1, r: 1, g: 0.6, b: 0.2, a: 1 });
       smokeFx.spawn({ x: S.px, y: 0.6, z: -1.4, vx: 0, vy: 0.4, vz: 1, life: 0.6, s0: 0.6, s1: 1.8, r: 0.5, g: 0.48, b: 0.46, a: 0.5 });
       sfx('bazooka');
@@ -3244,7 +3287,11 @@ async function boot() {
   setupIcons(); setupWorld(); resize(); computeSlots(); resetGame(false);
   ready = true; $('loading').textContent = ''; placeSteerHand();
   // round 13: the meta layer (meta.js: title icons and cards, the Workshop, the bank, Settings) talks to the game only here
-  if (window.JCMETA) window.JCMETA.init({ startGame, goHome, initAudio, sfx: (n, a) => sfx(n, a), get S() { return S; }, CFG, TEX, get planeSprite() { return planeSprite; } });
+  if (window.JCMETA) window.JCMETA.init({ startGame, goHome, initAudio, sfx: (n, a) => sfx(n, a), get S() { return S; }, CFG, TEX, get planeSprite() { return planeSprite; },
+    // round 13: the Workshop multipliers, Settings for the audio, replaying the tutorials, and the audio state for the tests
+    setMult: (m) => { WSM.rate = m.rate || 1; WSM.dmg = m.dmg || 1; WSM.rev = m.rev || 1; }, applyAudio: () => applyAudioSettings(),
+    tutReset: () => (typeof TUT.reset === 'function' ? (TUT.reset(), true) : false),
+    audio: () => ({ ctx: !!ac, master: master ? master.gain.value : null, music: musicBus ? musicBus.gain.value : null, ambOnMusic: !!amb && audRouted.amb === amb, muted }) });
   if (Q.has('autostart') || Q.has('autoplay')) startGame();
 }
 requestAnimationFrame(loop);
