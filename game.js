@@ -56,15 +56,18 @@ const CFG = {
   camPos: [0, 16, 12], camLook: [0, 0, -8], camFov: 21,
   // --- squad
   maxDrones: 50, droneDX: 0.92, droneDZ: 0.7,
+  droneOverflowCoin: 15,   // round 13: coins per rescued-pilot drone that no longer fits in a full squad
   droneHug: 0.16,      // how much of a drone may tuck under the main plane's silhouette (0..1); slots hug the real art
   droneHugPad: 1,      // extra clearance (mask pixels) kept between drone and plane silhouettes
   // --- gates
   gateMax: 1000, gateGrow: 0.40,   // round 12: +40% size at MAX, linear from 0
+  gateOverflowCoin: 0.05,   // round 13: no wasted gates: each gate point above the free squad room pays this many coins (MAX, full squad = 50)
   // --- weapons
   bulletReach: 0.88,   // bullets fade out at this fraction of the screen height (from the bottom); round 8: 0.75 -> 0.88
   tracerW: 0.85,       // round 8: tracers a little thinner (x this width)
   beamGrace: 5, beamDrain: 7, beamDrainLow: 0.35, beamMinHp: 12,   // seconds free, then hp per second; the beam shuts off at beamMinHp
   omegaDmg: 900, omegaBossDmg: 1500, omegaTime: 1.3,
+  omegaFullCoin: 25,   // round 13: an Omega orb collected with the bar already full pays these coins instead
   rapidMul: [1, 1.5, 2],   // RAPID FIRE canister: fire-rate multiplier per level (plane and drones); separate from the bullet tiers
   // --- hunters that latch on
   ambushSpeed: 1.6, ambushArmour: 0.3,   // hunter packs dive in faster and shrug off most damage until they reach the squad
@@ -519,20 +522,48 @@ function setupIcons() {
 }
 
 // ---------------------------------------------------------------- audio (all synthesised)
-let ac = null, master = null, noiseBuf = null, muted = false;
+let ac = null, master = null, noiseBuf = null, muted = false, silentBuf = null;
 function initAudio() {
-  if (ac) { if (ac.state !== 'running') ac.resume(); return; }
+  if (ac) { if (ac.state !== 'running') { try { const p = ac.resume(); if (p && p.catch) p.catch(() => { }); } catch (e) { } } return; }
   const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
-  ac = new AC(); master = ac.createGain(); master.gain.value = muted ? 0 : 0.55; master.connect(ac.destination);
+  try { ac = new AC(); } catch (e) { ac = null; return; }
+  master = ac.createGain(); master.gain.value = muted ? 0 : 0.55; master.connect(ac.destination);
   noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate); const d = noiseBuf.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  silentBuf = ac.createBuffer(1, 1, 22050);   // round 13: the one-sample buffer played inside a gesture to unlock output
   const o = ac.createOscillator(), f = ac.createBiquadFilter(), gn = ac.createGain();
   o.type = 'sawtooth'; o.frequency.value = 62; f.type = 'lowpass'; f.frequency.value = 240; gn.gain.value = 0.035;
   const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = 26; lg.gain.value = 0.022; lfo.connect(lg); lg.connect(gn.gain);
   o.connect(f); f.connect(gn); gn.connect(master); o.start(); lfo.start();
   amb = { o, f, gn, lfo, lg };
+  // round 13: the saved music and sound settings (the meta layer's Settings) apply as soon as the graph exists
+  if (typeof applyAudioSettings === 'function') applyAudioSettings();
   if (moodOn) setMood(true, true);
+  // round 13: log every state change; an iOS-style 'interrupted' context is asked to come back at once
+  ac.addEventListener('statechange', () => {
+    const A = audAudio(); A.states.push([ac.state, +(S.t || 0).toFixed(2)]); if (A.states.length > 40) A.states.shift();
+    if (ac.state === 'running' && !A.runningAt) A.runningAt = A.lastEv || 'statechange';
+    if (ac.state === 'interrupted' && !document.hidden) initAudio();
+  });
+  if (ac.state === 'running') audAudio().runningAt = audAudio().lastEv || 'create';
 }
+// round 13: SOUND FROM THE FIRST TOUCH. A browser lets audio start only inside a user activation: pointerup or touchend
+// for a finger, pointerdown or click for a mouse, keydown. Round 12 created the context on a touch pointerdown (not an
+// activation, so it stayed suspended on Bupé's phone until a later tap). Now the context is created or resumed inside
+// those events, listened for on window in the capture phase (so no handler can stop them first), a one-sample silent
+// buffer is played in the same gesture, and every later gesture retries until the context is running.
+const audAudio = () => AUD.audio || (AUD.audio = { created: '', lastEv: '', runningAt: '', tries: 0, primes: 0, states: [] });
+function unlockAudio(e) {
+  if (e.type === 'pointerdown' && e.pointerType !== 'mouse') return;   // a finger going down is not an activation
+  if (e.type === 'keydown' && (e.key === 'Escape' || e.metaKey || e.ctrlKey || e.altKey)) return;
+  userGestured = true;
+  if (ac && ac.state === 'running') return;
+  const A = audAudio(); A.lastEv = e.type; A.tries++;
+  const fresh = !ac; initAudio(); if (!ac) return;
+  if (fresh) { A.created = e.type; if (ac.state !== 'running') initAudio(); }   // a second call resumes it
+  try { const s = ac.createBufferSource(); s.buffer = silentBuf; s.connect(ac.destination); s.start(0); A.primes++; } catch (err) { }
+}
+for (const k of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) window.addEventListener(k, unlockAudio, true);
 // music/ambience mood shift for the boss approach (round 6): the drone drops and darkens and a slow heavy pulse
 // (a heartbeat under everything) comes in. It carries on through the boss fight.
 let amb = null, moodOn = false, moodNodes = null;
@@ -704,10 +735,10 @@ const TIERS = [
 const T_ = () => TIERS[S.tier];
 function updateWeaponHud() {
   const t = T_();
-  const name = S.primary === 'beam' ? 'BEAM' : t.name;
+  const name = S.primary === 'beam' ? 'SABER' : t.name;   // round 13: the swipe beam is the SABER BEAM (Bupé)
   const ic = S.primary === 'beam' ? '' : `<img src="assets/icon_minigun.webp?v=${VER}" alt="">`;
   let h = `${ic}<b style="color:${t.hud}">${name}</b>`;
-  if (S.beamOwned && !S.beamOn) h += ` <i class="bm">BEAM \u2191</i>`;
+  if (S.beamOwned && !S.beamOn) h += ` <i class="bm">SABER \u2191</i>`;
   if (S.beamOn) { const left = CFG.beamGrace - S.beamT; h += left > 0 ? ` <i class="bm">${Math.ceil(left)}s \u2193</i>` : ` <i class="bm drain">\u2212HP \u2193</i>`; }
   if (S.rapidLv) h += ` <i class="rf">\u26a1RAPID \u00d7${CFG.rapidMul[S.rapidLv]}</i>`;
   if (S.rocketLv) h += ` <i>ROCKETS \u00d7${S.rocketLv * 2}</i>`;
@@ -793,7 +824,7 @@ function buildLevel() {
   // canister #3: the BEAM
   can(39.0, -2.2, 170, { weapon: 'beam' }); gate(39.0, 2.0, 5);
   rows(41.0, 0, 22, 8, 28); brutes(41.6, 2, 180);
-  ambush(42.4, 5, 30); gate(43.0, -1.6, -320); can(43.0, 2.3, 260, { drones: 8 });
+  ambush(42.4, 5, 30); gate(43.0, -1.6, -320); loot(43.0, 2.3, 150, 'gems');   // round 13: was a +8 drone canister; crates are loot, never drones (Bupé)
   rows(45.0, 0, 24, 8, 30); loot(44.6, -2.5, 130, 'coins');
   bug(46.8, 0, 'spitter', 140); wasps(47.4, 2);
   rapid(48.0, 2.3, 220);    // RAPID FIRE #2 (max)
@@ -824,7 +855,8 @@ function buildLevel() {
 }
 
 function resetGame(play) {
-  for (const a of [bugs, pods, gates]) for (const o of a) { scene.remove(o.sprite); if (o.glow) scene.remove(o.glow); }
+  for (const a of [bugs, pods]) for (const o of a) { scene.remove(o.sprite); if (o.glow) scene.remove(o.glow); }
+  for (const g of gates) dropGate(g); S.gateCoins = 0;   // round 13: gate textures and materials are freed, gate coins reset
   for (const w of wingmen) scene.remove(w.sprite);
   for (const c of cocoons) { scene.remove(c.sprite); if (c.carrier) scene.remove(c.carrier.sprite); }
   if (boss) { scene.remove(boss.sprite); if (boss.glow) scene.remove(boss.glow); }
@@ -858,6 +890,7 @@ function resetGame(play) {
     if (Q.get('rapid')) S.rapidLv = clamp(Number(Q.get('rapid')), 0, 2);
   }
   updateHP(); updateWeaponHud();
+  TUT.reset();   // round 13: no tutorial state (beam, Omega, queue) carries over from the last run
 }
 
 // ---------------------------------------------------------------- wingmen (round-2 drones)
@@ -879,12 +912,24 @@ function setDrones(n, fromX, fromZ, quiet) {
   }
   S.drones = n; S.maxDrones = Math.max(S.maxDrones, n); AUD.maxDrones = Math.max(AUD.maxDrones, n);
 }
-function gainDrones(v, x, z) {
+// round 13: honest. Returns the drones that actually joined; SQUAD FULL only when drones were refused (callers that pay
+// the overflow in coins pass paid = true, so nothing is refused), and the UP ring only for 5 or more real new drones.
+function gainDrones(v, x, z, paid) {
   const before = S.drones; setDrones(S.drones + v, x, z);
-  if (v >= 5) upRing = { t: 0, col: '#ffd84a' };
-  if (before + v > MAXD) pop('SQUAD FULL \u00b7 ' + MAXD, S.px, 1.6, -3.4, '#ffe066', 0.7, '#3a2a00', 0, true);
-  if (v > 0) sfx('plus');
-  return S.drones - before;
+  const got = S.drones - before;
+  if (got >= 5) upRing = { t: 0, col: '#ffd84a' };
+  if (got < v && !paid) pop('SQUAD FULL \u00b7 ' + MAXD, S.px, 1.6, -3.4, '#ffe066', 0.7, '#3a2a00', 0, true);
+  if (got > 0) sfx('plus');
+  return got;
+}
+// round 13: coins earned outside kills and crates (gate overflow, a full squad's pilot drones, an orb on a full bar):
+// they count in the stage total (S.coins, S.lootCoins, S.gateCoins for gates) and fly to the HUD counter
+function bonusCoins(c, x, y, z, why) {
+  if (c <= 0) return;
+  S.coins += c; S.lootCoins += c; if (why === 'gate') S.gateCoins = (S.gateCoins || 0) + c;
+  if (coinFx.length < 140) spawnCoins('coin', clamp(Math.round(c / 5), 3, 12), c, x, y, z, 0.9); else { S.coinsShown += c; updateLootHud(); }
+  pop('+' + c, x, y + 1.6, z - 2.6, '#ffd84a', 1.25, '#3a1d00', 0.06, true);   // the gold number sits above the coin burst
+  const L = AUD.bonusCoins || (AUD.bonusCoins = []); if (L.length < 200) L.push({ t: +S.t.toFixed(2), why, coins: c });
 }
 function removeWingman(j) {
   const w = wingmen[j]; if (!w) return;
@@ -1044,7 +1089,8 @@ function killPlayer() {
 }
 function loseDrones(n, x, z) {
   if (S.drones <= 0) { hurtPlayer(35, 'crash'); return; }
-  setDrones(S.drones - n); pop('\u2212' + n, x, 1.2, z, '#ff6a5a', 0.9, '#3a0b0b'); sfx('bad');
+  const lost = Math.min(n, S.drones);   // round 13: the popup shows the drones actually lost
+  setDrones(S.drones - lost); pop('\u2212' + lost, x, 1.2, z, '#ff6a5a', 0.9, '#3a0b0b'); sfx('bad');
 }
 function killBug(s, i) {
   const B = BUG[s.type];
@@ -1086,7 +1132,7 @@ function giveReward(R, x = S.px, z = -6) {
   if (R.loot) { dropLoot(R.loot, x, z); return; }
   if (R.weapon === 'beam') {
     S.beamOwned = true; weaponFlash = 1; upRing = { t: 0, col: '#9fe0ff' }; flyIcons.push({ name: 'beam', x, z, t: 0 });
-    pickup('BEAM!', '#bfe9ff', '#0b2440'); updateWeaponHud(); sfx('power'); TUT.want('beamOn');
+    pickup('SABER BEAM!', '#bfe9ff', '#0b2440'); updateWeaponHud(); sfx('power'); TUT.want('beamOn');   // round 13: the Saber Beam (Bupé)
 
     return;
   }
@@ -1099,12 +1145,14 @@ function giveReward(R, x = S.px, z = -6) {
     pickup('BAZOOKA!', '#ffd0a0', '#4a1e00'); updateWeaponHud(); sfx('power'); return;
   }
   if (R.drones) {
-    const got = gainDrones(R.drones, x, z);
+    // round 13: honest. The popup shows the drones that joined; with the squad full, the pilot's other drones pay coins
+    const got = gainDrones(R.drones, x, z, !!R.pilot), over = R.drones - got;
     if (R.pilot) {
-      pop('+' + R.drones, S.px, 2.6, -2.6, '#ffe066', 1.7, '#3a1d00', 0, true);
-      pop('PILOT RESCUED!', S.px, 3.4, -4.4, '#ffe066', 0.95, '#3a1d00', 0.12, true);
-      pickup('PILOT RESCUED!' + (got ? ' +' + got : ''), '#fff3a0', '#3a2208', 0.85); S.rescued = true; upRing = { t: 0, col: '#ffd84a' };
-    } else pop('+' + R.drones, x, 2.4, z, '#ffe066', 1.2, '#4a2e00', 0, true);
+      S.rescued = true;
+      pickup('PILOT RESCUED!', '#fff3a0', '#3a2208', 0.95, -5.8);   // once
+      if (got > 0) pop('+' + got, S.px, 2.6, -3.8, '#ffe066', 1.6, '#3a1d00', 0.1, true);
+      if (over > 0) bonusCoins(over * CFG.droneOverflowCoin, S.px, 0.8, got > 0 ? 0.6 : -1.0, 'pilot');
+    } else if (got > 0) pop('+' + got, x, 2.4, z, '#ffe066', 1.2, '#4a2e00', 0, true);
     sfx('gate');
   }
   if (R.omega) omegaGain(R.omega);
@@ -1225,21 +1273,32 @@ function damage(t, kind, dmg, i, tick = 1) {
     if (t.hp <= 0) { t.hp = 0; t.state = 'dying'; t.t = 0; t.bombI = 0; sfx('roar'); slowmo = 0.55; }
   }
 }
+// round 13: no wasted gates (Bupé). The drones that fit join the squad; every gate point above the free room pays
+// CFG.gateOverflowCoin coins (rounded up), which fly to the HUD counter and count in the stage total. The popups show
+// only what was really gained or lost. Healing is unchanged.
 function passGate(g) {
   const v = g.val, gold = v >= GATE_MAX;
   if (v > 0) {
-    gainDrones(v, g.x, g.z);
+    const got = gainDrones(v, g.x, g.z, true), over = v - got, coins = over > 0 ? Math.ceil(over * CFG.gateOverflowCoin) : 0;
     const heal = Math.min(S.hpMax - S.hp, 15 + Math.min(35, v));
-    pop(gold ? 'MAX!' : '+' + v, S.px, 2.4, -1.5, gold ? '#ffe066' : '#9fe8ff', 1.6, gold ? '#5a3300' : '#0b2a5a');
+    if (got > 0) pop('+' + got, S.px, 2.4, -1.5, gold ? '#ffe066' : '#9fe8ff', 1.6, gold ? '#5a3300' : '#0b2a5a');
+    if (coins > 0) bonusCoins(coins, S.px, 0.9, got > 0 ? -2.6 : -0.6, 'gate');
     if (heal > 0) { S.hp += heal; S.barT = 2.2; pop('+' + Math.round(heal) + ' HP', S.px, 1.2, 0.8, '#8dff7a', 0.9, '#0b3a10', 0, true); updateHP(); }
+    AUD.gatePass = AUD.gatePass || []; if (AUD.gatePass.length < 60) AUD.gatePass.push({ t: +S.t.toFixed(2), val: v, got, over, coins });
     sfx(gold ? 'max' : 'gate');
   } else if (v < 0) {
-    pop('\u2212' + Math.abs(v), S.px, 2.4, -1.5, '#ff6a5a', 1.6, '#3a0b0b');
-    if (S.drones <= 0) { S.deathBy = 'gate'; killPlayer(); return; }
-    setDrones(S.drones + v); sfx('bad'); flashRed = 0.6;
+    if (S.drones <= 0) { pop('\u2212' + Math.abs(v), S.px, 2.4, -1.5, '#ff6a5a', 1.6, '#3a0b0b'); S.deathBy = 'gate'; killPlayer(); return; }
+    const lost = Math.min(S.drones, -v);   // round 13: the drones actually lost
+    pop('\u2212' + lost, S.px, 2.4, -1.5, '#ff6a5a', 1.6, '#3a0b0b');
+    setDrones(S.drones - lost); sfx('bad'); flashRed = 0.6;
   }
   const c = gold ? [1, 0.85, 0.3] : v >= 0 ? [0.5, 0.85, 1] : [1, 0.4, 0.35];
   for (let k = 0; k < 40; k++) fx.spawn({ x: g.x + rand(-1.2, 1.2), y: rand(0.3, 1.8), z: g.z, vx: rand(-3, 3), vy: rand(-1, 3), vz: rand(-2, 4), life: rand(0.3, 0.7), s0: 0.5, s1: 0.1, r: c[0], g: c[1], b: c[2], a: 1, world: true });
+}
+// round 13: a removed gate frees its 512x300 canvas texture and its material (they were only removed from the scene)
+function dropGate(g) {
+  scene.remove(g.sprite); if (g.tex) g.tex.dispose(); if (g.sprite && g.sprite.material) g.sprite.material.dispose();
+  AUD.gateDisposed = (AUD.gateDisposed || 0) + 1;
 }
 
 // ---------------------------------------------------------------- BULLET TIME + tutorials (round 12)
@@ -1297,15 +1356,44 @@ const TAP_SVG = `<svg class="tapico" viewBox="0 0 40 40" aria-hidden="true"><cir
 const HEART_SVG = `<svg class="heart" viewBox="0 0 32 28" aria-hidden="true"><path d="M16 27 C6 19 1 14 1 8 C1 4 4 1 8.5 1 C12 1 14.5 3 16 6 C17.5 3 20 1 23.5 1 C28 1 31 4 31 8 C31 14 26 19 16 27Z" fill="#ff4d5e" stroke="#3a0008" stroke-width="2.4"/><ellipse cx="9" cy="8" rx="3" ry="2" fill="#fff" opacity=".7"/></svg>`;
 // Tutorials: each shows once (localStorage 'grokdemo.tut'); ?tut=1 resets them, ?tut=0 turns them off. Performing
 // the gesture resumes the game; the explainers continue on a tap. The autoplay bot performs the gesture itself.
+// Round 13: two picture tutorials that point at the real object: 'gates' (a hand under the first gate in bullet range:
+// shoot it to grow it) and 'cans' (a crosshair on the first crate or canister in range: shoot it open, do not ram it).
+// Run state is reset between runs (TUT.reset), and while a tutorial runs every other gesture is ignored (doGesture).
 const TUT = (() => {
   const KEY = 'grokdemo.tut'; let done = {};
   try { if (Q.get('tut') === '1') localStorage.removeItem(KEY); done = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { done = {}; }
   const off = Q.get('tut') === '0';
-  let cur = null, queue = [], t = 0, lastOmegaT = 0, omegaEnd = -1, lastBeam = false, beamOffAt = -1;
+  let cur = null, queue = [], t = 0, lastOmegaT = 0, omegaEnd = -1, lastBeam = false, beamOffAt = -1, shown = false;
+  let aim = null, els = null, gateUrl = '';   // round 13: the gate or pod a picture tutorial points at, and the elements that follow it
   const img = (src, cls = '') => `<img class="${cls}" src="${src}" alt="">`;
   const asset = (n) => `assets/${n}.webp?v=${VER}`;
   const orb = () => TEX.omegaorb && TEX.omegaorb.image && TEX.omegaorb.image.toDataURL ? TEX.omegaorb.image.toDataURL() : '';
   const beamIco = () => (ICON_IMG.beam && ICON_IMG.beam.toDataURL ? ICON_IMG.beam.toDataURL() : '');
+  const icoSrc = (k) => { const i = ICON_IMG[k]; return !i ? '' : i.toDataURL ? i.toDataURL() : i.src || ''; };
+  // the real blue glass gate, drawn small once for the card
+  const gateArt = () => { if (!gateUrl) { const c = document.createElement('canvas'); c.width = 256; c.height = 150; c.getContext('2d').drawImage(gateBg('blue'), 0, 0, 256, 150); gateUrl = c.toDataURL(); } return gateUrl; };
+  // round 13: a target counts once it is inside bullet range, ahead of the plane and low enough on screen to sit clear of
+  // the HUD once bullet time zooms in (a quarter of the way down); never near the boss
+  const early = () => !boss && S.t < BOSS_T - 15;
+  const inRange = (x, z) => z < -4 && z > RANGE_Z && toScreen(x, 0, z)[1] > H * 0.25;
+  const findGate = () => { for (const g of gates) if (!g.passed && g.val < GATE_MAX && inRange(g.x, g.z)) return g; return null; };
+  const findPod = () => { if (hold && pods.includes(hold) && inRange(hold.x, hold.z)) return hold; for (const p of pods) if (p.kind !== 'omega' && p.hp > 0 && inRange(p.x, p.z)) return p; return null; };
+  // round 13: with a big squad the first crates break at the top edge, under the HUD. So the first crate or canister in
+  // bullet range is held together (its health cannot drop below 60%) until the cans tutorial has shown it, then it breaks
+  // as normal. Only while that tutorial is still to come; it is let go 6 units before the plane so it can never be rammed.
+  let hold = null;
+  function holdPod() {
+    if (off || done.cans || !early()) { hold = null; return; }
+    if (cur && cur.id === 'cans') hold = pods.includes(aim) ? aim : null;
+    else if (!hold || !pods.includes(hold) || hold.z > -6) { hold = null; for (const p of pods) if (p.kind !== 'omega' && p.hp > 0 && p.z > RANGE_Z - 1 && p.z < -8) { hold = p; break; } }
+    if (hold && hold.hp < hold.max * 0.6) hold.hp = hold.max * 0.6;
+  }
+  const rep = (n, f) => { let s = ''; for (let i = 0; i < n; i++) s += f(i); return s; };
+  const CROSS = `<svg viewBox="0 0 100 100" aria-hidden="true"><circle class="o" cx="50" cy="50" r="44"/><circle class="i" cx="50" cy="50" r="31"/>
+    <path class="k" d="M50 0 V18 M50 82 V100 M0 50 H18 M82 50 H100"/><circle class="c" cx="50" cy="50" r="4"/></svg>`;
+  const XMARK = `<svg class="tc-mark bad" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="18"/><path d="M13 13 L27 27 M27 13 L13 27"/></svg>`;
+  const TICK = `<svg class="tc-mark good" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="18"/><path d="M11.5 20.5 L17.5 26.5 L29 14"/></svg>`;
+  const BOOM = `<svg class="tc-boom" viewBox="0 0 60 60" aria-hidden="true"><path d="M30 2 L36 20 L55 12 L43 28 L58 36 L39 39 L42 58 L30 45 L18 58 L21 39 L2 36 L17 28 L5 12 L24 20 Z"/><circle cx="30" cy="31" r="7"/></svg>`;
   const DEF = {
     omega: { need: 'dbltap', build: () => `<div class="tut-hand dbl" style="left:50%;top:52%">${HAND_SVG}<i class="rip r1"></i><i class="rip r2"></i></div>
       <div class="tut-plate" style="top:30%">${img(orb(), 'pi orb')}<b>DOUBLE TAP</b></div>` },
@@ -1314,42 +1402,95 @@ const TUT = (() => {
       return `<div class="tut-hand point" style="left:${Math.round(r.left + r.width * 0.55)}px;top:${Math.round(r.bottom + 6)}px">${HAND_SVG}</div>
       <div class="tut-card fill" style="top:${Math.round(r.bottom + 96)}px">
         <div class="srcs"><span class="src s1">${img(orb(), 'pi orb')}<em>+++</em></span><span class="src s2"><i class="maxchip">MAX</i><em>++</em></span>
-        <span class="src s3"><i class="elite">${img(asset('r2_spider'), 'pi')}<i class="star">\u2605</i></i><em>\u00d73</em></span></div>
+        <span class="src s3"><i class="elite">${img(asset('r2_spider'), 'pi')}<i class="star">★</i></i><em>×3</em></span></div>
         <div class="mini om"><i></i></div>${TAP_SVG}</div>`; } },
     beamOn: { need: 'swipe-up', build: () => `<div class="tut-trail up" style="left:50%;top:40%"></div><div class="tut-hand swu" style="left:50%;top:58%">${HAND_SVG}</div>
-      <div class="tut-plate" style="top:30%">${img(beamIco(), 'pi beam')}<b>SWIPE \u2191</b></div>` },
+      <div class="tut-plate" style="top:30%">${img(beamIco(), 'pi beam')}<b>SWIPE ↑</b></div>` },
     beamOff: { need: 'swipe-down', build: () => `<div class="tut-trail down" style="left:50%;top:40%"></div><div class="tut-hand swd" style="left:50%;top:40%">${HAND_SVG}</div>
-      <div class="tut-plate" style="top:30%">${img(beamIco(), 'pi beam')}<b>SWIPE \u2193</b></div>` },
+      <div class="tut-plate" style="top:30%">${img(beamIco(), 'pi beam')}<b>SWIPE ↓</b></div>` },
     beamRisk: { need: 'tap', build: () => `<div class="tut-card risk" style="top:30%">
-        <div class="row">${img(beamIco(), 'pi beam')}<span class="clock"><svg viewBox="0 0 40 44" aria-hidden="true"><rect x="16" y="1" width="8" height="5" rx="2" fill="#fff"/><circle cx="20" cy="25" r="16" fill="#1a2440" stroke="#fff" stroke-width="3.5"/><path class="sweep" d="M20 25 V13" stroke="#ffcf3a" stroke-width="3.5" stroke-linecap="round"/></svg><b>5</b></span><span class="arrow">\u279c</span><span class="smokey">${img(asset('r2_plane'), 'pi plane')}<i class="puff p1"></i><i class="puff p2"></i><i class="puff p3"></i></span></div>
+        <div class="row">${img(beamIco(), 'pi beam')}<span class="clock"><svg viewBox="0 0 40 44" aria-hidden="true"><rect x="16" y="1" width="8" height="5" rx="2" fill="#fff"/><circle cx="20" cy="25" r="16" fill="#1a2440" stroke="#fff" stroke-width="3.5"/><path class="sweep" d="M20 25 V13" stroke="#ffcf3a" stroke-width="3.5" stroke-linecap="round"/></svg><b>5</b></span><span class="arrow">➜</span><span class="smokey">${img(asset('r2_plane'), 'pi plane')}<i class="puff p1"></i><i class="puff p2"></i><i class="puff p3"></i></span></div>
         <div class="row">${HEART_SVG}<div class="mini hp"><i></i><s></s></div></div>${TAP_SVG}</div>` },
+    // round 13: "shoot the gate to grow it". A hand points up at the real gate (framed in gold); the card shows bullets
+    // flying into a gate, a +1 per hit, the gate number climbing, then the drones it gives.
+    gates: { need: 'tap', pick: findGate, build: () => `<div class="tg-frame"></div><div class="tut-hand tg-hand">${HAND_SVG}</div>
+      <div class="tut-card tp-card tg-card"><div class="tp-row">
+        <div class="tp-panel tg-shoot"><div class="tg-gate" style="background-image:url(${gateArt()})"><b></b></div>
+          ${rep(8, (i) => `<i class="tp-bul tg-bul" style="--k:${i};--s:${i % 2 ? 1 : -1}"></i><i class="tg-plus" style="--k:${i};--px:${[20, -44, 26, -40, 16, -48, 24, -42][i]}px">+1</i>`)}${img(asset('r2_plane'), 'tp-plane')}</div>
+        <i class="tp-arrow">\u279c</i>
+        <div class="tp-panel tg-get"><i class="tg-glow"></i>${rep(6, (i) => `<i class="tg-drone" style="--k:${i}"></i>`)}${img(asset('r2_plane'), 'tp-plane tg-lead')}</div>
+      </div>${TAP_SVG}</div>` },
+    // round 13: "shoot it open, do not ram it" (Bupé died at 23 s flying into canisters). A crosshair sits on the real
+    // crate or canister; the card shows the plane ramming one (red X) and bullets breaking one with the loot popping out.
+    cans: { need: 'tap', pick: findPod, build: () => {
+      const k = aim && aim.kind, art = k === 'can' ? asset('r2_pod') : k === 'orb' ? asset('capsule') : asset('crate1');
+      const R = (aim && aim.reward) || {}, ico = R.loot ? '' : icoSrc(R.power ? 'power' : R.rapid ? 'rapid' : R.weapon === 'beam' ? 'beam' : R.rockets ? 'rockets' : R.bazooka ? 'bazooka' : 'power');
+      const loot = R.loot || !ico ? rep(5, (i) => `<i class="tc-coin" style="--dx:${[-38, -18, 2, 22, 40][i]}px;--dy:${[-2, -26, -34, -24, 0][i]}px"></i>`) : img(ico, 'tc-prize');
+      return `<div class="tc-aim">${CROSS}</div>
+      <div class="tut-card tp-card tc-card"><div class="tp-row">
+        <div class="tp-panel ram"><i class="tc-flash"></i>${img(art, 'tc-pod ' + (k || 'crate1'))}${BOOM}${img(asset('r2_plane'), 'tp-plane')}${XMARK}</div>
+        <div class="tp-panel shoot"><i class="tc-flash"></i>${img(art, 'tc-pod ' + (k || 'crate1'))}${rep(4, (i) => `<i class="tc-plank" style="--dx:${[-44, 42, -36, 40][i]}px;--dy:${[-18, -24, 26, 22][i]}px;--r:${[-220, 260, 180, -200][i]}deg"></i>`)}${loot}${BOOM}
+          ${rep(5, (i) => `<i class="tp-bul tc-bul" style="--k:${i};--s:${i % 2 ? 1 : -1}"></i>`)}${img(asset('r2_plane'), 'tp-plane')}${TICK}</div></div>${TAP_SVG}</div>`; } },
   };
   function save() { try { localStorage.setItem(KEY, JSON.stringify(done)); } catch (e) { } }
   function want(id) { if (off || done[id] || (cur && cur.id === id) || queue.includes(id) || !DEF[id]) return; queue.push(id); }
   function start(id) {
-    cur = { id, def: DEF[id] }; t = 0; const el = $('tut'); el.innerHTML = cur.def.build(); el.className = 'show ' + id;
+    cur = { id, def: DEF[id] }; t = 0; shown = true; const el = $('tut'); el.innerHTML = cur.def.build(); el.className = 'show ' + id;
+    els = id === 'gates' ? { a: el.querySelector('.tg-hand'), f: el.querySelector('.tg-frame'), c: el.querySelector('.tg-card') }
+      : id === 'cans' ? { a: el.querySelector('.tc-aim'), c: el.querySelector('.tc-card') } : null;
+    if (els) place(true);
     btEnter(); AUD.tut.push([id, 'start', +S.t.toFixed(2)]);
   }
   function end(how) {
     if (!cur) return; const id = cur.id; done[id] = 1; save(); AUD.tut.push([id, how, +S.t.toFixed(2), +t.toFixed(2)]);
-    cur = null; const el = $('tut'); el.className = 'hide'; setTimeout(() => { if (!cur) { el.innerHTML = ''; el.className = ''; } }, 400); btExit();
+    cur = null; aim = null; els = null; const el = $('tut'); el.className = 'hide'; setTimeout(() => { if (!cur) { el.innerHTML = ''; el.className = ''; } }, 400); btExit();
+  }
+  // round 13: the hand, the gold frame and the crosshair follow their target on screen (only style writes, no reads)
+  let lx = -1, ly = -1, lw = -1;
+  function place(first) {
+    const id = cur.id, alive = id === 'gates' ? gates.includes(aim) && !aim.passed : pods.includes(aim);
+    if (!alive) { if (els.a.style.opacity !== '0') { els.a.style.opacity = '0'; if (els.f) els.f.style.opacity = '0'; } return; }
+    if (id === 'gates') {
+      const s = aim.sprite, [x0, y0] = onSprite(s, 0, 0), [x1, y1] = onSprite(s, 1, 1), x = (x0 + x1) / 2, w = Math.abs(x1 - x0), h = Math.abs(y1 - y0);
+      if (!first && Math.abs(x - lx) < 0.5 && Math.abs(y1 - ly) < 0.5 && Math.abs(w - lw) < 0.5) return; lx = x; ly = y1; lw = w;
+      els.a.style.transform = `translate(${x.toFixed(1)}px,${(y1 + 2).toFixed(1)}px)`;
+      els.f.style.cssText = `left:${(x - w / 2 - 7).toFixed(1)}px;top:${(y1 - h - 7).toFixed(1)}px;width:${(w + 14).toFixed(1)}px;height:${(h + 14).toFixed(1)}px`;
+      if (first) els.c.style.top = Math.round(clamp(y1 + 100, H * 0.26, H * 0.64 - 200)) + 'px';
+    } else {
+      const u = unitPx(aim.x, 0.5, aim.z), [x, y] = onSprite(aim.sprite, 0.5, 0.5), w = Math.max(56, u * aim.w * 1.25);
+      if (!first && Math.abs(x - lx) < 0.5 && Math.abs(y - ly) < 0.5 && Math.abs(w - lw) < 0.5) return; lx = x; ly = y; lw = w;
+      els.a.style.cssText = `transform:translate(${(x - w / 2).toFixed(1)}px,${(y - w / 2).toFixed(1)}px);width:${w.toFixed(1)}px;height:${w.toFixed(1)}px`;
+      if (first) els.c.style.top = Math.round(clamp(y + w / 2 + 28, H * 0.26, H * 0.64 - 200)) + 'px';
+    }
+  }
+  // round 13: a clean slate for every run (a death with the beam on used to pop the beam explainer 2 s into the next run)
+  function reset() {
+    if (cur) end('abort');
+    queue.length = 0; t = 0; lastOmegaT = 0; omegaEnd = -1; lastBeam = false; beamOffAt = -1; aim = null; els = null; hold = null;
+    if (shown) { shown = false; const el = $('tut'); el.innerHTML = ''; el.className = ''; }
   }
   function update(rdt) {
-    if (S.mode !== 'play') { if (cur) end('abort'); queue = []; lastOmegaT = 0; return; }
+    if (S.mode !== 'play') { if (cur || queue.length || lastBeam || beamOffAt >= 0 || omegaEnd >= 0 || lastOmegaT) reset(); return; }
     // omega explainer ~2 s after the first Omega Beam ends and the meter is empty; beam risk ~2 s after the beam goes off
     if (lastOmegaT > 0 && S.omegaT <= 0) omegaEnd = S.t; lastOmegaT = S.omegaT;
     if (done.omega && !done.omegaFill && omegaEnd >= 0 && S.t > omegaEnd + 2 && S.omega < 0.95) want('omegaFill');
     if (lastBeam && !S.beamOn) beamOffAt = S.t; lastBeam = S.beamOn;
     if (done.beamOff && !done.beamRisk && beamOffAt >= 0 && S.t > beamOffAt + 2 && !S.beamOn) want('beamRisk');
+    // round 13: the first gate, then the first crate or canister, well inside bullet range (never near the boss)
+    holdPod();
+    if (!off && !cur && early()) { if (!done.gates && findGate()) want('gates'); if (!done.cans && findPod()) want('cans'); }
     if (!cur && queue.length && S.omegaT <= 0 && !(boss && boss.state === 'dying') && BT.p <= 0.05) {
       const id = queue.shift();
       if (id === 'omega' && S.omega < 1) return; if (id === 'beamOff' && !S.beamOn) return; if (id === 'beamOn' && (S.beamOn || !S.beamOwned)) return;
+      if (DEF[id].pick) { if (!early()) return; aim = DEF[id].pick(); if (!aim) return; }   // the target left: a later one brings it back
       start(id);
     }
-    if (cur) { t += rdt; if (BOT && t > (Number(Q.get('btbot')) || CFG.bt.botDelay)) doGesture(cur.def.need, { bot: true }); }
+    if (cur) { t += rdt; if (els) place(false); if (BOT && t > (Number(Q.get('btbot')) || CFG.bt.botDelay)) doGesture(cur.def.need, { bot: true }); }
   }
   function gesture(g) { if (cur && g === cur.def.need && t > 0.25) end('done'); }
-  return { want, update, gesture, get active() { return !!cur; }, get busy() { return !!cur || queue.length > 0; }, get holdBeam() { return !off && !!done.beamOff && !done.beamRisk; }, get holdOmega() { return !off && !!done.omega && !done.omegaFill; }, get id() { return cur ? cur.id : null; }, get done() { return { ...done }; }, off };
+  return { want, update, gesture, reset, get active() { return !!cur; }, get busy() { return !!cur || queue.length > 0; }, get holdBeam() { return !off && !!done.beamOff && !done.beamRisk; }, get holdOmega() { return !off && !!done.omega && !done.omegaFill; },
+    get id() { return cur ? cur.id : null; }, get need() { return cur ? cur.def.need : null; }, get done() { return { ...done }; }, off,
+    get state() { return { cur: cur ? cur.id : null, queue: queue.slice(), t: +t.toFixed(2), lastBeam, beamOffAt, omegaEnd, lastOmegaT } } };
 })();
 
 // ---------------------------------------------------------------- input
@@ -1360,56 +1501,66 @@ const TUT = (() => {
 //    The few px of steering the flick itself caused are given back, so the plane does not lurch.
 //  - OMEGA: a DOUBLE TAP: two taps (each < tapMs, moving < tapPx), the second starting within dblTapMs of the first
 //    ending and within dblTapPx of it. A drag is never a tap, and a lone tap does nothing (except continue an explainer).
-let dragging = false, lastX = 0, keyL = false, keyR = false;
-const gest = { id: null, x0: 0, y0: 0, t0: 0, maxD: 0, pathX: 0, lx: 0, steer: 0, used: false };
+// Round 13: STEERING FOLLOWS ONE FINGER. Every finger has its own state (ptrs). The first finger down that moves steers,
+// measured against its own last x; if it lifts while another finger is down, the next finger to move takes over with
+// no jump. Taps, double taps and swipes are read per finger, so a second finger can double-tap Omega while the first
+// steers, without moving the plane.
+let keyL = false, keyR = false;
+const ptrs = new Map();   // pointerId -> { x0, y0, t0, cx (its last clientX, for steering), lx, maxD, pathX, steer, used, gest }
+let steerId = null;
 let lastTap = null;
 const GLOG = [];   // gesture log for automated tests
 function planeScreen() { return toScreen(S.px, 0.55, -0.15); }
 function localXY(e) { const r = wrap.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
 function doGesture(g, info = {}) {
+  // round 13: during a tutorial only the gesture it teaches (and a tap) counts: a double tap in the swipe tutorial fires nothing
+  const need = TUT.need;
+  if (need && g !== need && g !== 'tap') { GLOG.push({ g: 'ignored', was: g, t: +S.t.toFixed(2), ...info, tut: TUT.id }); return null; }
   let r = null;
   if (g === 'swipe-up') r = setBeam(true); else if (g === 'swipe-down') r = setBeam(false); else if (g === 'dbltap') r = fireOmega();
   GLOG.push({ g, t: +S.t.toFixed(2), ...info, changed: r, beamOn: S.beamOn, omega: +S.omega.toFixed(2), tut: TUT.id });
   TUT.gesture(g); return r;
 }
 function onDown(e) {
-  initAudio(); userGestured = true;
-  dragging = true; lastX = e.clientX;
-  if (S.mode === 'title' && ready) { startGame(); gest.id = null; return; }
-  if (S.mode !== 'play') return;
+  userGestured = true;
+  if (e.isPrimary) { ptrs.clear(); steerId = null; }   // a new touch sequence: forget any finger whose pointerup never came
   const [x, y] = localXY(e);
-  Object.assign(gest, { id: e.pointerId, x0: x, y0: y, t0: e.timeStamp || performance.now(), maxD: 0, pathX: 0, lx: x, steer: 0, used: false });
+  const p = { x0: x, y0: y, t0: e.timeStamp || performance.now(), cx: e.clientX, lx: x, maxD: 0, pathX: 0, steer: 0, used: false, gest: true };
+  if (S.mode === 'title' && ready) { startGame(); p.gest = false; ptrs.set(e.pointerId, p); return; }   // the TAP TO FLY finger may steer on
+  if (S.mode !== 'play') return;
+  ptrs.set(e.pointerId, p);
 }
-function checkSwipe(e) {
-  if (gest.id !== e.pointerId || gest.used || S.mode !== 'play') return;
-  const C = CFG, [x, y] = localXY(e), dt = (e.timeStamp || performance.now()) - gest.t0, dx = x - gest.x0, dy = y - gest.y0;
-  if (dt > C.swipeMaxMs || gest.pathX > C.swipeMaxPathX || Math.abs(dy) < C.swipeMinPx || Math.abs(dy) < Math.abs(dx) * C.swipeRatio || Math.abs(dy) / Math.max(dt, 1) < C.swipeMinV) return;
-  gest.used = true; lastTap = null;
-  S.tx = clamp(S.tx - gest.steer, -XMAX, XMAX); gest.steer = 0;   // give back the flick's own steering
+function checkSwipe(p, e) {
+  if (!p.gest || p.used || S.mode !== 'play') return;
+  const C = CFG, [x, y] = localXY(e), dt = (e.timeStamp || performance.now()) - p.t0, dx = x - p.x0, dy = y - p.y0;
+  if (dt > C.swipeMaxMs || p.pathX > C.swipeMaxPathX || Math.abs(dy) < C.swipeMinPx || Math.abs(dy) < Math.abs(dx) * C.swipeRatio || Math.abs(dy) / Math.max(dt, 1) < C.swipeMinV) return;
+  p.used = true; if (lastTap && p.t0 >= lastTap.t) lastTap = null;
+  S.tx = clamp(S.tx - p.steer, -XMAX, XMAX); p.steer = 0;   // give back the flick's own steering
   doGesture(dy < 0 ? 'swipe-up' : 'swipe-down', { dx: Math.round(dx), dy: Math.round(dy), ms: Math.round(dt) });
 }
 wrap.addEventListener('pointerdown', onDown);
-wrap.addEventListener('touchend', () => initAudio());
-wrap.addEventListener('click', () => initAudio());
 window.addEventListener('pointermove', (e) => {
-  if (!dragging) return; const dx = e.clientX - lastX; lastX = e.clientX;
-  if (S.mode === 'play') { const was = S.tx; S.tx = clamp(S.tx + dx * (2 * XMAX) / (W * 0.62), -XMAX, XMAX); if (gest.id === e.pointerId) gest.steer += S.tx - was; }
-  if (gest.id === e.pointerId) { const [x, y] = localXY(e); gest.maxD = Math.max(gest.maxD, Math.hypot(x - gest.x0, y - gest.y0)); gest.pathX += Math.abs(x - gest.lx); gest.lx = x; checkSwipe(e); }
+  const p = ptrs.get(e.pointerId); if (!p) return;
+  const dx = e.clientX - p.cx; p.cx = e.clientX;
+  if (steerId === null && dx !== 0) steerId = e.pointerId;   // the first finger that moves steers
+  if (steerId === e.pointerId && S.mode === 'play') { const was = S.tx; S.tx = clamp(S.tx + dx * (2 * XMAX) / (W * 0.62), -XMAX, XMAX); p.steer += S.tx - was; }
+  if (p.gest) { const [x, y] = localXY(e); p.maxD = Math.max(p.maxD, Math.hypot(x - p.x0, y - p.y0)); p.pathX += Math.abs(x - p.lx); p.lx = x; checkSwipe(p, e); }
 });
 const up = (e) => {
-  dragging = false;
-  if (e && e.type === 'pointerup' && gest.id === e.pointerId && S.mode === 'play') {
-    const [x, y] = localXY(e); gest.maxD = Math.max(gest.maxD, Math.hypot(x - gest.x0, y - gest.y0));
-    checkSwipe(e);
-    const now = e.timeStamp || performance.now(), ms = now - gest.t0;
-    if (!gest.used) {
-      const isTap = ms < CFG.tapMs && gest.maxD < CFG.tapPx;
-      if (isTap && lastTap && gest.t0 - lastTap.t <= CFG.dblTapMs && Math.hypot(x - lastTap.x, y - lastTap.y) < CFG.dblTapPx) { lastTap = null; doGesture('dbltap', { ms: Math.round(ms) }); }
-      else if (isTap) { lastTap = { t: now, x, y }; doGesture('tap', { ms: Math.round(ms), moved: Math.round(gest.maxD) }); }
-      else { lastTap = null; GLOG.push({ g: 'release', t: +S.t.toFixed(2), ms: Math.round(ms), moved: Math.round(gest.maxD), pathX: Math.round(gest.pathX) }); }
-    }
+  const p = ptrs.get(e.pointerId); if (!p) return;
+  ptrs.delete(e.pointerId); if (steerId === e.pointerId) steerId = null;   // the next finger to move takes over
+  if (e.type !== 'pointerup' || !p.gest || S.mode !== 'play') return;
+  const [x, y] = localXY(e); p.maxD = Math.max(p.maxD, Math.hypot(x - p.x0, y - p.y0));
+  checkSwipe(p, e);
+  if (p.used) return;
+  const now = e.timeStamp || performance.now(), ms = now - p.t0;
+  const isTap = ms < CFG.tapMs && p.maxD < CFG.tapPx;
+  if (isTap && lastTap && p.t0 - lastTap.t <= CFG.dblTapMs && Math.hypot(x - lastTap.x, y - lastTap.y) < CFG.dblTapPx) { lastTap = null; doGesture('dbltap', { ms: Math.round(ms) }); }
+  else if (isTap) { lastTap = { t: now, x, y }; doGesture('tap', { ms: Math.round(ms), moved: Math.round(p.maxD) }); }
+  else {
+    if (lastTap && p.t0 >= lastTap.t) lastTap = null;   // a drag between two taps breaks the double tap; a finger held from before does not
+    GLOG.push({ g: 'release', t: +S.t.toFixed(2), ms: Math.round(ms), moved: Math.round(p.maxD), pathX: Math.round(p.pathX) });
   }
-  gest.id = null;
 };
 window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
 document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
@@ -2201,10 +2352,10 @@ function update(dt) {
       if (Math.abs(S.px - g.x) < GATE_W / 2) {
         if (g.dirty) redrawGate(g);
         passGate(g);
-        scene.remove(g.sprite); gates.splice(i, 1); continue;
+        dropGate(g); gates.splice(i, 1); continue;
       }
     }
-    if (g.z > 5) { scene.remove(g.sprite); gates.splice(i, 1); }
+    if (g.z > 5) { dropGate(g); gates.splice(i, 1); }
   }
 
   if (boss) { if (boss.type === 'stinger') updateStinger(dt, dz); else updateQueen(dt, dz); }
@@ -2485,10 +2636,12 @@ function omegaGain(a) {
   }
 }
 function collectOmegaOrb(p) {
-  AUD.orbs++; omegaGain(p.reward.omega || 0.34); addShake('pickup'); sfx('orb');
+  const full = S.omega >= 1;   // round 13: honest. A full bar cannot take more, so the orb pays coins instead of a fake +OMEGA
+  AUD.orbs++; if (!full) omegaGain(p.reward.omega || 0.34); addShake('pickup'); sfx('orb');
   burst(p.x, p.z, 'omega', 18);
   for (let k = 0; k < 30; k++) { const a = rand(0, TAU), sp = rand(2, 6); fx.spawn({ x: p.x, y: 0.7, z: p.z, vx: Math.cos(a) * sp, vy: rand(0, 2), vz: Math.sin(a) * sp, life: rand(0.3, 0.6), s0: 0.7, s1: 0.1, r: 0.85, g: 0.7, b: 1, a: 1, world: true }); }
-  pop('+OMEGA', p.x, 1.8, p.z, '#e6c8ff', 0.9, '#2a0a4a', 0, true);
+  if (full) bonusCoins(CFG.omegaFullCoin, p.x, 0.5, p.z, 'orb');
+  else pop('+OMEGA', p.x, 1.8, p.z, '#e6c8ff', 0.9, '#2a0a4a', 0, true);
 }
 function fireOmega() {
   if (S.mode !== 'play' || S.omega < 1 || S.omegaT > 0 || !planeSprite.visible) return false;
@@ -2630,6 +2783,7 @@ function updateCocoons(dt, dz) {
 function updatePilots(dt) {
   for (let i = pilots.length - 1; i >= 0; i--) {
     const p = pilots[i]; p.t += dt / 0.95;
+    if (S.mode !== 'play') { pilots.splice(i, 1); AUD.cocoon.push({ ev: 'lost', t: +S.t.toFixed(2), mode: S.mode }); continue; }   // round 13: no reward after death or the win
     if (p.t >= 1) { pilots.splice(i, 1); giveReward(p.reward, S.px, -1.5); addShake('pickup'); AUD.cocoon.push({ ev: 'rescued', t: +S.t.toFixed(2), drones: S.drones }); }
   }
 }
@@ -2649,7 +2803,7 @@ function bossChain(bw) {
 // ---------------------------------------------------------------- bosses
 // Mission 1 uses the round-2 Xora Queen. Kingsting (round 3) stays in the table, dormant, for a later stage.
 const BOSSES = {
-  queen: { name: 'XORA QUEEN', hp: 9000, sub: 'Shoot it down!' },
+  queen: { name: 'MORDRIX', hp: 9000, sub: 'Shoot it down!' },   // round 13: Mission 1's boss is MORDRIX (Bupé); the key stays 'queen' for saves and tests
   stinger: { name: 'KINGSTING', hp: 1000, sub: 'Colossal hornet \u00b7 bring it down!' },
 };
 const MISSION_BOSS = 'queen';
