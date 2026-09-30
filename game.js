@@ -1548,7 +1548,8 @@ const TUT = (() => {
     btEnter(); AUD.tut.push([id, 'start', +S.t.toFixed(2)]);
   }
   function end(how) {
-    if (!cur) return; const id = cur.id; done[id] = 1; save(); AUD.tut.push([id, how, +S.t.toFixed(2), +t.toFixed(2)]);
+    if (!cur) return; const id = cur.id; if (how !== 'abort') { done[id] = 1; save(); }   // round 13: a tutorial cut short shows again
+    AUD.tut.push([id, how, +S.t.toFixed(2), +t.toFixed(2)]);
     cur = null; aim = null; els = null; const el = $('tut'); el.className = 'hide'; setTimeout(() => { if (!cur) { el.innerHTML = ''; el.className = ''; } }, 400); btExit();
   }
   // round 13: the hand, the gold frame and the crosshair follow their target on screen (only style writes, no reads)
@@ -1664,7 +1665,10 @@ const up = (e) => {
   const now = e.timeStamp || performance.now(), ms = now - p.t0;
   const isTap = ms < CFG.tapMs && p.maxD < CFG.tapPx;
   if (isTap && lastTap && p.t0 - lastTap.t <= CFG.dblTapMs && Math.hypot(x - lastTap.x, y - lastTap.y) < CFG.dblTapPx) { lastTap = null; doGesture('dbltap', { ms: Math.round(ms) }); }
-  else if (isTap) { lastTap = { t: now, x, y }; doGesture('tap', { ms: Math.round(ms), moved: Math.round(p.maxD) }); }
+  else if (isTap) {
+    const wasTut = TUT.active; lastTap = { t: now, x, y }; doGesture('tap', { ms: Math.round(ms), moved: Math.round(p.maxD) });
+    if (wasTut && !TUT.active) lastTap = null;   // round 13: the tap that ends a tutorial can never be half of a double tap (Omega)
+  }
   else {
     if (lastTap && p.t0 >= lastTap.t) lastTap = null;   // a drag between two taps breaks the double tap; a finger held from before does not
     GLOG.push({ g: 'release', t: +S.t.toFixed(2), ms: Math.round(ms), moved: Math.round(p.maxD), pathX: Math.round(p.pathX) });
@@ -1682,7 +1686,7 @@ window.addEventListener('keydown', (e) => {
   if (S.mode === 'play' && ['ArrowDown', 's', 'S'].includes(e.key)) doGesture('swipe-down', { key: 1 });
   if (S.mode === 'play' && (e.key === ' ' || e.key === 'e' || e.key === 'E')) doGesture('dbltap', { key: 1 });
   if (S.mode === 'play' && e.key === 'Enter') doGesture('tap', { key: 1 });
-  if ((e.key === ' ' || e.key === 'Enter') && S.mode === 'title' && ready) { initAudio(); startGame(); }
+  if ((e.key === ' ' || e.key === 'Enter') && S.mode === 'title' && ready) { e.preventDefault(); if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); initAudio(); startGame(); }   // round 13: no focused card opens over the run
 });
 window.addEventListener('keyup', (e) => {
   if (['ArrowLeft', 'a', 'A'].includes(e.key)) keyL = false;
@@ -1713,7 +1717,7 @@ function applyAudioSettings() {
 $('again').addEventListener('pointerdown', (e) => { e.stopPropagation(); initAudio(); startGame(); });
 
 function startGame() {
-  teardownEnd();
+  teardownEnd(); if (window.JCMETA && window.JCMETA.onStart) window.JCMETA.onStart();   // round 13: the title's effects stop before the run
   $('start').classList.add('hidden'); $('hud').classList.remove('hidden'); $('bossbar').classList.add('hidden');
   planeSprite.visible = true; resetGame(true); BT.on = false; BT.p = 0; BT.k = 0; BT.s = 1; BT.anchor = null;
   // round 13: no "MISSION 1 / Get to Beacon" banner at the start (Bupé); the title screen carries the mission name
@@ -1786,11 +1790,21 @@ function endGame(win) {
 }
 // tap anywhere on the results (not the button) to fast-forward the sequence to its end
 function skipEnd() {
+  if ($('end').classList.contains('lose')) { skipLose(); return; }
   const e = $('end'); if (!e.classList.contains('win') || e.classList.contains('hidden') || !RES.running()) return;
   endTimers.forEach(clearTimeout); endTimers = [];
   if (!e.classList.contains('landed')) { e.classList.add('landed'); $('badgewrap').classList.add('shown'); }
   document.querySelectorAll('.bstar.on').forEach((el) => { if (!el.classList.contains('land') && !el.classList.contains('pop')) el.classList.add('shown'); });
   e.classList.add('skipped'); celebrate(AUD.stars); RES.skip();
+}
+// round 13 arena: a tap on the SHOT DOWN screen jumps to its end (bar full, coins counted, cause shown, buttons in)
+function skipLose() {
+  const e = $('end'), L = $('lose'); if (e.classList.contains('hidden') || !L || L.classList.contains('btns')) return;
+  endTimers.forEach(clearTimeout); endTimers = []; tallyToken++;
+  if (!e.classList.contains('landed')) { e.classList.add('landed'); $('badgewrap').classList.add('shown'); }
+  const far = clamp(S.t / BOSS_T, 0, 1); $('l-fill').style.width = (far * 100).toFixed(1) + '%'; $('l-plane').style.left = (far * 100).toFixed(1) + '%';
+  $('l-coinN').textContent = S.coins; $('l-coins').classList.add('rin', 'land'); [...$('l-stones').children].forEach((c) => c.classList.add('rin'));
+  L.classList.add('rin', 'bar', 'cause', 'btns'); if (AUD.results) AUD.results.shown = S.coins;
 }
 $('end').addEventListener('pointerdown', (ev) => { if (ev.target.closest && ev.target.closest('button')) return; initAudio(); skipEnd(); });
 $('again2').addEventListener('pointerdown', (e) => { e.stopPropagation(); initAudio(); goHome(); });   // round 13: CONTINUE returns to the title screen
@@ -1942,7 +1956,7 @@ function coinTally(win) {
   $('l-stones').innerHTML = st.map(([k, ico, n]) => `<span class="l-stone ${k}"><i class="ico ${ico}"></i><b>\u00d7${n}</b></span>`).join('');
   $('l-stones').classList.toggle('none', !st.length);
   $('l-cause').querySelector('.l-pic').innerHTML = cause.pic; $('l-cause').querySelector('b').textContent = cause.words;
-  const t0 = 520, tBar = t0 + 260, tCoin = tBar + 420, dur = 900, tStone = tCoin + dur + 120, tCause = tStone + (st.length ? 380 : 60), tBtn = tCause + 420;
+  const t0 = 420, tBar = t0 + 200, tCoin = tBar + 280, dur = 700, tStone = tCoin + dur + 80, tCause = tStone + (st.length ? 300 : 40), tBtn = tCause + 260;   // round 13 arena: buttons by about 2 s
   endLater(t0, () => { L.classList.add('rin'); sfx('whoosh'); });
   endLater(tBar, () => { L.classList.add('bar'); $('l-fill').style.width = (far * 100).toFixed(1) + '%'; $('l-plane').style.left = (far * 100).toFixed(1) + '%'; sfx('riser'); });
   endLater(tCoin, () => {

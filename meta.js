@@ -265,6 +265,7 @@ function affordable() { return TRACKS.some((k) => { const c = trackState(k).cost
 function refreshBadge() { const b = $('tc-ws-badge'); if (b) b.classList.toggle('on', affordable()); }
 function refreshTitle() { for (const k of Object.keys(shown)) setPill(k, shown[k]); refreshBadge(); }
 // flying icons (coins into the bank bar, coins into a Workshop pip): small DOM elements animated by the compositor
+const flying = [];   // round 13 arena: live fly animations, cancelled when a run starts
 function flyIcons(kind, n, from, to, opt = {}) {
   const fx = $('mfx'); if (!fx || !from || !to) return 0;
   const W = fx.getBoundingClientRect(), dur = opt.dur || 620, spread = opt.spread || 70; let last = 0;
@@ -278,7 +279,7 @@ function flyIcons(kind, n, from, to, opt = {}) {
       { transform: `translate(${mx}px,${my}px) scale(1)`, offset: 0.55 },
       { transform: `translate(${x1}px,${y1}px) scale(.55)`, opacity: 1 },
     ], { duration: dur, delay, easing: 'cubic-bezier(.45,0,.7,1)', fill: 'both' });
-    a.onfinish = () => { el.remove(); if (opt.each) opt.each(i); };
+    a.onfinish = () => { el.remove(); const j = flying.indexOf(a); if (j >= 0) flying.splice(j, 1); if (opt.each) opt.each(i); }; flying.push(a);
     last = delay + dur;
   }
   return last;
@@ -310,6 +311,7 @@ let cur = null, closing = 0;
 const TITLES = { workshop: 'WORKSHOP', depot: 'DEPOT', hangar: 'HANGAR', store: 'STORE', base: 'BASE', settings: 'SETTINGS' };
 function openPanel(id) {
   if (!TITLES[id]) return;
+  if (api && api.S && api.S.mode !== 'title') return;   // round 13 arena: panels only open on the title screen, never over a run
   unlock(); clearTimeout(closing);
   const m = $('meta'), body = m.querySelector('.m-body');
   m.className = 'p-' + id; m.querySelector('.m-title').textContent = TITLES[id];
@@ -510,6 +512,8 @@ const JCMETA = {
   api: null,
   init(a) { api = a; this.api = a; recalc(); if (a.applyAudio) a.applyAudio(); refreshTitle(); },   // called once at the end of boot() with the game's hooks
   onHome() { if (cur) closePanel(); homeReward(); },   // the title screen is showing again after a run
+  // round 13 arena: a run is starting: stop the title's reward effects (flying coins, count-ups, their sounds) and settle the bar
+  onStart() { if (cur) closePanel(); for (const a of flying.splice(0)) { try { a.cancel(); } catch (e) { } } const fx = $('mfx'); if (fx) fx.innerHTML = ''; for (const k of Object.keys(shown)) { cancelAnimationFrame(tweens[k]); shown[k] = bank[k]; setPill(k, bank[k]); } },
   open(id) { openPanel(id); },   // open a panel: 'workshop' | 'depot' | 'hangar' | 'store' | 'base' | 'settings'
   close() { closePanel(); },
   get panel() { return cur; },
