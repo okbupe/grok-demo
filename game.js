@@ -1,6 +1,6 @@
 import * as THREE from './vendor/three.module.min.js';
 
-// Round 12: bullet-time tutorials (greyscale slow motion, colour plane) instead of bubbles; double-tap Omega and swipe up/down beam anywhere;
+// Round 12: bullet-time tutorials (greyscale slow motion, colour plane) instead of bubbles; double-tap Omega (round 14: a single tap) and swipe up/down beam anywhere;
 // a hand-only title; B-RANK plate under the boss tape; pickups as popups above the plane; gates inflate up to +40%.
 // Round 11: slimmer x0.4 chip, taller drone count, no flying drones in the drain, centred coin row, star sticker pinned to the last digit.
 // Round 10: round-6 BEACON IN SIGHT title and coin-number format, a rebuilt DRONES row (x0.4 under the label), idle stone glints/glow/sparkles.
@@ -73,10 +73,10 @@ const CFG = {
   ambushSpeed: 1.6, ambushArmour: 0.3,   // hunter packs dive in faster and shrug off most damage until they reach the squad
   shakeOffV: 9, grip: 0.55,        // steer faster than this (units/s) for `grip` seconds to fling clingers off
   // --- touch gestures (CSS px / ms)
-  // round 12 gestures (anywhere on screen): tap < tapMs and < tapPx; double tap = 2nd tap starts <= dblTapMs after the
-  // 1st ends, within dblTapPx; swipe = |dy| >= swipeMinPx within swipeMaxMs, |dy| > swipeRatio*|dx|, >= swipeMinV px/ms,
+  // round 12 gestures (anywhere on screen): tap < tapMs and < tapPx (round 14: a single tap fires a charged Omega; the
+  // double tap is gone); swipe = |dy| >= swipeMinPx within swipeMaxMs, |dy| > swipeRatio*|dx|, >= swipeMinV px/ms,
   // and < swipeMaxPathX of sideways travel before it (so steering drags never become swipes)
-  tapMs: 200, tapPx: 12, dblTapMs: 300, dblTapPx: 70,
+  tapMs: 200, tapPx: 12,
   swipeMinPx: 55, swipeMaxMs: 300, swipeMinV: 0.45, swipeRatio: 2.2, swipeMaxPathX: 34,
   // round 12 bullet time: ease in over inS, out over outS, down to slow x game speed; dim = brightness of everything but the plane
   bt: { inS: 0.7, outS: 0.5, slow: 0.03, dim: 0.3, uiDim: 0.5, zoom: [0.05, 0.035, 0.1], botDelay: 1.4 },
@@ -108,16 +108,21 @@ const CFG = {
   },
   // --- coins per Xora killed (by type) and loot inside crates
   coins: { spider: 1, redspider: 1, wasp: 2, brute: 5, beetle: 12, spitter: 12, carrier: 6, queen: 300 },
-  loot: { coins: [18, 26], gems: [1, 2], gemCoins: 10, diamondCoins: 25,
-    ruby: { crate: 0.04, elite: 0.15, carrier: 0.3 } },   // round 7: RUBIES, a rare stone (rarer than gems): chance per crate, elite kill (beetle, spitter), carrier kill
+  // round 14 (Bupé): the rarity order is gems (most common) < rubies < diamonds (rarest). Round 13 gave a guaranteed
+  // diamond crate but only ~0.9 rubies a run. Now, per full run: gems ~5 (two gem crates of 2-3), rubies ~2.6 (the
+  // rolls below: 8 crates x 0.1 + 2 elites x 0.35 + the carrier 0.6, plus the late stone crate when it is a ruby) and
+  // diamonds ~0.5 (the late stone crate holds a diamond only half the time, a ruby otherwise).
+  loot: { coins: [18, 26], gems: [2, 3], gemCoins: 10, diamondCoins: 25, rubyCoins: 15, diamondCrate: 0.5,
+    ruby: { crate: 0.1, elite: 0.35, carrier: 0.6 } },   // RUBIES: chance per crate, elite kill (beetle, spitter), carrier kill
   // --- Mission Complete payout (round 7): stage coins (kills + crate loot), then every drone left cashes in
   // droneCoinBase x the plane's droneCoinMult, then the whole total is multiplied by the star bonus.
   plane: 'lawnmower',
   planes: { lawnmower: { name: 'Lawnmower', droneCoinMult: 0.4 } },   // per-plane drone value multiplier (Lawnmower = base plane)
   droneCoinBase: 10,                       // coins per drone before the plane multiplier (45 drones x 10 x 0.4 = 180)
   starBonus: { 1: 1.0, 2: 1.25, 3: 1.5 },   // coin multiplier by stars earned
-  // --- round 9: results look. The shine (coin halo, holy rays behind rare stones, glows) is only for extraordinary runs:
-  // final >= typicalFinal x coinX, or a coin boost (artifact/booster, S.coinBoost) >= boost, or an exceptional stone haul. Debug: &shine=1 forces it, &shine=0 forbids it.
+  // --- round 9: results look. The shine (coin halo, holy rays behind rare stones, glows) is only for extraordinary runs.
+  // Round 14 (Bupé: no glow behind the coins and stones): only a coin boost (artifact/booster, S.coinBoost) >= boost turns it
+  // on; a big total (Workshop Revenue made that common) or a stone haul no longer does. Debug: &shine=1 forces it, &shine=0 forbids it.
   results: { shineOnlyIfExtraordinary: true, typicalFinal: 1900, coinX: 2.5, boost: 2, stones: { gem: 12, ruby: 3, diamond: 3 } },
 };
 // Orb tiers (future design ladder). Only OMEGA is active for now: every player has the Omega Beam.
@@ -205,31 +210,33 @@ const T_TRACER = canvasTex(32, 128, (g, w, h) => {
   const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
   g.fillStyle = gr; g.beginPath(); g.ellipse(w / 2, h / 2, w / 2 - 2, h / 2 - 1, 0, 0, TAU); g.fill();
 }, false);
-// round 13: SOLID bullets (Bupé: the old ones looked "like shooting feathers"). Each tier is one fully opaque round,
-// baked in colour: a dark outline, a saturated body shaded like a cylinder, a bright hot core at the head and a short
-// tail that tapers and fades. The head is at the top of the canvas (forward). Drawn with a white tint.
-function bulletTex(edge, rim, body, core) {
-  return canvasTex(64, 224, (g, w, h) => {
-    const c = w / 2, r = 22, hy = 30, tail = h - 6, sy = 96;   // round head, straight sides down to sy, then a tapered tail
+// round 14: the round-13 energy bullets, same shape (a round head, straight sides, a tapered tail), with strong
+// contrast instead of a black outline (Bupé: "too busy"; the white ones looked light and see-through). Each tier is
+// baked in its own colours: a soft glow and a saturated darker edge in the tier's deep colour (never black), a fully
+// opaque body and a big bright solid core. The head is at the top of the canvas (forward). Drawn with a white tint
+// and normal blending, so nothing shows through the body. The canvas has a margin for the glow (80 wide, body 44).
+function bulletTex(glow, edge, body, core) {
+  return canvasTex(80, 240, (g, w, h) => {
+    const c = w / 2, r = 22, hy = 42, tail = h - 14, sy = 106;   // round head, straight sides down to sy, then a tapered tail
     const shape = (rr) => { g.beginPath(); g.arc(c, hy, rr, Math.PI, 0); g.lineTo(c + rr, sy); g.bezierCurveTo(c + rr, sy + 50, c + rr * 0.22, tail - 30, c, tail);
       g.bezierCurveTo(c - rr * 0.22, tail - 30, c - rr, sy + 50, c - rr, sy); g.closePath(); };
-    g.lineJoin = 'round'; shape(r); g.fillStyle = edge; g.fill(); g.lineWidth = 6; g.strokeStyle = edge; g.stroke();   // the outline
-    const gb = g.createLinearGradient(c - r, 0, c + r, 0);   // body: darker rim, bright middle (a round slug, not a flat dash)
-    gb.addColorStop(0, rim); gb.addColorStop(0.3, body); gb.addColorStop(0.55, core); gb.addColorStop(0.8, body); gb.addColorStop(1, rim);
-    shape(r - 5); g.fillStyle = gb; g.fill();
-    const gc = g.createRadialGradient(c, hy - 2, 1, c, hy + 4, r * 0.95);   // the hot core at the head
-    gc.addColorStop(0, '#ffffff'); gc.addColorStop(0.45, core); gc.addColorStop(1, 'rgba(255,255,255,0)');
-    g.fillStyle = gc; g.beginPath(); g.ellipse(c, hy + 4, r * 0.62, r * 0.95, 0, 0, TAU); g.fill();
-    g.fillStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.ellipse(c - r * 0.3, hy - r * 0.35, 4, 6, -0.5, 0, TAU); g.fill();   // glint
-    g.globalCompositeOperation = 'destination-in';   // the tail tapers out: opaque down to 50%, then fades
-    const gt = g.createLinearGradient(0, 0, 0, h); gt.addColorStop(0, '#000'); gt.addColorStop(0.5, '#000'); gt.addColorStop(1, 'rgba(0,0,0,0)');
+    g.save(); g.shadowColor = glow; g.shadowBlur = 16; shape(r); g.fillStyle = edge; g.fill(); g.restore();   // the glow, in the tier's colour
+    shape(r); g.fillStyle = edge; g.fill();   // the saturated edge (the tier's deep colour, no stroke)
+    const gb = g.createLinearGradient(c - r, 0, c + r, 0);   // body: saturated sides, a wide bright middle
+    gb.addColorStop(0, body); gb.addColorStop(0.28, body); gb.addColorStop(0.42, core); gb.addColorStop(0.5, '#ffffff'); gb.addColorStop(0.58, core); gb.addColorStop(0.72, body); gb.addColorStop(1, body);
+    shape(r - 6); g.fillStyle = gb; g.fill();
+    const gc = g.createRadialGradient(c, hy, 1, c, hy + 6, r * 1.1);   // the solid white-hot core at the head
+    gc.addColorStop(0, '#ffffff'); gc.addColorStop(0.5, '#ffffff'); gc.addColorStop(1, core);
+    g.fillStyle = gc; g.beginPath(); g.ellipse(c, hy + 6, r * 0.42, r * 0.85, 0, 0, TAU); g.fill();
+    g.globalCompositeOperation = 'destination-in';   // the tail tapers out: opaque down to 55%, then fades
+    const gt = g.createLinearGradient(0, 0, 0, h); gt.addColorStop(0, '#000'); gt.addColorStop(0.55, '#000'); gt.addColorStop(1, 'rgba(0,0,0,0)');
     g.fillStyle = gt; g.fillRect(0, 0, w, h);
   });
 }
 const T_BULLET = [
-  bulletTex('#5a2600', '#e88a00', '#ffc81a', '#fff6b0'),   // standard: gold
-  bulletTex('#4a0a00', '#c8300a', '#ff5a14', '#ffd9a0'),   // orange rounds: hot red-orange
-  bulletTex('#041a4a', '#1552d8', '#2f96ff', '#dff4ff'),   // blue rounds
+  bulletTex('#ffb020', '#e88a00', '#ffdc50', '#fff8d0'),   // standard: white-hot / pale gold, a warm amber edge and glow
+  bulletTex('#ff5000', '#d23c00', '#ff7a00', '#ffc04a'),   // orange: Bupé's reference orange, a deep-orange edge and glow
+  bulletTex('#1a50ff', '#0a2eb8', '#1f7aff', '#8fd4ff'),   // blue: electric blue, a deep-blue edge and glow
 ];
 const T_RING = canvasTex(128, 128, (g, w, h) => radial(g, w, h, [[0, 'rgba(255,255,255,0)'], [0.72, 'rgba(255,255,255,0)'], [0.86, 'rgba(255,255,255,1)'], [1, 'rgba(255,255,255,0)']]), false);
 const T_ROCKET = canvasTex(48, 144, (g, w, h) => {
@@ -494,13 +501,26 @@ function rapidIcon() {
   return c;
 }
 // loot icons (crates show what's inside): a coin, a coin pile, a gem, a diamond
+// round 14: Bupé's coin art (assets/coin.png, cut out of the blue by tools/make_coin.py) everywhere a coin appears; the
+// old drawn coin is only a fallback if the file failed to load. coin_spin.png is a 12-frame half turn (front, angled and
+// edge views, a glint sweeping across the face) for the coins that fly through the world.
 function coinIcon(size = 64) {
-  const c = document.createElement('canvas'); c.width = c.height = size; const g = c.getContext('2d'), r = size / 2 - 3;
+  const c = document.createElement('canvas'); c.width = c.height = size; const g = c.getContext('2d');
+  if (TEX.coin && TEX.coin.image) { g.imageSmoothingQuality = 'high'; g.drawImage(TEX.coin.image, 0, 0, size, size); return c; }
+  const r = size / 2 - 3;
   const gr = g.createRadialGradient(size * 0.38, size * 0.34, 2, size / 2, size / 2, r); gr.addColorStop(0, '#fff6c0'); gr.addColorStop(0.45, '#ffd23a'); gr.addColorStop(1, '#d88a00');
   g.fillStyle = gr; g.strokeStyle = '#6a3a00'; g.lineWidth = size * 0.07; g.beginPath(); g.arc(size / 2, size / 2, r, 0, TAU); g.fill(); g.stroke();
   g.strokeStyle = 'rgba(160,90,0,.7)'; g.lineWidth = size * 0.05; g.beginPath(); g.arc(size / 2, size / 2, r * 0.68, 0, TAU); g.stroke();
   g.fillStyle = '#9a5a00'; g.font = `900 ${size * 0.5}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('C', size / 2, size / 2 + size * 0.03);
   return c;
+}
+const COIN_SPIN_N = 12;
+// draw a spinning coin of size s centred on (x, y) at spin phase ph (radians; a frame per 1/12 of a half turn)
+function drawSpinCoin(g, x, y, s, ph) {
+  const im = TEX.coinspin && TEX.coinspin.image;
+  if (!im) { const sx = Math.abs(Math.cos(ph)) * 0.8 + 0.2; g.save(); g.translate(x, y); g.scale(sx, 1); g.drawImage(LOOT_IMG.coin, -s / 2, -s / 2, s, s); g.restore(); return; }
+  const f = Math.floor((((ph % Math.PI) + Math.PI) % Math.PI) / Math.PI * COIN_SPIN_N) % COIN_SPIN_N, fw = im.height;
+  g.drawImage(im, f * fw, 0, fw, fw, x - s / 2, y - s / 2, s, s);
 }
 function pileIcon() {
   const c = document.createElement('canvas'); c.width = 300; c.height = 240; const g = c.getContext('2d'), co = coinIcon(96);
@@ -566,7 +586,7 @@ function setupIcons() {
   ICON_IMG.beam = laserIcon(); ICON_IMG.drones = TEX.plane.image; ICON_IMG.rapid = rapidIcon();
   LOOT_IMG.coin = coinIcon(64); LOOT_IMG.coins = pileIcon(); LOOT_IMG.gems = gemIcon(); LOOT_IMG.diamond = diamondIcon(); LOOT_IMG.ruby = rubyIcon();
   const root = document.documentElement.style;   // the HUD counters and the results card use the same art
-  root.setProperty('--coin', `url(${coinIcon(96).toDataURL()})`); root.setProperty('--gem', `url(${LOOT_IMG.gems.toDataURL()})`); root.setProperty('--dia', `url(${LOOT_IMG.diamond.toDataURL()})`); root.setProperty('--ruby', `url(${LOOT_IMG.ruby.toDataURL()})`);
+  root.setProperty('--coin', TEX.coin ? `url(assets/coin.png?v=${VER})` : `url(${coinIcon(96).toDataURL()})`); root.setProperty('--gem', `url(${LOOT_IMG.gems.toDataURL()})`); root.setProperty('--dia', `url(${LOOT_IMG.diamond.toDataURL()})`); root.setProperty('--ruby', `url(${LOOT_IMG.ruby.toDataURL()})`);
   root.setProperty('--drone', `url(${ICON_IMG.drones.src})`);
   const blue = ['rgba(120,220,255,1)', 'rgba(150,215,255,.8)', 'rgba(70,150,235,.8)', '#d8f6ff'];
   const gold = ['rgba(255,210,90,1)', 'rgba(255,226,140,.82)', 'rgba(235,150,30,.82)', '#fff3c0'];
@@ -781,12 +801,13 @@ function computeSlots() {
 }
 
 // bullet tiers, Last War style: standard -> ORANGE -> BLUE. Each power pickup swaps every round in the air at once.
-// round 13: every tier is a solid baked round (T_BULLET[tier]); col is its body colour, core its hot core (muzzle
-// flashes and hit sparks). Rounds a little bigger than round 12; rate, damage and range unchanged.
+// round 14: every tier is a baked energy bullet (T_BULLET[tier]); col is its body colour, core its hot core (muzzle
+// flashes and hit sparks). w and len include the glow margin (the body is 55% of w); the blue tier's body is a touch
+// thinner than round 13's so twin guns and a full squad stay readable. Rate, damage and range unchanged.
 const TIERS = [
-  { name: 'STANDARD GUN', col: [1, 0.78, 0.1], core: [1, 0.93, 0.6], dmg: 3, rate: 9, w: 0.32, len: 1.55, twin: false, dDmg: 1, hud: '#ffe9a0', beam: [1, 0.85, 0.4], beamDps: 60 },
-  { name: 'ORANGE ROUNDS', col: [1, 0.35, 0.08], core: [1, 0.8, 0.45], dmg: 5, rate: 11, w: 0.38, len: 1.85, twin: true, dDmg: 2, hud: '#ffa040', beam: [1, 0.45, 0.1], beamDps: 90 },
-  { name: 'BLUE ROUNDS', col: [0.18, 0.59, 1], core: [0.75, 0.92, 1], dmg: 8, rate: 13, w: 0.46, len: 2.2, twin: true, dDmg: 3, hud: '#7cc4ff', beam: [0.25, 0.6, 1], beamDps: 130 },
+  { name: 'STANDARD GUN', col: [1, 0.86, 0.45], core: [1, 0.97, 0.82], dmg: 3, rate: 9, w: 0.40, len: 1.7, twin: false, dDmg: 1, hud: '#fff1b8', beam: [1, 0.85, 0.4], beamDps: 60 },
+  { name: 'ORANGE ROUNDS', col: [1, 0.55, 0.08], core: [1, 0.9, 0.55], dmg: 5, rate: 11, w: 0.46, len: 2.0, twin: true, dDmg: 2, hud: '#ffa040', beam: [1, 0.45, 0.1], beamDps: 90 },
+  { name: 'BLUE ROUNDS', col: [0.2, 0.62, 1], core: [0.8, 0.95, 1], dmg: 8, rate: 13, w: 0.52, len: 2.3, twin: true, dDmg: 3, hud: '#7cc4ff', beam: [0.25, 0.6, 1], beamDps: 130 },
 ];
 const T_ = () => TIERS[S.tier];
 function updateWeaponHud() {
@@ -892,7 +913,7 @@ function buildLevel() {
   rows(54.6, 0, 28, 9, 34);
   // the second orb: a big gun before the boss
   orb(56.4, -2.0, 380, { bazooka: 1 }); gate(56.4, 2.0, 10);
-  omegaOrb(59.6, 0); loot(61.0, 2.4, 190, 'diamond');
+  omegaOrb(59.6, 0); loot(61.0, 2.4, 190, Q.get('stone') || (Math.random() < CFG.loot.diamondCrate ? 'diamond' : 'ruby'));   // round 14: a diamond only half the time
   ambush(57.2, 6, 38);
   rows(58.2, 0, 24, 8, 36); brutes(58.8, 2, 240);
   // final: MORDRIX (round 13 name; the round-2 boss art)
@@ -1295,6 +1316,7 @@ function dropLoot(what, x, z) {
   const L = CFG.loot; let c = 0;
   if (what === 'coins') { const n = Math.round(rand(L.coins[0], L.coins[1])); c = n * 2; spawnCoins('coin', n, c, x, 0.9, z, 1.25); pop('+' + c, x, 2.2, z, '#ffd84a', 1.1, '#3a1d00', 0, true, true); }
   else if (what === 'gems') { const n = Math.round(rand(L.gems[0], L.gems[1])); S.gems += n; c = L.gemCoins; spawnCoins('gem', n, n, x, 0.9, z, 1.1); spawnCoins('coin', 6, c, x, 0.9, z, 1.1); pop('GEM \u00d7' + n, x, 2.3, z, '#7dffb0', 1.0, '#063a1e', 0, true); sfx('gem'); $('gemBox').classList.remove('hidden'); }
+  else if (what === 'ruby') { S.rubies += 1; c = L.rubyCoins; spawnCoins('ruby', 1, 1, x, 0.9, z, 1.0); spawnCoins('coin', 8, c, x, 0.9, z, 1.2); pop('RUBY!', x, 2.4, z, '#ff8a9a', 1.1, '#4a0010', 0, true); sfx('ruby'); $('rbBox').classList.remove('hidden'); AUD.rubies.push({ t: +S.t.toFixed(2), src: 'stoneCrate', rubies: S.rubies }); }
   else { S.diamonds += 1; c = L.diamondCoins; spawnCoins('diamond', 1, 1, x, 0.9, z, 1.0); spawnCoins('coin', 10, c, x, 0.9, z, 1.2); pop('DIAMOND!', x, 2.4, z, '#bff4ff', 1.15, '#0a3a5a', 0, true); sfx('diamond'); $('diaBox').classList.remove('hidden');
     for (let k = 0; k < 40; k++) { const a = rand(0, TAU), sp = rand(2, 7); fx.spawn({ x, y: 0.9, z, vx: Math.cos(a) * sp, vy: rand(1, 4), vz: Math.sin(a) * sp, life: rand(0.4, 0.8), s0: 0.6, s1: 0.1, r: 0.8, g: 0.95, b: 1, a: 1, world: true }); } }
   S.coins += c; S.lootCoins += c; AUD.loot.push({ t: +S.t.toFixed(2), what, coins: c, gems: S.gems, diamonds: S.diamonds });
@@ -1501,8 +1523,9 @@ const TUT = (() => {
   const TICK = `<svg class="tc-mark good" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="18"/><path d="M11.5 20.5 L17.5 26.5 L29 14"/></svg>`;
   const BOOM = `<svg class="tc-boom" viewBox="0 0 60 60" aria-hidden="true"><path d="M30 2 L36 20 L55 12 L43 28 L58 36 L39 39 L42 58 L30 45 L18 58 L21 39 L2 36 L17 28 L5 12 L24 20 Z"/><circle cx="30" cy="31" r="7"/></svg>`;
   const DEF = {
-    omega: { need: 'dbltap', build: () => `<div class="tut-hand dbl" style="left:50%;top:52%">${HAND_SVG}<i class="rip r1"></i><i class="rip r2"></i></div>
-      <div class="tut-plate" style="top:30%">${img(orb(), 'pi orb')}<b>DOUBLE TAP</b></div>` },
+    // round 14: Omega is a single tap anywhere (one press, one ripple)
+    omega: { need: 'omega-tap', build: () => `<div class="tut-hand one" style="left:50%;top:52%">${HAND_SVG}<i class="rip r1"></i></div>
+      <div class="tut-plate" style="top:30%">${img(orb(), 'pi orb')}<b>TAP</b></div>` },
     omegaFill: { need: 'tap', build: () => {
       const r = $('omega').getBoundingClientRect();
       return `<div class="tut-hand point" style="left:${Math.round(r.left + r.width * 0.55)}px;top:${Math.round(r.bottom + 6)}px">${HAND_SVG}</div>
@@ -1608,25 +1631,26 @@ const TUT = (() => {
 //  - BEAM on/off: a SWIPE up/down: fast (< swipeMaxMs from touch-down), mostly vertical (|dy| > swipeRatio * |dx|),
 //    at least swipeMinPx long and at least swipeMinV px/ms, with less than swipeMaxPathX of sideways travel before it.
 //    The few px of steering the flick itself caused are given back, so the plane does not lurch.
-//  - OMEGA: a DOUBLE TAP: two taps (each < tapMs, moving < tapPx), the second starting within dblTapMs of the first
-//    ending and within dblTapPx of it. A drag is never a tap, and a lone tap does nothing (except continue an explainer).
+//  - OMEGA (round 14, Bupé: players find it more natural than round 12's double tap): a SINGLE TAP anywhere, a touch
+//    shorter than tapMs that moves less than tapPx, while Omega is charged. A steering drag moves further, a hold lasts
+//    longer and a swipe needs swipeMinPx, so none of them is ever a tap; the few px the tap itself steered are given back.
+//    An uncharged tap does nothing, and while an explainer is up a tap only continues it (it never also fires Omega).
 // Round 13: STEERING FOLLOWS ONE FINGER. Every finger has its own state (ptrs). The first finger down that moves steers,
 // measured against its own last x; if it lifts while another finger is down, the next finger to move takes over with
-// no jump. Taps, double taps and swipes are read per finger, so a second finger can double-tap Omega while the first
-// steers, without moving the plane.
+// no jump. Taps and swipes are read per finger, so a second finger can tap Omega while the first steers, without
+// moving the plane.
 let keyL = false, keyR = false;
 const ptrs = new Map();   // pointerId -> { x0, y0, t0, cx (its last clientX, for steering), lx, maxD, pathX, steer, used, gest }
 let steerId = null;
-let lastTap = null;
 const GLOG = [];   // gesture log for automated tests
 function planeScreen() { return toScreen(S.px, 0.55, -0.15); }
 function localXY(e) { const r = wrap.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
 function doGesture(g, info = {}) {
-  // round 13: during a tutorial only the gesture it teaches (and a tap) counts: a double tap in the swipe tutorial fires nothing
+  // round 13: during a tutorial only the gesture it teaches (and a tap) counts: an Omega tap in the swipe tutorial fires nothing
   const need = TUT.need;
   if (need && g !== need && g !== 'tap') { GLOG.push({ g: 'ignored', was: g, t: +S.t.toFixed(2), ...info, tut: TUT.id }); return null; }
   let r = null;
-  if (g === 'swipe-up') r = setBeam(true); else if (g === 'swipe-down') r = setBeam(false); else if (g === 'dbltap') r = fireOmega();
+  if (g === 'swipe-up') r = setBeam(true); else if (g === 'swipe-down') r = setBeam(false); else if (g === 'omega-tap') r = fireOmega();
   GLOG.push({ g, t: +S.t.toFixed(2), ...info, changed: r, beamOn: S.beamOn, omega: +S.omega.toFixed(2), tut: TUT.id });
   TUT.gesture(g); return r;
 }
@@ -1643,7 +1667,7 @@ function checkSwipe(p, e) {
   if (!p.gest || p.used || S.mode !== 'play') return;
   const C = CFG, [x, y] = localXY(e), dt = (e.timeStamp || performance.now()) - p.t0, dx = x - p.x0, dy = y - p.y0;
   if (dt > C.swipeMaxMs || p.pathX > C.swipeMaxPathX || Math.abs(dy) < C.swipeMinPx || Math.abs(dy) < Math.abs(dx) * C.swipeRatio || Math.abs(dy) / Math.max(dt, 1) < C.swipeMinV) return;
-  p.used = true; if (lastTap && p.t0 >= lastTap.t) lastTap = null;
+  p.used = true;
   S.tx = clamp(S.tx - p.steer, -XMAX, XMAX); p.steer = 0;   // give back the flick's own steering
   doGesture(dy < 0 ? 'swipe-up' : 'swipe-down', { dx: Math.round(dx), dy: Math.round(dy), ms: Math.round(dt) });
 }
@@ -1663,16 +1687,13 @@ const up = (e) => {
   checkSwipe(p, e);
   if (p.used) return;
   const now = e.timeStamp || performance.now(), ms = now - p.t0;
-  const isTap = ms < CFG.tapMs && p.maxD < CFG.tapPx;
-  if (isTap && lastTap && p.t0 - lastTap.t <= CFG.dblTapMs && Math.hypot(x - lastTap.x, y - lastTap.y) < CFG.dblTapPx) { lastTap = null; doGesture('dbltap', { ms: Math.round(ms) }); }
-  else if (isTap) {
-    const wasTut = TUT.active; lastTap = { t: now, x, y }; doGesture('tap', { ms: Math.round(ms), moved: Math.round(p.maxD) });
-    if (wasTut && !TUT.active) lastTap = null;   // round 13: the tap that ends a tutorial can never be half of a double tap (Omega)
+  const isTap = ms < CFG.tapMs && p.maxD < CFG.tapPx, info = { ms: Math.round(ms), moved: Math.round(p.maxD) };
+  if (isTap) {
+    const need = TUT.need;   // round 14: a charged Omega fires on one tap, unless an explainer is waiting for its tap
+    if (S.omega >= 1 && S.omegaT <= 0 && (!need || need === 'omega-tap')) { S.tx = clamp(S.tx - p.steer, -XMAX, XMAX); p.steer = 0; doGesture('omega-tap', info); }
+    else doGesture('tap', info);
   }
-  else {
-    if (lastTap && p.t0 >= lastTap.t) lastTap = null;   // a drag between two taps breaks the double tap; a finger held from before does not
-    GLOG.push({ g: 'release', t: +S.t.toFixed(2), ms: Math.round(ms), moved: Math.round(p.maxD), pathX: Math.round(p.pathX) });
-  }
+  else GLOG.push({ g: 'release', t: +S.t.toFixed(2), ms: Math.round(ms), moved: Math.round(p.maxD), pathX: Math.round(p.pathX) });
 };
 window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
 document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
@@ -1684,7 +1705,7 @@ window.addEventListener('keydown', (e) => {
   if (['ArrowRight', 'd', 'D'].includes(e.key)) keyR = true;
   if (S.mode === 'play' && ['ArrowUp', 'w', 'W'].includes(e.key)) doGesture('swipe-up', { key: 1 });
   if (S.mode === 'play' && ['ArrowDown', 's', 'S'].includes(e.key)) doGesture('swipe-down', { key: 1 });
-  if (S.mode === 'play' && (e.key === ' ' || e.key === 'e' || e.key === 'E')) doGesture('dbltap', { key: 1 });
+  if (S.mode === 'play' && (e.key === ' ' || e.key === 'e' || e.key === 'E')) doGesture('omega-tap', { key: 1 });
   if (S.mode === 'play' && e.key === 'Enter') doGesture('tap', { key: 1 });
   if ((e.key === ' ' || e.key === 'Enter') && S.mode === 'title' && ready) { e.preventDefault(); if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); initAudio(); startGame(); }   // round 13: no focused card opens over the run
 });
@@ -1830,8 +1851,7 @@ const RES = (() => {
     let tt = T.s1 + 760; const st = stones.map(([k, n]) => { const o = { k, n, at: tt, rare: k !== 'gem' }; tt += o.rare ? 780 : 500; return o; });
     T.stones = st.map((o) => o.at); T.f = st.length ? tt + 80 : T.s1 + 720; T.btn = T.f + 520; T.end = T.btn + 450;
     const RC = CFG.results, boost = S.coinBoost || 1, why = [];
-    if (final >= RC.typicalFinal * RC.coinX) why.push('coins'); if (boost >= RC.boost) why.push('boost');
-    for (const [k, n] of stones) if (n >= RC.stones[k]) why.push(k);
+    if (boost >= RC.boost) why.push('boost');   // round 14: only a genuinely extraordinary boost glows (Bupé); big totals and stone hauls do not
     const fq = Q.get('shine'), shine = fq === '1' ? true : fq === '0' ? false : (!RC.shineOnlyIfExtraordinary || why.length > 0);
     return { stage, killCoins: S.killCoins, lootCoins: S.lootCoins, D, base: CFG.droneCoinBase, mult, per, droneBonus, stars, sm, pre, final, T, stones: st, plane: CFG.plane, shine, why: fq === '1' ? ['forced'] : why };
   }
@@ -1997,7 +2017,9 @@ const EFX = (() => {
         if (k >= 1) { parts.splice(i, 1); if (p.cb) p.cb(); if (p.pop) for (let j = 0; j < 5; j++) { const a = rand(0, TAU), sp = rand(60, 140); parts.push({ kind: 'spark', x: p.x1, y: p.y1, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, grav: 0, drag: 0.9, s: 2.4, col: p.pop, t: 0, life: 0.3, rot: 0, vr: 0 }); } continue; }
         const e = p.ease === 'in' ? k * k : k * k * (3 - 2 * k), u = 1 - e, x = u * u * p.x0 + 2 * u * e * p.cx + e * e * p.x1, y = u * u * p.y0 + 2 * u * e * p.cy + e * e * p.y1;
         const sc = p.s * (p.s1 ? lerp(1, p.s1, k) : 1) * (k < 0.15 ? 0.4 + k / 0.15 * 0.6 : 1);
-        g.globalAlpha = 1; g.save(); g.translate(x, y); g.rotate(p.rot + p.vr * k); if (p.spin) g.scale(Math.abs(Math.cos(p.t * 14 + p.ph)) * 0.8 + 0.2, 1);
+        g.globalAlpha = 1;
+        if (p.spin && p.img === LOOT_IMG.coin && !p.glow) { drawSpinCoin(g, x, y, sc, p.t * 14 + p.ph); continue; }   // round 14: the coin art spins
+        g.save(); g.translate(x, y); g.rotate(p.rot + p.vr * k); if (p.spin) g.scale(Math.abs(Math.cos(p.t * 14 + p.ph)) * 0.8 + 0.2, 1);
         if (p.glow) { g.shadowColor = p.glow; g.shadowBlur = 12; }
         if (p.img) g.drawImage(p.img, -sc / 2, -sc * p.img.height / p.img.width / 2, sc, sc * p.img.height / p.img.width);
         else { g.fillStyle = p.col; g.beginPath(); g.arc(0, 0, sc / 2, 0, TAU); g.fill(); }
@@ -2105,7 +2127,7 @@ function botThink() {
   if (S.beamOwned && !S.beamOn && S.hp > 60 && ahead >= 3 && !TUT.holdBeam) doGesture('swipe-up', { bot: true });
   if (S.beamOn && (S.beamT > CFG.beamGrace + 1.2 || S.hp < 45)) doGesture('swipe-down', { bot: true });
   // Omega: tap the plane when charged and there is a crowd, a boss, or clingers
-  if (S.omega >= 1 && ((boss && boss.state === 'fight') || bugs.filter((s) => s.z > TOP_Z + 4).length >= 14 || S.latched >= 3) && !TUT.holdOmega) doGesture('dbltap', { bot: true });
+  if (S.omega >= 1 && ((boss && boss.state === 'fight') || bugs.filter((s) => s.z > TOP_Z + 4).length >= 14 || S.latched >= 3) && !TUT.holdOmega) doGesture('omega-tap', { bot: true });
 }
 
 // ---------------------------------------------------------------- weapons
@@ -2516,7 +2538,7 @@ function update(dt) {
     b.z = nz; b.x = nx;
     if (b.z <= RANGE_Z || b.z > 6 || Math.abs(b.x) > 9) { shots.splice(i, 1); continue; }
     const fade = clamp((b.z - RANGE_Z) / 4, 0.2, 1), rot = (b.vx || b.vz > 0) ? Math.atan2(-b.vx, -b.vz) : 0, y = b.drone ? 0.45 : 0.5;
-    // round 13: one solid, opaque round per bullet (no pale additive core washing it out); it shrinks away at the range limit
+    // round 14: one opaque energy bullet per bullet (normal blend, no additive wash-out); it shrinks away at the range limit
     const sz = 0.55 + 0.45 * fade; bulletsB.add(b.x, y, b.z, b.w * sz, b.len * sz, rot, 1, 1, 1);
   }
   { const m = bulletsB.mesh.material; if (m.map !== T_BULLET[S.tier]) m.map = T_BULLET[S.tier]; }   // the round's colour follows the tier
@@ -2804,18 +2826,19 @@ function updateOmega(dt, now) {
   const full = S.omega >= 1, el = $('omega');
   $('omegafill').style.width = (S.omega * 100).toFixed(1) + '%';
   if (el.classList.contains('full') !== full) el.classList.toggle('full', full);
-  if (!planeFx) { planeFx = new Particles(96, THREE.AdditiveBlending, T_GLOW, 6); planeFx.mat.uniforms.uScale = fx.mat.uniforms.uScale; planeFx.pts.layers.set(1); }
-  const nz = -1.2;
+  // round 14: render order 2.9, just under the plane (3), so the charge aura sits behind the plane and never covers it
+  if (!planeFx) { planeFx = new Particles(96, THREE.AdditiveBlending, T_GLOW, 2.9); planeFx.mat.uniforms.uScale = fx.mat.uniforms.uScale; planeFx.pts.layers.set(1); }
+  const nz = -0.15;
   if (S.mode === 'play' && full && planeSprite.visible) {
-    // charged: energy is drawn into the plane's nose, which glows
-    if (Math.random() < dt * 70 && orbFx.length < 60) orbFx.push({ a: rand(0, TAU), r: rand(1.8, 3.2), t: 0, life: rand(0.35, 0.6), s: rand(0.3, 0.6) });
-    const p = 0.5 + 0.5 * Math.sin(now * 0.018);
-    planeFx.draw(S.px, 0.62, nz, 2.2 + p * 0.8, 0.7, 0.45, 1, 0.9); planeFx.draw(S.px, 0.63, nz, 0.9 + p * 0.3, 1, 1, 1, 1);
+    // charged: a soft purple aura behind the plane that shows around its outline, and motes circling it (behind it too)
+    if (Math.random() < dt * 16 && orbFx.length < 16) orbFx.push({ a: rand(0, TAU), r: rand(1.9, 2.4), t: 0, life: rand(0.5, 0.9), s: rand(0.25, 0.45) });
+    const p = 0.5 + 0.5 * Math.sin(now * 0.012);
+    planeFx.draw(S.px, 0.5, nz, 3.6 + p * 0.5, 0.55, 0.3, 1, 0.55);
   }
   for (let i = orbFx.length - 1; i >= 0; i--) {
     const o = orbFx[i]; o.t += dt; if (o.t >= o.life) { orbFx.splice(i, 1); continue; }
-    const k = o.t / o.life, r = o.r * Math.pow(1 - k, 1.6), a = o.a + k * 2.2;
-    planeFx.draw(S.px + Math.cos(a) * r, 0.62, nz + Math.sin(a) * r * 0.75, o.s * (0.6 + k), 0.8, 0.6, 1, Math.min(1, k * 3));
+    const k = o.t / o.life, a = o.a + k * 1.6;
+    planeFx.draw(S.px + Math.cos(a) * o.r, 0.5, nz + Math.sin(a) * o.r * 0.7, o.s, 0.8, 0.6, 1, 0.6 * Math.sin(k * Math.PI));
   }
   planeFx.update(dt, 0);
   if (S.omegaT > 0) {
@@ -3303,7 +3326,7 @@ function drawOverlay() {
       const [bx, by] = onSprite(s, 0.5, 0.12); const r = p.reward, bw = u * 2.1, bh = u * 0.95, bb = bob * u * 0.05;
       if (r.loot) {   // round 6: a big loot icon shows what's inside (coin pile, gem, diamond)
         const img = LOOT_IMG[r.loot], iw = u * (r.loot === 'coins' ? 2.3 : 1.7), ih = iw * img.height / img.width, yy = by - ih * 0.42 + bb * 1.5;
-        ctx.save(); ctx.shadowColor = r.loot === 'coins' ? 'rgba(255,210,60,1)' : r.loot === 'gems' ? 'rgba(90,255,160,1)' : 'rgba(170,240,255,1)'; ctx.shadowBlur = 16;
+        ctx.save(); ctx.shadowColor = r.loot === 'coins' ? 'rgba(255,210,60,1)' : r.loot === 'gems' ? 'rgba(90,255,160,1)' : r.loot === 'ruby' ? 'rgba(255,80,110,1)' : 'rgba(170,240,255,1)'; ctx.shadowBlur = 16;
         ctx.drawImage(img, bx - iw / 2, yy - ih / 2, iw, ih); ctx.restore();
         if (r.loot === 'diamond') { ctx.save(); ctx.globalCompositeOperation = 'lighter'; for (let k = 0; k < 5; k++) { const a = now * 2.2 + k * TAU / 5 + p.ph, pr = iw * (0.55 + 0.1 * Math.sin(now * 5 + k)); sparkle(bx + Math.cos(a) * pr, yy + Math.sin(a) * pr * 0.7, u * (0.18 + 0.12 * Math.abs(Math.sin(now * 6 + k * 1.7))), '#f2fdff'); } ctx.restore(); }
         else if (r.loot === 'gems') { ctx.save(); ctx.globalCompositeOperation = 'lighter'; sparkle(bx + iw * 0.3, yy - ih * 0.3, u * 0.2 * (0.6 + 0.4 * Math.sin(now * 7)), '#eafff2'); ctx.restore(); }
@@ -3389,7 +3412,7 @@ function drawOverlay() {
   }
   // loot flying to the HUD counters (screen space)
   for (const c of coinFx) {
-    if (c.kind === 'coin') { const img = LOOT_IMG.coin, s = 22, sx = Math.abs(Math.cos(c.ph)) * 0.8 + 0.2; ctx.save(); ctx.translate(c.x, c.y); ctx.scale(sx, 1); ctx.drawImage(img, -s / 2, -s / 2, s, s); ctx.restore(); }
+    if (c.kind === 'coin') drawSpinCoin(ctx, c.x, c.y, 24, c.ph);   // round 14: Bupé's coin, spinning
     else { const img = c.kind === 'gem' ? LOOT_IMG.gems : c.kind === 'ruby' ? LOOT_IMG.ruby : LOOT_IMG.diamond, s = c.kind === 'gem' ? 34 : c.kind === 'ruby' ? 38 : 44; ctx.save(); ctx.shadowColor = c.kind === 'gem' ? '#5aff9a' : c.kind === 'ruby' ? '#ff5a78' : '#bff4ff'; ctx.shadowBlur = 14; ctx.drawImage(img, c.x - s / 2, c.y - s * img.height / img.width / 2, s, s * img.height / img.width); ctx.restore();
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; for (let k = 0; k < 3; k++) { const a = now * 8 + k * 2.1; sparkle(c.x + Math.cos(a) * s * 0.6, c.y + Math.sin(a) * s * 0.5, 5, '#ffffff'); } ctx.restore(); }
   }
@@ -3453,18 +3476,19 @@ function upRingDraw() {   // UP ring on big gains and power-ups (tinted with the
     ctx.globalAlpha = Math.min(1, (1 - k) * 2); txt('UP', x, y - 60 - k * 40, 34 + 10 * Math.sin(Math.min(1, k * 4) * Math.PI / 2), col, '#3a2200', 0.2, true); ctx.globalAlpha = 1;
   }
 }
-function omegaCharge(now) {   // the Omega charge glow at the nose (the overlay half; the particles are planeFx)
+// round 14: the Omega charge no longer hides the plane (Bupé). The soft purple aura is drawn BEHIND the plane (planeFx,
+// under the plane's render order); over the plane there is only a thin pulsing ring around its silhouette with a few
+// sparkles riding it, and nothing crosses the plane itself (no white core at the nose, no streaks drawn into it).
+function omegaCharge(now) {
   if (S.mode === 'play' && S.omega >= 1 && planeSprite.visible && S.omegaT <= 0) {
-    const [nx, ny] = toScreen(S.px, 0.62, -1.2), u = unitPx(S.px, 0.6, 0), p = 0.5 + 0.5 * Math.sin(now * 9);
+    const [cx, cy] = planeScreen(), u = unitPx(S.px, 0.6, 0), p = 0.5 + 0.5 * Math.sin(now * 6);
+    const rx = u * (1.78 + p * 0.08), ry = u * (1.22 + p * 0.06);   // just outside the wings, nose and tail
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    const gl = ctx.createRadialGradient(nx, ny, 0, nx, ny, u * (2.2 + p * 0.6)); gl.addColorStop(0, 'rgba(255,255,255,.95)'); gl.addColorStop(0.25, 'rgba(210,160,255,.7)'); gl.addColorStop(1, 'rgba(120,60,255,0)');
-    ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(nx, ny, u * (2.2 + p * 0.6), 0, TAU); ctx.fill();
-    ctx.strokeStyle = `rgba(220,190,255,${0.5 + p * 0.4})`; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(nx, ny + u * 0.9, u * (2.1 + p * 0.3), u * (1.5 + p * 0.2), 0, 0, TAU); ctx.stroke();
-    for (let j = 0; j < 14; j++) {   // energy streaks drawn in towards the nose
-      const f = ((now * 1.6 + j / 14) % 1), a = j * 2.4 + Math.floor(now * 1.6 + j / 14) * 1.7, r0 = u * 3.6 * (1 - f), r1 = r0 + u * 0.9 * (1 - f);
-      ctx.strokeStyle = `rgba(235,215,255,${Math.sin(f * Math.PI)})`; ctx.lineWidth = 2.5 * (1 - f) + 1; ctx.beginPath();
-      ctx.moveTo(nx + Math.cos(a) * r1, ny + Math.sin(a) * r1 * 0.8); ctx.lineTo(nx + Math.cos(a) * r0, ny + Math.sin(a) * r0 * 0.8); ctx.stroke();
-      sparkle(nx + Math.cos(a) * r0, ny + Math.sin(a) * r0 * 0.8, 3 + 3 * (1 - f), '#f6eeff');
+    ctx.strokeStyle = `rgba(190,140,255,${0.35 + p * 0.25})`; ctx.lineWidth = 5; ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = `rgba(240,225,255,${0.55 + p * 0.35})`; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, TAU); ctx.stroke();
+    for (let j = 0; j < 4; j++) {   // sparkles riding the ring
+      const a = now * 1.4 + j * TAU / 4, tw = 0.5 + 0.5 * Math.sin(now * 7 + j * 1.9);
+      sparkle(cx + Math.cos(a) * rx, cy + Math.sin(a) * ry, 3 + 3.5 * tw, '#f6eeff');
     }
     ctx.restore();
   }
@@ -3634,7 +3658,7 @@ async function boot() {
   // round-2 plane, drones, spiders, Queen and canister; round-3 bugs kept for cameos; Bupé's gold weapon icons
   const names = ['plane:r2_plane', 'spider:r2_spider', 'boss:r2_boss', 'pod:r2_pod', 'redspider:spider', 'beetle', 'wasp', 'spitter', 'crate1', 'capsule', 'cocoon_intact', 'cocoon_cracked', 'cocoon_broken',
     'icon_minigun', 'icon_rockets', 'icon_bazooka', 'cloud1', 'cloud2', 'cloud3', 'smoke'];
-  const files = { terrain: 'assets/terrain.jpg?v=' + VER };
+  const files = { terrain: 'assets/terrain.jpg?v=' + VER, coin: 'assets/coin.png?v=' + VER, coinspin: 'assets/coin_spin.png?v=' + VER };   // round 14: Bupé's coin
   for (const n of names) { const [k, f] = n.split(':'); files[k] = `assets/${f || k}.webp?v=${VER}`; }
   await Promise.all(Object.entries(files).map(([k, f]) => loadTex(k, f)));
   try { await Promise.race([Promise.all([document.fonts.load(`900 40px NunitoG`), document.fonts.load('40px Lilita'), document.fonts.load('40px LuckiestG')]), new Promise((r) => setTimeout(r, 2000))]); } catch (e) { }
@@ -3662,4 +3686,5 @@ window.__G = { S, AUD, get bugs() { return bugs; }, get pods() { return pods; },
   showThreat: () => showThreat(), get coinFx() { return coinFx; }, get mood() { return moodOn; }, addShake: (k, m) => addShake(k, m), get BOT_Z() { return BOT_Z; }, planeScreen,
   BT, btEnter: () => btEnter(), btExit: () => btExit(), TUT, doGesture: (g, i) => doGesture(g, i), tutWant: (id) => TUT.want(id),
   fireOmega: () => fireOmega(), goHome: () => goHome(), teardownEnd: () => teardownEnd(), setBeam: (v) => setBeam(v), omega: (v) => { S.omega = v; }, spawnCocoon: (o) => spawnCocoon(Object.assign({ x: -2.2, side: -1, hp: 260, drones: 8 }, o || {})),
+  endGame: (w) => endGame(w),   // round 14: debug, straight to Mission Complete / SHOT DOWN
   spawnBug: (x, z, type = 'spider', hp = 20) => newBug(x, z, type, hp), spawnGate: (x, val, z) => { spawnEvent({ k: 'gate', x, val, d: S.dist + (z ? -z : 30) }); return gates[gates.length - 1]; } };
