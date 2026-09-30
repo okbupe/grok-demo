@@ -218,9 +218,10 @@ async def t_bt(p):
     # btbot=999: the bot never answers a tutorial by itself; this check does each gesture once its screenshots are taken
     b, pg, errs = await open_page(p, '?autoplay&tut=1&warp=37&omega=0.99&btbot=999', A.dpr)
     await pg.evaluate('__G.god(true)')
-    NEED = {'omega': 'dbltap', 'omegaFill': 'tap', 'beamOn': 'swipe-up', 'beamOff': 'swipe-down', 'beamRisk': 'tap'}
+    NEED = {'omega': 'dbltap', 'omegaFill': 'tap', 'beamOn': 'swipe-up', 'beamOff': 'swipe-down', 'beamRisk': 'tap', 'gates': 'tap', 'cans': 'tap'}   # merge: area B2 added gates and cans
+    FIVE = {'omega', 'omegaFill', 'beamOn', 'beamOff', 'beamRisk'}
     seen = []; t0 = time.time(); out = {}
-    while time.time() - t0 < 600 and len(seen) < 5:
+    while time.time() - t0 < 600 and not FIVE <= set(seen):
         st = await pg.evaluate('({ id: __G.TUT.id, mode: __G.S.mode })')
         if st['mode'] != 'play': break
         if st['id'] and st['id'] not in seen:
@@ -248,7 +249,7 @@ async def t_bt(p):
     await pg.wait_for_function('__G.BT.p <= 0', timeout=30000); await pg.wait_for_timeout(500)
     aud = await pg.evaluate('({ t: __G.AUD.btTarget || null, n: __G.AUD.btTargets || 0, freed: __G.AUD.btFreed || 0, tut: __G.AUD.tut.map((e) => e[0] + ":" + e[1]) })')
     print('   bt', json.dumps(aud), flush=True)
-    check('bullet time: all five tutorials reproduced', sorted(seen) == sorted(['omega', 'beamOn', 'omegaFill', 'beamOff', 'beamRisk']), str(seen))
+    check('bullet time: all five tutorials reproduced', FIVE <= set(seen), str(seen))
     C = [v for (t, var), v in out.items()]
     check("bullet time: the plane's health bar stays in colour in every tutorial", C and all(v['bar'] >= 0.5 for v in C), str([v['bar'] for v in C]))
     check('bullet time: the plane stays in colour even just after a hit (flicker frozen in slow motion)', C and all(out[(t, 'hit')]['plane'] >= 0.85 * out[(t, 'clean')]['plane'] and out[(t, 'hit')]['plane'] >= 0.25 for t in seen),

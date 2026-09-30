@@ -386,6 +386,7 @@ function setupWorld() {
   tracers = new FlatBatch(T_TRACER, 1600, THREE.AdditiveBlending, 5);    // hot cores, stingers, shells
   beamsN = new FlatBatch(T_BEAM, 4, THREE.NormalBlending, 4.9);
   beams = new FlatBatch(T_BEAM, 8, THREE.AdditiveBlending, 5);
+  beamsN.mesh.layers.set(1); beams.mesh.layers.set(1);   // round 13: the player's Saber Beam stays in colour during bullet time (layer 1)
   rocketsB = new FlatBatch(T_ROCKET, 80, THREE.NormalBlending, 4);
   shellsB = new FlatBatch(T_SHELL, 40, THREE.NormalBlending, 4);
   planksB = new FlatBatch(T_PLANK, 260, THREE.NormalBlending, 4);
@@ -632,6 +633,7 @@ function setMood(on, force) {
     d.type = 'sawtooth'; d.frequency.value = 48.9; df.type = 'lowpass'; df.frequency.value = 150; dg.gain.value = 0; dg.gain.setTargetAtTime(0.03, t, 1.5);
     p.connect(pg); pg.connect(master); d.connect(df); df.connect(dg); dg.connect(master); p.start(); l.start(); d.start();
     moodNodes = { p, pg, l, d, dg };
+    if (typeof applyAudioSettings === 'function') applyAudioSettings();   // round 13: the new mood nodes join the music bus (Settings, Music)
   } else if (!on && moodNodes) {
     const m = moodNodes; moodNodes = null; m.pg.gain.setTargetAtTime(0, t, 0.3); m.dg.gain.setTargetAtTime(0, t, 0.3);
     for (const n of [m.p, m.l, m.d]) n.stop(t + 1.5);
@@ -893,7 +895,7 @@ function buildLevel() {
   omegaOrb(59.6, 0); loot(61.0, 2.4, 190, 'diamond');
   ambush(57.2, 6, 38);
   rows(58.2, 0, 24, 8, 36); brutes(58.8, 2, 240);
-  // final: the Xora Queen (round-2 boss)
+  // final: MORDRIX (round 13 name; the round-2 boss art)
   at(BOSS_T, 'boss');
   // never park a bug directly behind a gate: push it back to leave clear sky
   const gs = L.filter((e) => e.k === 'gate');
@@ -1203,7 +1205,8 @@ function setTier(n, x, z) {
   n = clamp(n, 0, 2); if (n === S.tier) { flyIcons.push({ name: 'power', x, z, t: 0 }); sfx('power'); return; }
   S.tier = n; const T = T_();
   // every round already in the air changes colour and hits harder at once (drones copy the jet)
-  for (const b of shots) if (b.kind === 'bullet') { b.dmg = b.drone ? T.dDmg : T.dmg; b.w = T.w * CFG.tracerW * (b.drone ? 0.72 : 1); b.len = T.len * (b.drone ? 0.72 : 1); }
+  for (const b of shots) if (b.kind === 'bullet') { b.dmg = (b.drone ? T.dDmg : T.dmg) * WSM.dmg;   // round 13: x Workshop Damage
+     b.w = T.w * CFG.tracerW * (b.drone ? 0.72 : 1); b.len = T.len * (b.drone ? 0.72 : 1); }
   AUD.tiers.push({ t: +S.t.toFixed(2), tier: n, name: T.name, inAir: shots.length });
   weaponFlash = 1; upRing = { t: 0, col: n === 2 ? '#7cc4ff' : '#ffa040' };
   flyIcons.push({ name: 'power', x, z, t: 0 });
@@ -1591,7 +1594,9 @@ const TUT = (() => {
     if (cur) { t += rdt; if (els) place(false); if (BOT && t > (Number(Q.get('btbot')) || CFG.bt.botDelay)) doGesture(cur.def.need, { bot: true }); }
   }
   function gesture(g) { if (cur && g === cur.def.need && t > 0.25) end('done'); }
-  return { want, update, gesture, reset, get active() { return !!cur; }, get busy() { return !!cur || queue.length > 0; }, get holdBeam() { return !off && !!done.beamOff && !done.beamRisk; }, get holdOmega() { return !off && !!done.omega && !done.omegaFill; },
+  // round 13: Settings, Replay tutorials: every tutorial shows again from the next run
+  function forget() { done = {}; save(); reset(); }
+  return { want, update, gesture, reset, forget, get active() { return !!cur; }, get busy() { return !!cur || queue.length > 0; }, get holdBeam() { return !off && !!done.beamOff && !done.beamRisk; }, get holdOmega() { return !off && !!done.omega && !done.omegaFill; },
     get id() { return cur ? cur.id : null; }, get need() { return cur ? cur.def.need : null; }, get done() { return { ...done }; }, off,
     get state() { return { cur: cur ? cur.id : null, queue: queue.slice(), t: +t.toFixed(2), lastBeam, beamOffAt, omegaEnd, lastOmegaT } } };
 })();
@@ -2099,7 +2104,6 @@ function fire(x, z, vx, vz, drone) {
   shots.push(b); return b;
 }
 function firePrimary(dt) {
-  if (amb !== audRouted.amb || moodNodes !== audRouted.mood) applyAudioSettings();   // round 13: ambience or boss-mood nodes made mid-run join the music bus
   if (S.primary === 'beam') return;   // the beam is drawn and applied in update()
   const T = T_(); S.fireT -= dt;
   while (S.fireT <= 0) {
@@ -2574,7 +2578,7 @@ function update(dt) {
     fx.draw(m.x - m.vx / sp * 0.75, m.y, m.z - m.vz / sp * 0.75, 1.3 * rs, fl[0], fl[1], fl[2], 1);
     rocketsB.add(m.x, m.y, m.z, 0.45 * rs, 1.35 * rs, Math.atan2(-m.vx, -m.vz), 1, 1, 1);
     if ((ok && d < (m.t === boss ? 2.2 : 0.8)) || m.life <= 0 || m.z < RANGE_Z - 4) {
-      explode(m.x + m.vx / sp * 0.7, 0.6, m.z + m.vz / sp * 0.7, 1.0 * rs, false); sfx('pop'); splash(m.x, m.z, 1.9 * rs, 16 * (1 + S.tier * 0.5));
+      explode(m.x + m.vx / sp * 0.7, 0.6, m.z + m.vz / sp * 0.7, 1.0 * rs, false); sfx('pop'); splash(m.x, m.z, 1.9 * rs, 16 * (1 + S.tier * 0.5) * (m.mul || 1));   // round 13: x Workshop Damage
       missiles.splice(i, 1);
     }
   }
@@ -2910,7 +2914,7 @@ function bossChain(bw) {
 }
 
 // ---------------------------------------------------------------- bosses
-// Mission 1 uses the round-2 Xora Queen. Kingsting (round 3) stays in the table, dormant, for a later stage.
+// Mission 1 uses MORDRIX (round 13 name; the round-2 boss art, internal key 'queen'). Kingsting (round 3) stays in the table, dormant, for a later stage.
 const BOSSES = {
   queen: { name: 'MORDRIX', hp: 9000, sub: 'Shoot it down!' },   // round 13: Mission 1's boss is MORDRIX (Bupé); the key stays 'queen' for saves and tests
   stinger: { name: 'KINGSTING', hp: 1000, sub: 'Colossal hornet \u00b7 bring it down!' },
@@ -2984,7 +2988,7 @@ function updateQueen(dt, dz) {
       scene.remove(b.sprite); boss = null; slowmo = 1; $('bossbar').classList.add('hidden');
       for (const s of bugs) { explode(s.x, 0.4, s.z, 0.8, false); scene.remove(s.sprite); }
       bugs = []; drops = []; acids = [];
-      S.mode = 'win'; S.endT = 2.4; sfx('win'); banner('QUEEN DOWN!', 'Beacon is in sight', false, 2.4);
+      S.mode = 'win'; S.endT = 2.4; sfx('win'); banner(BOSSES.queen.name + ' DOWN!', 'Beacon is in sight', false, 2.4);   // round 13: MORDRIX DOWN!
       return;
     }
   }
@@ -3618,7 +3622,7 @@ async function boot() {
   if (window.JCMETA) window.JCMETA.init({ startGame, goHome, initAudio, sfx: (n, a) => sfx(n, a), get S() { return S; }, CFG, TEX, get planeSprite() { return planeSprite; },
     // round 13: the Workshop multipliers, Settings for the audio, replaying the tutorials, and the audio state for the tests
     setMult: (m) => { WSM.rate = m.rate || 1; WSM.dmg = m.dmg || 1; WSM.rev = m.rev || 1; }, applyAudio: () => applyAudioSettings(),
-    tutReset: () => (typeof TUT.reset === 'function' ? (TUT.reset(), true) : false),
+    tutReset: () => (TUT.forget(), true),
     audio: () => ({ ctx: !!ac, master: master ? master.gain.value : null, music: musicBus ? musicBus.gain.value : null, ambOnMusic: !!amb && audRouted.amb === amb, muted }) });
   if (Q.has('autostart') || Q.has('autoplay')) startGame();
 }

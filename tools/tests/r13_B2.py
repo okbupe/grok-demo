@@ -189,7 +189,8 @@ async def check_rewards(b):
     rec('gates: a +20 gate with room for 5 gives 5 drones, shows +5 (not +20) and pays the other 15 as 1 coin', got == 5 and '+5' in words and '+20' not in words and z['loot'] - a['loot'] == 1 and 'UP' in words,
         {'got': got, 'lootCoins+': z['loot'] - a['loot'], 'drawn': words, 'pass': gp})
     # the rescued pilot with a full squad
-    await p.js('__G.setDrones(50)'); await p.pg.wait_for_timeout(3500)
+    await p.js('__G.setDrones(50)'); await p.pg.wait_for_timeout(500)
+    await p.wait('__G.S.t >= ' + str((await p.js('__G.S.t')) + 2.5), 60000)   # game time, not wall time: the +20 gate's popups and ring must be gone
     a = await p.js(STATE)
     await p.js('__TX = []; __TXon = true; __G.pilots.push({x: __G.S.px, z: -6, t: 0.97, reward: {drones: 8, pilot: true}})')
     await p.pg.wait_for_timeout(1500); await p.js('__TXon = false'); z = await p.js(STATE); tx = await p.js('__TX')
