@@ -4,7 +4,7 @@ import os, sys, asyncio
 from playwright.async_api import async_playwright
 BASE = sys.argv[1] if len(sys.argv) > 1 else 'https://okbupe.github.io/grok-demo/'
 OUT = sys.argv[2] if len(sys.argv) > 2 else '.'
-PATHS = [''] + [f'v{n}/' for n in range(2, 13)]   # add new frozen rounds here
+PATHS = [''] + [f'v{n}/' for n in range(2, 14)]   # add new frozen rounds here
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(executable_path=os.environ.get('CHROME') or None, headless=True, args=['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'])
