@@ -257,7 +257,7 @@ async def t_bt(p):
     check('bullet time: the Omega charge glow stays purple (omega tutorial)', ('omega', 'clean') in out and out[('omega', 'clean')]['purple'] >= 0.08, str(out.get(('omega', 'clean'))))
     check('bullet time: the world still greys out', C and all(v['world'] <= 0.1 for v in C), str([v['world'] for v in C]))
     ok_t = bool(aud['t']) and aud['t']['bytes'] == aud['t']['w'] * aud['t']['h'] * 4
-    check('bullet-time buffer: 8-bit, no MSAA or depth (4 bytes a pixel), and freed once bullet time eases out', ok_t and aud['freed'] >= len(seen) >= 1, json.dumps(aud['t']))
+    check('bullet-time buffer: 8-bit, no MSAA or depth (4 bytes a pixel), and freed once bullet time eases out', ok_t and aud['freed'] >= len(seen) >= 1, json.dumps({**(aud['t'] or {}), 'freed': aud['freed'], 'seen': len(seen), 'targets': aud['n']}))
     check('bt: no console or page errors', not errs, str(errs[:3]))
     await b.close()
 

@@ -12,7 +12,7 @@ async def main():
         pg.on('pageerror', lambda e: errs.append(f'pageerror: {e}'))
         cdp = await ctx.new_cdp_session(pg)
         await pg.add_init_script("window.__PE=[];['pointerdown','pointerup','pointercancel','touchstart','touchend'].forEach(k=>addEventListener(k,e=>__PE.push([k,Math.round(e.timeStamp),e.pointerId||'']),true))")
-        await pg.goto(URL, wait_until='networkidle'); await pg.wait_for_timeout(1200)
+        await pg.goto(URL, wait_until='networkidle'); await pg.wait_for_function('window.__G && document.getElementById("loading").textContent === ""', timeout=60000); await pg.wait_for_timeout(300)   # round 13: wait until the game is ready (a tap during Loading does nothing)
         VT = [time.time()]   # virtual clock: each CDP touch event carries the intended timestamp (swiftshader delays delivery)
         async def touch(pts, ms, gap=0.0):   # pts: path; spread over ms; gap = virtual idle before touch-down (s)
             VT[0] = VT[0] + gap if 0 < gap < 1 else max(VT[0] + gap, time.time()); t = VT[0]
