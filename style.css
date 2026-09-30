@@ -462,5 +462,109 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-acti
 
 
 /* ==== round 13, area B2: the new picture tutorials (gates, canisters). Only area B2 edits between these markers. ==== */
+/* Both cards are two little sky pictures side by side (.tp-panel), in the same dark card as the round 12 explainers. */
+#tut .tp-card{padding:10px 10px 7px;gap:5px}
+#tut .tp-row{position:relative;display:flex;gap:12px}
+#tut .tp-panel{position:relative;width:122px;height:148px;border-radius:12px;overflow:hidden;
+  background:linear-gradient(#4f93dc,#8fc1ec 62%,#c2dcef);box-shadow:inset 0 0 0 2px rgba(255,255,255,.5),inset 0 -20px 26px rgba(255,255,255,.28)}
+#tut .tp-panel::before{content:'';position:absolute;left:-20%;top:58%;width:140%;height:60%;border-radius:50%;background:radial-gradient(rgba(255,255,255,.55),rgba(255,255,255,0) 65%)}
+#tut .tp-plane{position:absolute;left:50%;bottom:6px;width:48px;margin-left:-24px;filter:drop-shadow(0 4px 2px rgba(0,0,0,.4))}
+#tut .tp-bul{position:absolute;left:calc(50% + var(--s) * 7px - 3px);width:6px;height:15px;border-radius:3px;opacity:0;
+  background:linear-gradient(#fff 0 30%,#ffe98a 55%,#ffab1a);box-shadow:0 0 4px 1px rgba(255,220,90,.95),0 0 10px 3px rgba(255,150,30,.5)}
+#tut .tp-arrow{position:absolute;left:50%;top:50%;z-index:2;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-style:normal;font-size:19px;line-height:1;color:#fff;text-shadow:0 1px 0 #6a3a00;background:radial-gradient(circle at 40% 32%,#fff3b0,#ffc92a 45%,#e88a00);
+  border:2.5px solid #fff;box-shadow:0 3px 0 rgba(0,0,0,.45),0 0 10px rgba(255,200,60,.7);animation:tpArrow 3.6s ease-out infinite}
+@keyframes tpArrow{0%,60%{transform:scale(1)}64.5%{transform:scale(1.35)}70%,100%{transform:scale(1)}}
+#tut .tp-card .tapico{margin-top:1px}
 
+/* gates, "shoot the gate to grow it": a gold frame on the real gate, a hand pointing up at it, and a card on a 3.6 s loop:
+   bullets hit a blue gate, every hit pops a +1 and the number climbs (an animated integer, +2 to +10), then the drones it
+   gives pop into formation round the plane. */
+@property --tgN{syntax:'<integer>';inherits:false;initial-value:2}
+#tut .tg-frame{position:absolute;border-radius:14px;border:3px solid #ffe066;pointer-events:none;
+  box-shadow:0 0 0 2px rgba(58,29,0,.8),0 0 16px 3px rgba(255,210,80,.9),inset 0 0 12px rgba(255,226,130,.55);animation:tgFrame .9s ease-in-out infinite}
+@keyframes tgFrame{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.07)}}
+#tut .tg-hand{left:0;top:0;will-change:transform}
+#tut .tg-hand .hand{left:-31px;top:-3px;animation:tgPoint .6s ease-in-out infinite alternate}
+@keyframes tgPoint{from{transform:translateY(14px)}to{transform:translateY(0)}}
+#tut .tg-gate{position:absolute;left:9px;top:22px;width:104px;height:61px;background:center/contain no-repeat;display:flex;align-items:center;justify-content:center;
+  transform-origin:50% 88%;animation:tgGate 3.6s ease-out infinite}
+#tut .tg-gate b{font:900 27px/1 NunitoG,"Arial Rounded MT Bold",system-ui,sans-serif;color:#fff;-webkit-text-stroke:6px #0b2a5a;paint-order:stroke fill;padding:0 0 4px;
+  counter-reset:tgn var(--tgN);animation:tgCount 3.6s linear infinite}
+#tut .tg-gate b::after{content:'+' counter(tgn)}
+@keyframes tgCount{0%,12%{--tgN:2}62%,100%{--tgN:10}}
+@keyframes tgGate{0%,12%{transform:scale(1);filter:none}14.62%{transform:scale(1.006);filter:none}15.12%{transform:scale(1.088);filter:brightness(1.4)}16.73%{transform:scale(1.011);filter:none}20.88%{transform:scale(1.021);filter:none}21.38%{transform:scale(1.104);filter:brightness(1.4)}22.98%{transform:scale(1.026);filter:none}27.12%{transform:scale(1.036);filter:none}27.62%{transform:scale(1.121);filter:brightness(1.4)}29.23%{transform:scale(1.041);filter:none}33.38%{transform:scale(1.051);filter:none}33.88%{transform:scale(1.137);filter:brightness(1.4)}35.48%{transform:scale(1.056);filter:none}39.62%{transform:scale(1.066);filter:none}40.12%{transform:scale(1.153);filter:brightness(1.4)}41.73%{transform:scale(1.071);filter:none}45.88%{transform:scale(1.081);filter:none}46.38%{transform:scale(1.169);filter:brightness(1.4)}47.98%{transform:scale(1.086);filter:none}52.12%{transform:scale(1.096);filter:none}52.62%{transform:scale(1.185);filter:brightness(1.4)}54.23%{transform:scale(1.101);filter:none}58.38%{transform:scale(1.111);filter:none}58.88%{transform:scale(1.202);filter:brightness(1.4)}60.48%{transform:scale(1.116);filter:none}62%{transform:scale(1.12);filter:none}64.5%{transform:scale(1.22);filter:brightness(1.6) drop-shadow(0 0 10px #ffe066)}69%{transform:scale(1.12);filter:none}92%{transform:scale(1.12);filter:none}100%{transform:scale(1);filter:none}}
+/* bullets from the plane's two guns: bullet k lands exactly when the number ticks up (every 0.225 s) */
+#tut .tg-bul{top:94px;animation:tgBul 3.6s linear infinite both;animation-delay:calc(.2945s + var(--k) * .225s)}
+@keyframes tgBul{0%{opacity:0;transform:translateY(0) scaleY(.6)}.6%{opacity:1;transform:translateY(-3px) scaleY(1)}6.9%{opacity:1;transform:translateY(-30px)}7%,100%{opacity:0;transform:translateY(-30px)}}
+#tut .tg-plus{position:absolute;left:calc(50% + var(--px));top:12px;font:400 17px/1 LuckiestG,Lilita,sans-serif;color:#ffe066;-webkit-text-stroke:4px #3a1d00;paint-order:stroke fill;
+  opacity:0;animation:tgPlus 3.6s linear infinite both;animation-delay:calc(.5445s + var(--k) * .225s)}
+@keyframes tgPlus{0%{opacity:0;transform:translateY(8px) scale(.3)}1.2%{opacity:1;transform:translateY(0) scale(1.35)}3%{opacity:1;transform:translateY(-4px) scale(1)}10%{opacity:0;transform:translateY(-14px) scale(.9)}100%{opacity:0;transform:translateY(-14px)}}
+#tut .tg-shoot .tp-plane{animation:tpBob 1.2s ease-in-out infinite alternate}
+@keyframes tpBob{from{transform:translateY(0)}to{transform:translateY(-3px)}}
+/* the squad the gate gives: six drones drop into formation round the plane, one by one, over a gold flash */
+#tut .tg-lead{bottom:auto;top:48px;width:58px;margin-left:-29px;z-index:1}
+#tut .tg-glow{position:absolute;left:50%;top:78px;width:150px;height:150px;margin:-75px 0 0 -75px;border-radius:50%;background:radial-gradient(rgba(255,236,140,.95),rgba(255,196,60,.35) 38%,rgba(255,190,60,0) 66%);
+  opacity:0;animation:tgGlow 3.6s ease-out infinite}
+@keyframes tgGlow{0%,62%{opacity:0;transform:scale(.3)}67%{opacity:1;transform:scale(1.05)}82%{opacity:.35;transform:scale(1)}96%,100%{opacity:0}}
+#tut .tg-drone{position:absolute;width:28px;height:18px;margin:-9px 0 0 -14px;background:var(--drone) center/contain no-repeat;filter:drop-shadow(0 3px 1px rgba(0,0,0,.4));opacity:0;
+  animation:tgDrone 3.6s ease-out infinite both;animation-delay:calc(var(--k) * .09s)}
+#tut .tg-drone:nth-of-type(2){left:17px;top:74px}#tut .tg-drone:nth-of-type(3){left:105px;top:74px}#tut .tg-drone:nth-of-type(4){left:39px;top:101px}
+#tut .tg-drone:nth-of-type(5){left:83px;top:101px}#tut .tg-drone:nth-of-type(6){left:17px;top:124px}#tut .tg-drone:nth-of-type(7){left:105px;top:124px}
+@keyframes tgDrone{0%,63%{opacity:0;transform:translateY(-44px) scale(.3)}66.5%{opacity:1;transform:translateY(0) scale(1.45)}70%{opacity:1;transform:scale(1)}91%{opacity:1;transform:scale(1)}97%,100%{opacity:0;transform:scale(.85)}}
+
+/* cans, "shoot it open, do not ram it": a crosshair on the real crate or canister, and a card on a 3.2 s loop:
+   the plane rams it (burst, red flash, red X) | bullets break it and the loot pops out (gold flash, green tick) */
+#tut .tc-aim{position:absolute;left:0;top:0;width:80px;height:80px;will-change:transform}
+#tut .tc-aim svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;filter:drop-shadow(0 0 5px rgba(255,70,40,.95)) drop-shadow(0 2px 0 rgba(0,0,0,.7));animation:tcSpin 2.4s linear infinite}
+#tut .tc-aim .o{fill:none;stroke:#ff4a2e;stroke-width:6}
+#tut .tc-aim .i{fill:none;stroke:#fff;stroke-width:3.5;stroke-dasharray:12 9}
+#tut .tc-aim .k{stroke:#ff4a2e;stroke-width:7;stroke-linecap:round}
+#tut .tc-aim .c{fill:#fff}
+#tut .tc-aim::after{content:'';position:absolute;inset:-4px;border-radius:50%;border:3px solid rgba(255,120,80,.9);animation:tcLock 1.2s ease-out infinite}
+@keyframes tcSpin{0%{transform:rotate(0) scale(1)}25%{transform:rotate(90deg) scale(.88)}50%{transform:rotate(180deg) scale(1)}75%{transform:rotate(270deg) scale(.88)}100%{transform:rotate(360deg) scale(1)}}
+@keyframes tcLock{0%{opacity:.9;transform:scale(1)}100%{opacity:0;transform:scale(1.7)}}
+#tut .tc-pod{position:absolute;left:50%;top:12px;width:48px;margin-left:-24px;filter:drop-shadow(0 4px 2px rgba(0,0,0,.4))}
+#tut .tc-pod.can{top:22px;width:54px;margin-left:-27px}#tut .tc-pod.orb{width:60px;margin-left:-30px;top:6px}
+#tut .tc-boom{position:absolute;left:50%;top:40px;width:58px;height:58px;margin-left:-29px;opacity:0;overflow:visible}
+#tut .tc-boom path{fill:#fff3a0;stroke:#ff7a1a;stroke-width:3;stroke-linejoin:round}
+#tut .tc-boom circle{fill:#fff}
+#tut .tc-flash{position:absolute;inset:0;opacity:0}
+#tut .ram .tc-flash{background:radial-gradient(circle at 50% 55%,rgba(255,60,40,.55),rgba(255,40,30,.25))}
+#tut .shoot .tc-flash{background:radial-gradient(circle at 50% 30%,rgba(255,240,160,.85),rgba(255,210,80,0) 70%)}
+#tut .tc-mark{position:absolute;right:5px;bottom:5px;width:38px;height:38px;opacity:0;filter:drop-shadow(0 3px 0 rgba(0,0,0,.45))}
+#tut .tc-mark circle{stroke:#fff;stroke-width:3.5}
+#tut .tc-mark path{fill:none;stroke:#fff;stroke-width:5.5;stroke-linecap:round;stroke-linejoin:round}
+#tut .tc-mark.bad circle{fill:#e8262e}#tut .tc-mark.good circle{fill:#27b83a}
+/* ram: fly up into it, burst, bounce back shaken, red X */
+#tut .ram .tp-plane{animation:tcRam 3.2s ease-in infinite}
+@keyframes tcRam{0%{opacity:0;transform:translateY(0)}5%,12%{opacity:1;transform:translateY(0)}40%{opacity:1;transform:translateY(-44px) rotate(0)}44%{transform:translateY(-26px) rotate(-16deg)}50%{transform:translateY(-31px) rotate(11deg)}56%,88%{opacity:1;transform:translateY(-28px) rotate(0)}95%,100%{opacity:0;transform:translateY(-28px)}}
+#tut .ram .tc-pod{animation:tcJolt 3.2s linear infinite}
+@keyframes tcJolt{0%,39.5%{transform:none}41%{transform:translate(-5px,-4px) rotate(-8deg)}44%{transform:translate(4px,1px) rotate(5deg)}48%,100%{transform:none}}
+#tut .ram .tc-boom{top:44px;animation:tcBoom 3.2s ease-out infinite}
+@keyframes tcBoom{0%,39.5%{opacity:0;transform:scale(.2) rotate(0)}41.5%{opacity:1;transform:scale(1.25) rotate(12deg)}50%,100%{opacity:0;transform:scale(1.05) rotate(20deg)}}
+#tut .ram .tc-flash{animation:tcFlash 3.2s ease-out infinite}
+@keyframes tcFlash{0%,40%{opacity:0}42%{opacity:1}58%,100%{opacity:0}}
+#tut .ram .tc-mark{animation:tcStamp 3.2s ease-out infinite}
+@keyframes tcStamp{0%,48%{opacity:0;transform:scale(2.6) rotate(-25deg)}53%{opacity:1;transform:scale(.86) rotate(0)}56%{transform:scale(1)}90%{opacity:1;transform:scale(1)}96%,100%{opacity:0;transform:scale(1)}}
+/* shoot: five hits (it jolts and flashes), then it bursts: planks fly, the loot pops out, green tick */
+#tut .tc-bul{top:96px;animation:tcBul 3.2s linear infinite both;animation-delay:calc(.192s + var(--k) * .192s)}
+@keyframes tcBul{0%{opacity:0;transform:translateY(0)}.6%{opacity:1}5%{opacity:1;transform:translateY(-30px)}5.2%,100%{opacity:0;transform:translateY(-30px)}}
+#tut .shoot .tp-plane{animation:tpBob 1.2s ease-in-out infinite alternate}
+#tut .shoot .tc-pod{animation:tcBreak 3.2s linear infinite}
+@keyframes tcBreak{0%,10.5%{opacity:1;transform:none;filter:none}11%{transform:translate(2px,-3px) rotate(4deg);filter:brightness(1.8)}13%,16.5%{transform:none;filter:none}17%{transform:translate(-3px,-3px) rotate(-5deg);filter:brightness(1.8)}19%,22.5%{transform:none;filter:none}
+  23%{transform:translate(3px,-4px) rotate(5deg);filter:brightness(1.9)}25%,28.5%{transform:none;filter:none}29%{transform:translate(-3px,-4px) rotate(-6deg);filter:brightness(2)}31%,34.5%{transform:none;filter:none}
+  35%{transform:translate(2px,-5px) rotate(7deg) scale(1.08);filter:brightness(2.2)}38%{opacity:1;transform:scale(1.12);filter:brightness(2.4)}41%{opacity:0;transform:scale(1.45);filter:brightness(3)}96%{opacity:0;transform:scale(.4);filter:none}100%{opacity:1;transform:none;filter:none}}
+#tut .shoot .tc-boom{top:18px;animation:tcBoom2 3.2s ease-out infinite}
+@keyframes tcBoom2{0%,37.5%{opacity:0;transform:scale(.2) rotate(0)}40%{opacity:1;transform:scale(1.35) rotate(-10deg)}50%,100%{opacity:0;transform:scale(1.1) rotate(-22deg)}}
+#tut .shoot .tc-flash{animation:tcFlash2 3.2s ease-out infinite}
+@keyframes tcFlash2{0%,38%{opacity:0}41%{opacity:1}62%,100%{opacity:0}}
+#tut .tc-plank{position:absolute;left:50%;top:44px;width:16px;height:6px;margin-left:-8px;border-radius:2px;background:linear-gradient(#e0a060,#8a4a1c);box-shadow:0 1px 0 #3a1a06;opacity:0;animation:tcPlank 3.2s ease-out infinite}
+@keyframes tcPlank{0%,38%{opacity:0;transform:translate(0,0) rotate(0)}40%{opacity:1}58%{opacity:1;transform:translate(var(--dx),var(--dy)) rotate(var(--r))}66%,100%{opacity:0;transform:translate(var(--dx),calc(var(--dy) + 14px)) rotate(var(--r))}}
+#tut .tc-coin{position:absolute;left:50%;top:40px;width:22px;height:22px;margin-left:-11px;background:var(--coin) center/contain no-repeat;filter:drop-shadow(0 2px 0 rgba(0,0,0,.45));opacity:0;animation:tcCoin 3.2s cubic-bezier(.2,.8,.3,1) infinite}
+@keyframes tcCoin{0%,39%{opacity:0;transform:translate(0,6px) scale(.2)}44%{opacity:1;transform:translate(calc(var(--dx) * .6),calc(var(--dy) - 10px)) scale(1.25)}56%{opacity:1;transform:translate(var(--dx),var(--dy)) scale(1)}84%{opacity:1;transform:translate(var(--dx),calc(var(--dy) + 3px)) scale(1)}92%,100%{opacity:0;transform:translate(var(--dx),calc(var(--dy) + 3px)) scale(.8)}}
+#tut .tc-prize{position:absolute;left:50%;top:20px;width:56px;margin-left:-28px;opacity:0;filter:drop-shadow(0 0 8px rgba(255,220,90,.95)) drop-shadow(0 3px 0 rgba(0,0,0,.4));animation:tcPrize 3.2s ease-out infinite}
+@keyframes tcPrize{0%,39%{opacity:0;transform:scale(.2)}45%{opacity:1;transform:translateY(-6px) scale(1.3)}52%,86%{opacity:1;transform:translateY(-4px) scale(1)}93%,100%{opacity:0;transform:translateY(-4px) scale(1)}}
+#tut .shoot .tc-mark{animation:tcStamp2 3.2s ease-out infinite}
+@keyframes tcStamp2{0%,52%{opacity:0;transform:scale(2.6) rotate(-25deg)}57%{opacity:1;transform:scale(.86) rotate(0)}60%{transform:scale(1)}90%{opacity:1;transform:scale(1)}96%,100%{opacity:0;transform:scale(1)}}
 /* ==== end of area B2 ==== */
