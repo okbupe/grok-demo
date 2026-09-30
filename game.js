@@ -720,7 +720,7 @@ Object.assign(SFX, {
   fanfare() { const N = [[392, 0, 0.12], [392, 0.12, 0.12], [392, 0.24, 0.12], [523, 0.36, 0.5], [659, 0.36, 0.5], [784, 0.36, 0.7], [1046, 0.36, 0.9]];
     for (const [f, w, d] of N) { tone(f, d, 0.05, 'sawtooth', w); tone(f, d, 0.06, 'triangle', w); } noise(0.9, 8000, 3000, 0.06, 'highpass', 1, 0.36); },
 });
-function sfx(n, arg) { try { SFX[n](arg); } catch (e) { } }
+function sfx(n, arg) { if (document.hidden) return; try { SFX[n](arg); } catch (e) { } }   // round 13 arena: nothing is queued while the tab is hidden (it would all play at once on return)
 
 // ---------------------------------------------------------------- state
 const S = {};
@@ -958,7 +958,7 @@ function setDrones(n, fromX, fromZ, quiet) {
     // a new drone pops in just outside its slot (pushed away from the squad), big and stretched, then eases in
     const [sx, sz] = SLOTS[wingmen.length] || [0, 2];
     const dl = Math.hypot(sx, sz - 0.05) || 1, ox = sx / dl, oz = (sz - 0.05) / dl;
-    const w = { sprite: s, x: S.px + sx + ox * 1.1, z: sz + oz * 1.1, ox, oz, ph: rand(0, TAU), fireT: rand(0, 0.4), spawn: quiet ? 1 : 0, delay: quiet ? 0 : k * 0.045, hp: 10, max: 10, barT: 0, aim: 0, aimT: 0, plus: !quiet && k < 14 };
+    const w = { sprite: s, x: S.px + sx + ox * 1.1, z: sz + oz * 1.1, ox, oz, ph: rand(0, TAU), fireT: rand(0, 0.4), spawn: quiet ? 1 : 0, delay: quiet ? 0 : k * 0.045, hp: 10, max: 10, barT: 0, aim: 0, aimT: 0, plus: !quiet && k < 3 };   // round 13 arena: a +1 on the first three only (the gate's own +N says the rest; 14 of them buried every other popup)
     s.position.set(w.x, 0.45, w.z); wingmen.push(w);
     if (w.delay > 0) s.visible = false;
     k++;
@@ -984,7 +984,7 @@ function bonusCoins(c, x, y, z, why) {
   if (c <= 0) return;
   S.coins += c; S.lootCoins += c; if (why === 'gate') S.gateCoins = (S.gateCoins || 0) + c;
   if (coinFx.length < 140) spawnCoins('coin', clamp(Math.round(c / 5), 3, 12), c, x, y, z, 0.9); else { S.coinsShown += c; updateLootHud(); }
-  pop('+' + c, x, y + 1.6, z - 2.6, '#ffd84a', 1.25, '#3a1d00', 0.06, true);   // the gold number sits above the coin burst
+  pop('+' + c, x, y + 1.6, z - 2.6, '#ffd84a', 1.25, '#3a1d00', 0.06, true, true);   // the gold number sits above the coin burst (with a coin: never read as drones)
   const L = AUD.bonusCoins || (AUD.bonusCoins = []); if (L.length < 200) L.push({ t: +S.t.toFixed(2), why, coins: c });
 }
 function removeWingman(j) {
@@ -1094,7 +1094,7 @@ function burst(x, z, kind, n) {
     debris.push({ glass, x: x + rand(-0.6, 0.6), y: rand(0.4, 1.6), z: z + rand(-0.4, 0.4), vx: Math.cos(a) * sp, vy: rand(2, 7), vz: Math.sin(a) * sp * 0.7 - 1, rot: rand(0, TAU), vr: rand(-14, 14), sx: glass ? rand(0.25, 0.55) : rand(0.14, 0.24), sz: glass ? rand(0.25, 0.55) : rand(0.5, 1.0), c, t: 0, life: rand(0.7, 1.2) });
   }
 }
-function pop(text, x, y, z, color = '#fff', size = 1, stroke = '#0b2440', delay = 0, comic = false) { pops.push({ text, x, y, z, t: -delay, color, size, stroke, comic }); }
+function pop(text, x, y, z, color = '#fff', size = 1, stroke = '#0b2440', delay = 0, comic = false, coin = false) { pops.push({ text, x, y, z, t: -delay, color, size, stroke, comic, coin }); }   // round 13 arena: coin = a coin in front of the number
 // screen shake (round 13): each event that matters starts its own BURST (CFG.shake.ev: size, length, HUD share).
 // Only things that matter shake: crate/canister thuds, big kills, pickups, gate MAX, Omega, the Queen's death chain.
 // Never normal fire or bullet hits. The bursts live in a fixed pool, so an event never allocates.
@@ -1293,7 +1293,7 @@ function awardKill(type, x, z) {
 }
 function dropLoot(what, x, z) {
   const L = CFG.loot; let c = 0;
-  if (what === 'coins') { const n = Math.round(rand(L.coins[0], L.coins[1])); c = n * 2; spawnCoins('coin', n, c, x, 0.9, z, 1.25); pop('+' + c, x, 2.2, z, '#ffd84a', 1.1, '#3a1d00', 0, true); }
+  if (what === 'coins') { const n = Math.round(rand(L.coins[0], L.coins[1])); c = n * 2; spawnCoins('coin', n, c, x, 0.9, z, 1.25); pop('+' + c, x, 2.2, z, '#ffd84a', 1.1, '#3a1d00', 0, true, true); }
   else if (what === 'gems') { const n = Math.round(rand(L.gems[0], L.gems[1])); S.gems += n; c = L.gemCoins; spawnCoins('gem', n, n, x, 0.9, z, 1.1); spawnCoins('coin', 6, c, x, 0.9, z, 1.1); pop('GEM \u00d7' + n, x, 2.3, z, '#7dffb0', 1.0, '#063a1e', 0, true); sfx('gem'); $('gemBox').classList.remove('hidden'); }
   else { S.diamonds += 1; c = L.diamondCoins; spawnCoins('diamond', 1, 1, x, 0.9, z, 1.0); spawnCoins('coin', 10, c, x, 0.9, z, 1.2); pop('DIAMOND!', x, 2.4, z, '#bff4ff', 1.15, '#0a3a5a', 0, true); sfx('diamond'); $('diaBox').classList.remove('hidden');
     for (let k = 0; k < 40; k++) { const a = rand(0, TAU), sp = rand(2, 7); fx.spawn({ x, y: 0.9, z, vx: Math.cos(a) * sp, vy: rand(1, 4), vz: Math.sin(a) * sp, life: rand(0.4, 0.8), s0: 0.6, s1: 0.1, r: 0.8, g: 0.95, b: 1, a: 1, world: true }); } }
@@ -1908,7 +1908,7 @@ const RES = (() => {
     } else { lastLaunch = L; lastArr = A; }
     const c = coinAt(t); if (c !== shown.c) { shown.c = c; q('r-coinN').textContent = c; }
     const d = P.D - L; if (d !== shown.d) { shown.d = d; q('r-droneN').textContent = d; if (d === 0 && P.D > 0) cls('r-drones', 'empty'); }
-    while (ei < P.ev.length && P.ev[ei].at <= t) P.ev[ei++].fn(skipped);
+    while (ei < P.ev.length && P.ev[ei].at <= t) { const e = P.ev[ei++]; e.fn(skipped || t - e.at > 300); }   // round 13 arena: beats caught up after a background are silent
     bump *= 0.86; dBump *= 0.84;
     q('r-coinN').style.transform = `scale(${(1 + bump).toFixed(3)})`; q('r-coinico').style.transform = `scale(${(1 + bump * 0.7).toFixed(3)}) rotate(${(bump * 40).toFixed(1)}deg)`;
     q('r-droneN').style.transform = `scale(${(1 + dBump).toFixed(3)})`;
@@ -2550,8 +2550,8 @@ function update(dt) {
     S.laserT -= dt; sfx('laser');
     if (AUD.firstShotT < 0) AUD.firstShotT = +S.t.toFixed(3);
     while (S.laserT <= 0) {
-      S.laserT += 0.05;
-      const tick = T.beamDps * 0.05;
+      S.laserT += 0.05 / WSM.rate;   // round 13 arena: the Workshop reaches the Saber Beam: Fire Rate pulses it faster, Damage hits harder
+      const tick = T.beamDps * 0.05 * WSM.dmg;
       for (const tg of targets) {
         const t = tg[0]; if (!alive(t, tg[1])) continue;
         if (t.z > z0 || t.z < RANGE_Z || Math.abs(t.x - S.px) > tg[2] * 0.6 + hw) continue;
@@ -2997,8 +2997,9 @@ function updateQueen(dt, dz) {
     if (b.t > b.chain.end) {
       explode(b.x, 1.5, b.z, 4.4, true, [0.75, 0.1, 0.08]); addShake('bossFinal'); buzz([140, 60, 260]); flashRed = 0; omegaFlash = 0.5;
       AUD.bossChain.push({ t: +b.t.toFixed(2), size: 4.4, shake: CFG.shake.ev.bossFinal[0], final: true });
-      S.coins += CFG.coins.queen; S.killCoins += CFG.coins.queen; S.killsBy.queen = 1; AUD.coins.queen = CFG.coins.queen; S.kills++;
-      spawnCoins('coin', 40, CFG.coins.queen, b.x, 1.5, b.z, 1.6);
+      const qc = Math.round(CFG.coins.queen * WSM.rev);   // round 13 arena: the Workshop's Revenue pays on the boss too
+      S.coins += qc; S.killCoins += qc; S.killsBy.queen = 1; AUD.coins.queen = qc; S.kills++;
+      spawnCoins('coin', 40, qc, b.x, 1.5, b.z, 1.6);
       scene.remove(b.sprite); boss = null; slowmo = 1; $('bossbar').classList.add('hidden');
       for (const s of bugs) { explode(s.x, 0.4, s.z, 0.8, false); scene.remove(s.sprite); }
       bugs = []; drops = []; acids = [];
@@ -3127,6 +3128,14 @@ function onSprite(s, fx_, fy) {
 }
 // chunky comic text (Luckiest Guy, vendored in fonts/): thick dark outline, gold (or tinted) gradient fill
 const COMIC = 'LuckiestG, Lilita, ' + FONT;
+// round 13 arena: a gold comic number with a coin in front of it, so a coin reward never reads as drones
+function comicCoin(s, x, y, size) {
+  ctx.font = `${size}px ${COMIC}`; const tw = ctx.measureText(s).width, d = size * 0.95, gap = size * 0.12, x0 = x - (d + gap + tw) / 2;
+  ctx.drawImage(LOOT_IMG.coin, x0, y - d * 0.52, d, d); comic(s, x0 + d + gap + tw / 2, y, size);
+}
+// round 13 arena: the pilot's reward label says what you will really get: the drones that fit, or (squad full) the coins
+let labelCoin = false;
+function droneLabel(n) { const room = MAXD - S.drones; labelCoin = room <= 0; return labelCoin ? '+' + n * CFG.droneOverflowCoin : '+' + Math.min(n, room); }
 function comic(s, x, y, size, color = '#ffd84a', stroke = '#3a1d00') {
   ctx.font = `${size}px ${COMIC}`; ctx.lineJoin = 'round'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.lineWidth = Math.max(3, size * 0.32); ctx.strokeStyle = stroke; ctx.strokeText(s, x, y + size * 0.07);
@@ -3312,7 +3321,8 @@ function drawOverlay() {
     if (c.stage < 2 && c.state !== 'leave') {
       const [x, y, u] = onSprite(c.sprite, 0.5, 0.79);
       txt(String(Math.max(0, Math.ceil(c.hp))), x, y, Math.max(15, u * 0.8), '#fff', '#2a1200', 0.22);
-      const [bx, by] = onSprite(c.sprite, 1.12, 0.5); comic('+' + c.reward.drones, bx + u * 0.35, by, Math.max(16, u * 0.8));
+      const [bx, by] = onSprite(c.sprite, 1.12, 0.5), lab = droneLabel(c.reward.drones), fs = Math.max(16, u * 0.8);
+      if (labelCoin) comicCoin(lab, bx + u * 0.35 + fs * 0.5, by, fs); else comic(lab, bx + u * 0.35, by, fs);
     }
     const K = c.carrier;
     if (K.alive && K.barT > 0) { const u = unitPx(K.x, 1.2, K.z); const [x, y] = onSprite(K.sprite, 0.5, 0.02); lifeBar(x, y - 4, u * 1.3, Math.max(3, u * 0.13), K.hp / K.max, Math.min(1, K.barT / 0.35)); }
@@ -3368,11 +3378,11 @@ function drawOverlay() {
   }
   for (const p of pops) {
     if (p.t < 0) continue;
-    const [x, y] = toScreen(p.x, p.y, p.z); const k = p.t / 1.1;
+    const [x0, y] = toScreen(p.x, p.y, p.z), k = p.t / 1.1, x = clamp(x0, p.coin ? 64 : 40, W - (p.coin ? 64 : 40));   // round 13 arena: never cut by the screen edge
     ctx.globalAlpha = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
     if (p.comic) {   // chunky comic pop: overshoot in, then float up
       const sc = p.size * (k < 0.18 ? easeBack(k / 0.18) * 1.1 : 1.1 - Math.min(0.12, (k - 0.18) * 0.3));
-      comic(p.text, x, y - k * 46, 30 * sc, p.color, p.stroke); ctx.globalAlpha = 1; continue;
+      if (p.coin) comicCoin(p.text, x, y - k * 46, 30 * sc); else comic(p.text, x, y - k * 46, 30 * sc, p.color, p.stroke); ctx.globalAlpha = 1; continue;
     }
     const sc = p.size * (k < 0.15 ? 0.6 + k / 0.15 * 0.6 : 1.2 - Math.min(0.2, (k - 0.15)));
     txt(p.text, x, y - k * 50, 30 * sc, p.color, p.stroke, 0.2); ctx.globalAlpha = 1;

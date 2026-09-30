@@ -317,10 +317,10 @@ function openPanel(id) {
   m.className = 'p-' + id; m.querySelector('.m-title').textContent = TITLES[id];
   body.innerHTML = PANELS[id](); body.scrollTop = 0; cur = id;
   if (WIRE[id]) WIRE[id](body);
-  void m.offsetWidth; m.classList.add('in'); sfx('whoosh');
+  void m.offsetWidth; m.classList.add('in'); sfx('whoosh'); $('start').classList.add('m-open');
 }
 function closePanel() {
-  if (!cur) return; const m = $('meta'); cur = null; m.classList.remove('in'); m.classList.add('out'); sfx('whooshDown');
+  if (!cur) return; const m = $('meta'); cur = null; m.classList.remove('in'); m.classList.add('out'); sfx('whooshDown'); $('start').classList.remove('m-open');
   closing = setTimeout(() => { if (!cur) { m.className = 'hidden'; m.querySelector('.m-body').innerHTML = ''; } }, 280);
   refreshTitle();
 }
@@ -383,7 +383,7 @@ const PANELS = {
         <radialGradient id="bsGlow"><stop offset="0" stop-color="#fffbe0"/><stop offset=".22" stop-color="#ffe27a" stop-opacity=".95"/><stop offset="1" stop-color="#ffd24a" stop-opacity="0"/></radialGradient>
         <linearGradient id="bsBeam" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff6c8" stop-opacity=".85"/><stop offset="1" stop-color="#fff6c8" stop-opacity="0"/></linearGradient></defs>
       <rect y="-160" width="320" height="464" fill="url(#bsSky)"/>${stars}
-      <circle cx="66" cy="96" r="20" fill="#fff3c8"/><circle cx="76" cy="89" r="17.5" fill="#18215c"/>
+      <mask id="bsMoon"><rect x="0" y="-160" width="320" height="464" fill="#fff"/><circle cx="76" cy="89" r="17.5" fill="#000"/></mask><circle cx="66" cy="96" r="20" fill="#fff3c8" mask="url(#bsMoon)"/>
       <g class="bs-beam"><path d="M248 116 L420 88 L420 146 Z" fill="url(#bsBeam)"/></g>
       <path d="M0 286 Q40 262 86 276 Q132 252 184 272 Q236 256 270 272 Q298 262 320 270 V304 H0 Z" fill="#141c48"/>
       <path d="M0 302 H320 V420 H0 Z" fill="#0a1030"/>

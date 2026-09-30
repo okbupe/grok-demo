@@ -511,7 +511,7 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-acti
 
 /* ==== round 13, area B2: the new picture tutorials (gates, canisters). Only area B2 edits between these markers. ==== */
 /* Both cards are two little sky pictures side by side (.tp-panel), in the same dark card as the round 12 explainers. */
-#tut .tp-card{padding:10px 10px 7px;gap:5px}
+#tut .tp-card{padding:10px 10px 7px;gap:5px;background:rgba(8,14,34,.94)}   /* round 13 arena: the world behind (the next gate's number) no longer reads through the picture card */
 #tut .tp-row{position:relative;display:flex;gap:12px}
 #tut .tp-panel{position:relative;width:122px;height:148px;border-radius:12px;overflow:hidden;
   background:linear-gradient(#4f93dc,#8fc1ec 62%,#c2dcef);box-shadow:inset 0 0 0 2px rgba(255,255,255,.5),inset 0 -20px 26px rgba(255,255,255,.28)}
