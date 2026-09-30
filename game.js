@@ -60,7 +60,7 @@ const CFG = {
   droneHug: 0.16,      // how much of a drone may tuck under the main plane's silhouette (0..1); slots hug the real art
   droneHugPad: 1,      // extra clearance (mask pixels) kept between drone and plane silhouettes
   // --- gates
-  gateMax: 1000, gateGrow: 0.40,   // round 12: +40% size at MAX, linear from 0
+  gateMax: 1000, gateGrow: 0.5,    // round 13: +50% size at MAX (Bupé), linear from 0
   gateOverflowCoin: 0.05,   // round 13: no wasted gates: each gate point above the free squad room pays this many coins (MAX, full squad = 50)
   // --- weapons
   bulletReach: 0.88,   // bullets fade out at this fraction of the screen height (from the bottom); round 8: 0.75 -> 0.88
@@ -80,19 +80,31 @@ const CFG = {
   swipeMinPx: 55, swipeMaxMs: 300, swipeMinV: 0.45, swipeRatio: 2.2, swipeMaxPathX: 34,
   // round 12 bullet time: ease in over inS, out over outS, down to slow x game speed; dim = brightness of everything but the plane
   bt: { inS: 0.7, outS: 0.5, slow: 0.03, dim: 0.3, uiDim: 0.5, zoom: [0.05, 0.035, 0.1], botDelay: 1.4 },
-  // --- screen shake (round 6): trauma model. Events add trauma (0..1), shake = trauma^2, trauma decays fast.
-  // Offsets come from smooth noise plus a little roll, applied to the cameras with parallax: the ground layer
-  // moves most, the cloud layer less, the gameplay layer (plane, squad, Xora) slightly. The HUD never shakes,
-  // except during the Omega Beam, when it rumbles with the world.
+  // --- screen shake (round 13): per-event BURSTS, calibrated to the results star thud (CSS shkBig: the card jerks
+  // about 10 to 14 px, swings back and forth and settles in 0.45 s). Every event starts its own burst: a hard first
+  // jolt, then swings that alternate direction (swing Hz), each smaller than the last on an attack/decay envelope,
+  // with a fine tremor on top so it reads as a burst of vibration. Bursts add up (capped at maxPx). Sizes are in
+  // CSS px on the GAMEPLAY layer (plane, squad, Xora: where the eye is); the earth moves more (parallax: ground and
+  // clouds are multiples of it, the ground also rolls). The HUD stays still, except during the Omega Beam (a
+  // continuous earthquake under everything, HUD included) and a small jolt on the boss's final blast.
   shake: {
-    decay: 2.7,          // trauma lost per second (a 0.85 burst is calm again in ~0.3 s)
-    ground: 34,          // max ground offset in CSS px at shake = 1
-    clouds: 0.6, game: 0.3,   // layer factors relative to the ground
-    roll: 0.045,         // max roll (radians) at shake = 1 (ground layer; other layers scale by their factor)
-    freq: 16, rumbleFreq: 24,   // noise speed (Hz) for bursts and for the Omega rumble
-    omegaRumble: 0.78,   // trauma floor held for the whole Omega Beam (earthquake)
-    hud: 9,              // HUD rumble during Omega only (CSS px at shake = 1)
-    add: { pickup: 0.4, medium: 0.6, gateMax: 0.4, thud: 0.9, omega: 0.85, omegaEnd: 0.95, bomb: 0.62, bossFinal: 1.0, death: 0.9, stomp: 0.8, star: 0.62 },
+    swingHz: 7,          // back-and-forth swings per second (shkBig swings at about 7.4 Hz)
+    snap: 0.4,           // fraction of each swing spent moving (the rest holds at the extreme, so each swing is a jerk)
+    attack: 0.025,       // s to reach the first peak
+    decayPow: 1.25,      // envelope (1 - t/dur)^decayPow, sampled at each swing
+    tremor: 0.12,        // fine high-frequency vibration on top of the swings (fraction of the envelope)
+    tremorHz: 34,
+    ground: 2.2, clouds: 1.5,   // layer factors relative to the gameplay layer (the earth moves more than the plane)
+    roll: 0.0032,        // ground roll in radians per px of gameplay offset (clouds half of it, gameplay a tenth)
+    maxPx: 24,           // cap on the summed gameplay offset
+    // the Omega Beam earthquake: a fresh jolt hz times a second to a random point 0.65 to 1 of the size away (jerking
+    // there in `snap` of the step, then holding), for its whole length (it follows S.omegaT), easing in over rumbleIn s
+    // and out over rumbleOut s. game = gameplay px, hud = HUD px.
+    rumble: { game: 10, hud: 9.5, hz: 20, snap: 0.35, rumbleIn: 0.08, rumbleOut: 0.18 },
+    // per event: [gameplay px at the first peak, duration s, HUD px (0 = the HUD stays still)]
+    ev: { thud: [13.5, 0.46, 0], medium: [6.5, 0.34, 0], pickup: [3, 0.24, 0], gateMax: [4.5, 0.3, 0], omega: [11, 0.4, 0], omegaEnd: [15, 0.55, 0],
+      bomb: [12, 0.3, 0], bossFinal: [19, 0.8, 4.5], death: [15, 0.6, 0], stomp: [10, 0.45, 0], star: [6, 0.3, 0] },
+    decay: 2.7, omegaRumble: 0,   // round 13: inert, only read by the old trauma lines at the end of update(), which no longer drive the shake
   },
   // --- coins per Xora killed (by type) and loot inside crates
   coins: { spider: 1, redspider: 1, wasp: 2, brute: 5, beetle: 12, spitter: 12, carrier: 6, queen: 300 },
@@ -139,6 +151,20 @@ let BOT_Z = 3.2;             // world z of the bottom edge of the screen (comput
 const renderer = new THREE.WebGLRenderer({ canvas: glc, antialias: true, powerPreference: 'high-performance' });
 renderer.setClearColor(0xb8d3e8);
 renderer.autoClear = false;
+// round 13: a lost WebGL context must never leave a blank screen. On loss: preventDefault (so the browser may give it
+// back) and wait. On restore: Three.js rebuilds its GL state and re-uploads textures and buffers itself (sizes and
+// cameras live in JS and stay valid); we drop the bullet-time target, which is rebuilt on demand (not disposed: its GL
+// objects died with the old context). If no restore comes while the page is visible, reload.
+let glLostTimer = 0;
+glc.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault(); clearTimeout(glLostTimer); AUD.glLost = (AUD.glLost || 0) + 1;
+  const wait = () => { glLostTimer = setTimeout(() => { if (!renderer.getContext().isContextLost()) return; if (document.hidden) wait(); else location.reload(); }, 5000); };
+  wait();
+}, false);
+glc.addEventListener('webglcontextrestored', () => {
+  clearTimeout(glLostTimer); AUD.glRestored = (AUD.glRestored || 0) + 1;
+  btRT = null; btMat.uniforms.tDiffuse.value = null;
+}, false);
 const world = new THREE.Scene();   // far ground and smoke columns (wide camera)
 const cloudScene = new THREE.Scene();   // far clouds: same wide view, its own camera so it can shake less than the ground
 const scene = new THREE.Scene();   // gameplay (steep tele camera)
@@ -179,6 +205,32 @@ const T_TRACER = canvasTex(32, 128, (g, w, h) => {
   const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
   g.fillStyle = gr; g.beginPath(); g.ellipse(w / 2, h / 2, w / 2 - 2, h / 2 - 1, 0, 0, TAU); g.fill();
 }, false);
+// round 13: SOLID bullets (Bupé: the old ones looked "like shooting feathers"). Each tier is one fully opaque round,
+// baked in colour: a dark outline, a saturated body shaded like a cylinder, a bright hot core at the head and a short
+// tail that tapers and fades. The head is at the top of the canvas (forward). Drawn with a white tint.
+function bulletTex(edge, rim, body, core) {
+  return canvasTex(64, 224, (g, w, h) => {
+    const c = w / 2, r = 22, hy = 30, tail = h - 6, sy = 96;   // round head, straight sides down to sy, then a tapered tail
+    const shape = (rr) => { g.beginPath(); g.arc(c, hy, rr, Math.PI, 0); g.lineTo(c + rr, sy); g.bezierCurveTo(c + rr, sy + 50, c + rr * 0.22, tail - 30, c, tail);
+      g.bezierCurveTo(c - rr * 0.22, tail - 30, c - rr, sy + 50, c - rr, sy); g.closePath(); };
+    g.lineJoin = 'round'; shape(r); g.fillStyle = edge; g.fill(); g.lineWidth = 6; g.strokeStyle = edge; g.stroke();   // the outline
+    const gb = g.createLinearGradient(c - r, 0, c + r, 0);   // body: darker rim, bright middle (a round slug, not a flat dash)
+    gb.addColorStop(0, rim); gb.addColorStop(0.3, body); gb.addColorStop(0.55, core); gb.addColorStop(0.8, body); gb.addColorStop(1, rim);
+    shape(r - 5); g.fillStyle = gb; g.fill();
+    const gc = g.createRadialGradient(c, hy - 2, 1, c, hy + 4, r * 0.95);   // the hot core at the head
+    gc.addColorStop(0, '#ffffff'); gc.addColorStop(0.45, core); gc.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gc; g.beginPath(); g.ellipse(c, hy + 4, r * 0.62, r * 0.95, 0, 0, TAU); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.ellipse(c - r * 0.3, hy - r * 0.35, 4, 6, -0.5, 0, TAU); g.fill();   // glint
+    g.globalCompositeOperation = 'destination-in';   // the tail tapers out: opaque down to 50%, then fades
+    const gt = g.createLinearGradient(0, 0, 0, h); gt.addColorStop(0, '#000'); gt.addColorStop(0.5, '#000'); gt.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gt; g.fillRect(0, 0, w, h);
+  });
+}
+const T_BULLET = [
+  bulletTex('#5a2600', '#e88a00', '#ffc81a', '#fff6b0'),   // standard: gold
+  bulletTex('#4a0a00', '#c8300a', '#ff5a14', '#ffd9a0'),   // orange rounds: hot red-orange
+  bulletTex('#041a4a', '#1552d8', '#2f96ff', '#dff4ff'),   // blue rounds
+];
 const T_RING = canvasTex(128, 128, (g, w, h) => radial(g, w, h, [[0, 'rgba(255,255,255,0)'], [0.72, 'rgba(255,255,255,0)'], [0.86, 'rgba(255,255,255,1)'], [1, 'rgba(255,255,255,0)']]), false);
 const T_ROCKET = canvasTex(48, 144, (g, w, h) => {
   const c = w / 2;
@@ -330,7 +382,7 @@ function setupWorld() {
   world.add(ground);
   worldFx = new Particles(40, THREE.AdditiveBlending, T_GLOW, 6, world);
   flats = new FlatBatch(T_STRIP, 8, THREE.AdditiveBlending, 1);
-  bulletsB = new FlatBatch(T_TRACER, 1400, THREE.NormalBlending, 4.9);   // tier colour body (reads on a bright sky)
+  bulletsB = new FlatBatch(T_BULLET[0], 1400, THREE.NormalBlending, 4.9);   // round 13: solid baked rounds, the map follows the tier
   tracers = new FlatBatch(T_TRACER, 1600, THREE.AdditiveBlending, 5);    // hot cores, stingers, shells
   beamsN = new FlatBatch(T_BEAM, 4, THREE.NormalBlending, 4.9);
   beams = new FlatBatch(T_BEAM, 8, THREE.AdditiveBlending, 5);
@@ -727,10 +779,12 @@ function computeSlots() {
 }
 
 // bullet tiers, Last War style: standard -> ORANGE -> BLUE. Each power pickup swaps every round in the air at once.
+// round 13: every tier is a solid baked round (T_BULLET[tier]); col is its body colour, core its hot core (muzzle
+// flashes and hit sparks). Rounds a little bigger than round 12; rate, damage and range unchanged.
 const TIERS = [
-  { name: 'STANDARD GUN', col: [1, 0.9, 0.5], core: [1, 0.95, 0.75], dmg: 3, rate: 9, w: 0.24, len: 1.45, twin: false, dDmg: 1, hud: '#ffe9a0', beam: [1, 0.85, 0.4], beamDps: 60 },
-  { name: 'ORANGE ROUNDS', col: [1, 0.45, 0.05], core: [1, 0.8, 0.45], dmg: 5, rate: 11, w: 0.34, len: 1.8, twin: true, dDmg: 2, hud: '#ffa040', beam: [1, 0.45, 0.1], beamDps: 90 },
-  { name: 'BLUE ROUNDS', col: [0.12, 0.5, 1], core: [0.75, 0.92, 1], dmg: 8, rate: 13, w: 0.44, len: 2.15, twin: true, dDmg: 3, hud: '#7cc4ff', beam: [0.25, 0.6, 1], beamDps: 130 },
+  { name: 'STANDARD GUN', col: [1, 0.78, 0.1], core: [1, 0.93, 0.6], dmg: 3, rate: 9, w: 0.32, len: 1.55, twin: false, dDmg: 1, hud: '#ffe9a0', beam: [1, 0.85, 0.4], beamDps: 60 },
+  { name: 'ORANGE ROUNDS', col: [1, 0.35, 0.08], core: [1, 0.8, 0.45], dmg: 5, rate: 11, w: 0.38, len: 1.85, twin: true, dDmg: 2, hud: '#ffa040', beam: [1, 0.45, 0.1], beamDps: 90 },
+  { name: 'BLUE ROUNDS', col: [0.18, 0.59, 1], core: [0.75, 0.92, 1], dmg: 8, rate: 13, w: 0.46, len: 2.2, twin: true, dDmg: 3, hud: '#7cc4ff', beam: [0.25, 0.6, 1], beamDps: 130 },
 ];
 const T_ = () => TIERS[S.tier];
 function updateWeaponHud() {
@@ -1039,20 +1093,50 @@ function burst(x, z, kind, n) {
   }
 }
 function pop(text, x, y, z, color = '#fff', size = 1, stroke = '#0b2440', delay = 0, comic = false) { pops.push({ text, x, y, z, t: -delay, color, size, stroke, comic }); }
-// screen shake (round 6): impulse bursts on a trauma value; the visible shake is trauma^2 and decays fast.
+// screen shake (round 13): each event that matters starts its own BURST (CFG.shake.ev: size, length, HUD share).
 // Only things that matter shake: crate/canister thuds, big kills, pickups, gate MAX, Omega, the Queen's death chain.
+// Never normal fire or bullet hits. The bursts live in a fixed pool, so an event never allocates.
+const SHK = [];
+for (let i = 0; i < 12; i++) SHK.push({ on: false, t: 0, a: 0, d: 0, h: 0, th: 0, sd: 0 });
 function addShake(kind, mul = 1) {
-  const a = (CFG.shake.add[kind] || 0.4) * mul;
-  trauma = Math.min(1, Math.max(trauma + a * 0.35, a));
-  const pk = +(trauma * trauma).toFixed(3), A = AUD.shakes[kind] || (AUD.shakes[kind] = { n: 0, peak: 0 });
-  A.n++; A.peak = Math.max(A.peak, pk);
-  if (AUD.shakeLog.length < 400) AUD.shakeLog.push([+S.t.toFixed(2), kind, pk]);
+  const E = CFG.shake.ev[kind] || CFG.shake.ev.pickup, a = E[0] * mul;
+  if (!(a > 0.05)) return;
+  let s = null, least = 1e9;
+  for (const o of SHK) {   // a free slot, else the burst with the least left
+    if (!o.on) { s = o; break; }
+    const left = o.a * Math.pow(Math.max(0, 1 - o.t / o.d), CFG.shake.decayPow); if (left < least) { least = left; s = o; }
+  }
+  // the first jolt goes down (an impact pushes the view down), up to about 50 degrees either side; later swings alternate
+  s.on = true; s.t = 0; s.a = a; s.d = E[1]; s.h = E[2] * mul; s.sd = Math.random() * 997; s.th = Math.PI / 2 + rand(-0.85, 0.85);
+  const A = AUD.shakes[kind] || (AUD.shakes[kind] = { n: 0, peak: 0 });
+  A.n++; A.peak = Math.max(A.peak, +a.toFixed(2));
+  // round 13: [game time, kind, gameplay px at the first peak, real time ms] (the real time lines events up with AUD.shk frames)
+  if (AUD.shakeLog.length < 400) AUD.shakeLog.push([+S.t.toFixed(2), kind, +a.toFixed(2), Math.round(performance.now())]);
 }
-// smooth 1D value noise in [-1, 1] (one channel per seed)
+// round 13: hash and smooth 1D value noise in [-1, 1] (one channel per seed), with no closures (no per-call allocation)
+function hash1(n) { const x = Math.sin(n * 127.1) * 43758.5453; return (x - Math.floor(x)) * 2 - 1; }
 function vnoise(t, s) {
   const i = Math.floor(t), f = t - i, u = f * f * (3 - 2 * f);
-  const h = (n) => { const x = Math.sin(n * 127.1 + s * 311.7) * 43758.5453; return (x - Math.floor(x)) * 2 - 1; };
-  return lerp(h(i), h(i + 1), u);
+  return lerp(hash1(i + s * 2.4537), hash1(i + 1 + s * 2.4537), u);
+}
+// one burst at its age: swing j starts at j half-periods and jerks (smoothstep over `snap` of the swing, `attack` for the
+// first) from the last swing's point to its own, then holds there. Swing points alternate sign along an axis that turns a
+// little each swing; their size follows the envelope. Writes the offset (gameplay px) to SHK_O.bx/by.
+const SHK_O = { bx: 0, by: 0, px: 0, py: 0 };
+function swingPt(s, j) {
+  const C = CFG.shake, k = j * 0.5 / C.swingHz / s.d;
+  if (j < 0 || k >= 1) { SHK_O.px = 0; SHK_O.py = 0; return; }
+  const e = s.a * Math.pow(1 - k, C.decayPow) * (j & 1 ? -1 : 1), an = s.th + hash1(s.sd + j * 7.13) * 0.45;
+  SHK_O.px = Math.cos(an) * e; SHK_O.py = Math.sin(an) * e;
+}
+function burstAt(s) {
+  const C = CFG.shake, hp = 0.5 / C.swingHz, j = Math.floor(s.t / hp), u = s.t - j * hp;
+  const mv = j === 0 ? C.attack : C.snap * hp, f0 = clamp(u / mv, 0, 1), f = f0 * f0 * (3 - 2 * f0);
+  swingPt(s, j - 1); const x0 = SHK_O.px, y0 = SHK_O.py;
+  swingPt(s, j); SHK_O.bx = lerp(x0, SHK_O.px, f); SHK_O.by = lerp(y0, SHK_O.py, f);
+  const env = s.t < s.d ? s.a * Math.pow(1 - s.t / s.d, C.decayPow) * Math.min(1, s.t / C.attack) : 0;
+  if (env > 0) { const ph = s.t * C.tremorHz + s.sd; SHK_O.bx += vnoise(ph, 1) * env * C.tremor; SHK_O.by += vnoise(ph, 2) * env * C.tremor; }
+  if (j * hp >= s.d && f0 >= 1) s.on = false;   // back at rest after the last swing
 }
 // phone vibration on big thuds, Omega and the boss explosions (only after a user gesture; always guarded)
 let userGestured = false, buzzLast = 0;
@@ -1096,7 +1180,7 @@ function killBug(s, i) {
   const B = BUG[s.type];
   if (i < 0 || bugs[i] !== s) { i = bugs.indexOf(s); if (i < 0) return; }
   explode(s.x, 0.4, s.z, B.big ? 1.6 : s.type === 'beetle' ? 1.7 : s.elite ? 1.3 : 0.85, true, s.type === 'spitter' ? [0.4, 0.95, 0.2] : [0.75, 0.1, 0.08]);
-  if (B.big || s.elite) addShake('medium');
+  if (B.big || s.elite) { addShake('medium'); buzz(22); }   // round 13: about half a crate thud
   scene.remove(s.sprite); bugs.splice(i, 1); S.kills++;
   { const y = toScreen(s.x, 0.3, s.z)[1] / H, A = AUD.deathY || (AUD.deathY = { n: 0, sum: 0, hist: new Array(10).fill(0) }); if (y >= 0 && y <= 1) { A.n++; A.sum += y; A.hist[Math.min(9, Math.floor(y * 10))]++; A.mean = +(A.sum / A.n).toFixed(3); } }
   awardKill(s.src === 'carrier' ? 'carrier' : s.type, s.x, s.z);
@@ -1111,7 +1195,7 @@ function breakPod(p, i) {
   if (k === 'orb') { burst(p.x, p.z, 'glass', 36); sfx('glass'); explode(p.x, 0.9, p.z, 1.4, false); }
   else if (k === 'can') { burst(p.x, p.z, 'metal', 16); explode(p.x, 1, p.z, 1.6, true, [0.6, 0.62, 0.66]); }
   else { burst(p.x, p.z, 'wood', 26); sfx('wood'); sfx('thud'); explode(p.x, 0.8, p.z, 1.3, false); }
-  addShake('thud'); buzz(45);   // round 6: breaking a crate, canister or power box lands like the Mission Complete star thud
+  addShake('thud'); buzz(55);   // round 13: breaking a crate, canister or power box jolts the whole scene like the results star thud
   scene.remove(p.sprite); pods.splice(i, 1);
   giveReward(p.reward, p.x, p.z);
 }
@@ -1313,9 +1397,17 @@ function btUpdate(rdt) {
   const C = CFG.bt; BT.p = clamp(BT.p + (BT.on ? rdt / C.inS : -rdt / C.outS), 0, 1);
   const e = BT.p * BT.p * (3 - 2 * BT.p); BT.k = e; BT.s = 1 + (C.slow - 1) * e;
   if (BT.p <= 0) BT.anchor = null;
-  const f = BT.k > 0.002 ? `grayscale(${e.toFixed(3)}) brightness(${(1 - (1 - C.uiDim) * e).toFixed(3)})` : '';
-  if (uic.style.filter !== f) uic.style.filter = f;
+  // round 13: the overlay is no longer greyed as a whole with a CSS filter; drawOverlay greys the world items in place
+  // (btGreyPass) and then draws the plane's own items in colour
   if (BT.k > 0.5 && AUD.btMin > BT.s) AUD.btMin = +BT.s.toFixed(3);
+}
+// round 13: the grey used on the overlay's world items (the same greyscale and dim as the old CSS filter), cached
+let btFilterStr = 'none', btFilterK = -1;
+function btGreyPass() {
+  const k = Math.round(BT.k * 100);
+  if (k !== btFilterK) { btFilterK = k; btFilterStr = `grayscale(${k / 100}) brightness(${(1 - (1 - CFG.bt.uiDim) * k / 100).toFixed(3)})`; }
+  // one filtered copy of the canvas onto itself: everything drawn so far turns grey in a single pass
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'copy'; ctx.filter = btFilterStr; ctx.drawImage(uic, 0, 0); ctx.restore();
 }
 const _btSz = new THREE.Vector2(); let btRT = null;
 const btMat = new THREE.ShaderMaterial({
@@ -1332,14 +1424,25 @@ const btScene = new THREE.Scene(); btScene.add(btQuad); const btCam = new THREE.
 function renderScenes() {
   if (BT.k > 0.002 && planeSprite) {
     renderer.getDrawingBufferSize(_btSz);
-    if (!btRT || btRT.width !== _btSz.x || btRT.height !== _btSz.y) { if (btRT) btRT.dispose(); btRT = new THREE.WebGLRenderTarget(_btSz.x, _btSz.y, { type: THREE.HalfFloatType, samples: 4 }); btMat.uniforms.tDiffuse.value = btRT.texture; }
+    // round 13: an 8-bit sRGB target with no MSAA and no depth or stencil buffer (about 5 MB at 390x844 DPR 2, was a
+    // half-float 4x MSAA target with depth, about 75 MB); every world layer here is flat sprites, so it needs neither
+    if (!btRT || btRT.width !== _btSz.x || btRT.height !== _btSz.y) {
+      if (btRT) btRT.dispose();
+      btRT = new THREE.WebGLRenderTarget(_btSz.x, _btSz.y, { depthBuffer: false, stencilBuffer: false, samples: 0, colorSpace: THREE.SRGBColorSpace });
+      btMat.uniforms.tDiffuse.value = btRT.texture; AUD.btTargets = (AUD.btTargets || 0) + 1; AUD.btTarget = { w: _btSz.x, h: _btSz.y, bytes: _btSz.x * _btSz.y * 4 };
+    }
     btMat.uniforms.k.value = BT.k; btMat.uniforms.dim.value = CFG.bt.dim;
     renderer.setRenderTarget(btRT); renderer.clear(); renderer.render(world, wcam); renderer.render(cloudScene, ccam); renderer.clearDepth();
     camera.layers.set(0); renderer.render(scene, camera);
     renderer.setRenderTarget(null); renderer.clear(); renderer.render(btScene, btCam);
+    // layer 1 in full colour: the plane and its own effects (planeFx). round 13: the plane is drawn fully opaque here,
+    // because its hit flicker freezes in slow motion, and a half see-through plane over the grey world reads as a grey plane
+    const op = planeSprite.material.opacity; planeSprite.material.opacity = 1;
     renderer.clearDepth(); camera.layers.set(1); renderer.render(scene, camera); camera.layers.enableAll();
+    planeSprite.material.opacity = op;
     return;
   }
+  if (btRT) { btRT.dispose(); btRT = null; btMat.uniforms.tDiffuse.value = null; AUD.btFreed = (AUD.btFreed || 0) + 1; }   // round 13: freed once bullet time has eased out
   renderer.clear(); renderer.render(world, wcam); renderer.render(cloudScene, ccam); renderer.clearDepth(); renderer.render(scene, camera);
 }
 
@@ -2395,9 +2498,10 @@ function update(dt) {
     b.z = nz; b.x = nx;
     if (b.z <= RANGE_Z || b.z > 6 || Math.abs(b.x) > 9) { shots.splice(i, 1); continue; }
     const fade = clamp((b.z - RANGE_Z) / 4, 0.2, 1), rot = (b.vx || b.vz > 0) ? Math.atan2(-b.vx, -b.vz) : 0, y = b.drone ? 0.45 : 0.5;
-    bulletsB.add(b.x, y, b.z, b.w, b.len, rot, T.col[0], T.col[1], T.col[2]);
-    tracers.add(b.x, y + 0.02, b.z, b.w * 0.4, b.len * 0.7, rot, T.core[0] * fade * 0.8, T.core[1] * fade * 0.8, T.core[2] * fade * 0.8);
+    // round 13: one solid, opaque round per bullet (no pale additive core washing it out); it shrinks away at the range limit
+    const sz = 0.55 + 0.45 * fade; bulletsB.add(b.x, y, b.z, b.w * sz, b.len * sz, rot, 1, 1, 1);
   }
+  { const m = bulletsB.mesh.material; if (m.map !== T_BULLET[S.tier]) m.map = T_BULLET[S.tier]; }   // the round's colour follows the tier
 
   // BEAM (round 2): pierces everything in a narrow column up to the range limit. Wider and bluer at higher tiers.
   if (play && S.beamOn) {
@@ -2675,22 +2779,27 @@ function omegaStrike(mul) {
   AUD.omegaHits += n;
 }
 let hudBeamKey = '';
+// round 13: effects attached to the player's plane (the Omega charge glow) have their own particles on layer 1, the
+// layer bullet time draws in full colour with the plane (the shared fx particles are on layer 0 and grey out)
+let planeFx = null;
 function updateOmega(dt, now) {
   const full = S.omega >= 1, el = $('omega');
   $('omegafill').style.width = (S.omega * 100).toFixed(1) + '%';
   if (el.classList.contains('full') !== full) el.classList.toggle('full', full);
+  if (!planeFx) { planeFx = new Particles(96, THREE.AdditiveBlending, T_GLOW, 6); planeFx.mat.uniforms.uScale = fx.mat.uniforms.uScale; planeFx.pts.layers.set(1); }
   const nz = -1.2;
   if (S.mode === 'play' && full && planeSprite.visible) {
     // charged: energy is drawn into the plane's nose, which glows
-    if (Math.random() < dt * 70) orbFx.push({ a: rand(0, TAU), r: rand(1.8, 3.2), t: 0, life: rand(0.35, 0.6), s: rand(0.3, 0.6) });
+    if (Math.random() < dt * 70 && orbFx.length < 60) orbFx.push({ a: rand(0, TAU), r: rand(1.8, 3.2), t: 0, life: rand(0.35, 0.6), s: rand(0.3, 0.6) });
     const p = 0.5 + 0.5 * Math.sin(now * 0.018);
-    fx.draw(S.px, 0.62, nz, 2.2 + p * 0.8, 0.7, 0.45, 1, 0.9); fx.draw(S.px, 0.63, nz, 0.9 + p * 0.3, 1, 1, 1, 1);
+    planeFx.draw(S.px, 0.62, nz, 2.2 + p * 0.8, 0.7, 0.45, 1, 0.9); planeFx.draw(S.px, 0.63, nz, 0.9 + p * 0.3, 1, 1, 1, 1);
   }
   for (let i = orbFx.length - 1; i >= 0; i--) {
     const o = orbFx[i]; o.t += dt; if (o.t >= o.life) { orbFx.splice(i, 1); continue; }
     const k = o.t / o.life, r = o.r * Math.pow(1 - k, 1.6), a = o.a + k * 2.2;
-    fx.draw(S.px + Math.cos(a) * r, 0.62, nz + Math.sin(a) * r * 0.75, o.s * (0.6 + k), 0.8, 0.6, 1, Math.min(1, k * 3));
+    planeFx.draw(S.px + Math.cos(a) * r, 0.62, nz + Math.sin(a) * r * 0.75, o.s * (0.6 + k), 0.8, 0.6, 1, Math.min(1, k * 3));
   }
+  planeFx.update(dt, 0);
   if (S.omegaT > 0) {
     S.omegaT -= dt; S.omegaTick -= dt;
     if (S.omegaT <= 0) { addShake('omegaEnd'); buzz(120); }   // the rumble ends with a burst
@@ -2787,17 +2896,17 @@ function updatePilots(dt) {
     if (p.t >= 1) { pilots.splice(i, 1); giveReward(p.reward, S.px, -1.5); addShake('pickup'); AUD.cocoon.push({ ev: 'rescued', t: +S.t.toFixed(2), drones: S.drones }); }
   }
 }
-// the Queen's death: a chain of explosions at random, irregular intervals (quick doubles, normal beats and pauses),
-// varied sizes and spots across her body; each one is a sharp shake burst that decays before the next, and the
-// final blast is the biggest. About 2.5-3.5 s in total, different every time.
+// the Queen's death: a chain of explosions at irregular intervals, varied sizes and spots across her body. round 13:
+// every gap is longer than a bomb's shake burst (CFG.shake.ev.bomb), so each bomb shakes, settles, then the next one
+// goes off ("multiple bombs going off one after the other"); the final blast is the biggest. About 2.7-3.4 s in total.
 function bossChain(bw) {
-  const L = []; let t = 0.04;
+  const L = []; let t = 0.05;
   for (;;) {
-    const r = Math.random(), gap = r < 0.28 ? rand(0.12, 0.17) : r < 0.8 ? rand(0.2, 0.44) : rand(0.5, 0.6);
+    const r = Math.random(), gap = r < 0.25 ? rand(0.36, 0.42) : r < 0.8 ? rand(0.44, 0.58) : rand(0.6, 0.72);
     L.push({ t, size: rand(1.1, 2.3), x: rand(-0.46, 0.46) * bw, y: rand(0.5, 3.3), z: rand(-1.2, 1.2) });
-    t += gap; if (t > 2.35) break;
+    t += gap; if (t > 2.45) break;
   }
-  return { list: L, end: clamp(t + 0.22, 2.5, 3.4) };
+  return { list: L, end: clamp(t + 0.08, 2.7, 3.4) };
 }
 
 // ---------------------------------------------------------------- bosses
@@ -2864,12 +2973,12 @@ function updateQueen(dt, dz) {
     while (b.bombI < b.chain.list.length && b.t >= b.chain.list[b.bombI].t) {
       const k = b.chain.list[b.bombI++];
       explode(b.x + k.x, k.y, b.z + k.z, k.size, true, [0.75, 0.1, 0.08]);
-      burst(b.x + k.x, b.z + k.z, 'green', Math.round(3 + k.size * 3)); addShake('bomb', k.size / 1.75); buzz(Math.round(20 + k.size * 16));
-      AUD.bombs = (AUD.bombs || 0) + 1; AUD.bossChain.push({ t: +b.t.toFixed(2), size: +k.size.toFixed(2), shake: +(trauma * trauma).toFixed(3) });
+      burst(b.x + k.x, b.z + k.z, 'green', Math.round(3 + k.size * 3)); addShake('bomb', k.size / 2.3); buzz(Math.round(20 + k.size * 16));   // round 13: up to CFG.shake.ev.bomb px, by size
+      AUD.bombs = (AUD.bombs || 0) + 1; AUD.bossChain.push({ t: +b.t.toFixed(2), size: +k.size.toFixed(2), shake: +(CFG.shake.ev.bomb[0] * k.size / 2.3).toFixed(1) });
     }
     if (b.t > b.chain.end) {
       explode(b.x, 1.5, b.z, 4.4, true, [0.75, 0.1, 0.08]); addShake('bossFinal'); buzz([140, 60, 260]); flashRed = 0; omegaFlash = 0.5;
-      AUD.bossChain.push({ t: +b.t.toFixed(2), size: 4.4, shake: +(trauma * trauma).toFixed(3), final: true });
+      AUD.bossChain.push({ t: +b.t.toFixed(2), size: 4.4, shake: CFG.shake.ev.bossFinal[0], final: true });
       S.coins += CFG.coins.queen; S.killCoins += CFG.coins.queen; S.killsBy.queen = 1; AUD.coins.queen = CFG.coins.queen; S.kills++;
       spawnCoins('coin', 40, CFG.coins.queen, b.x, 1.5, b.z, 1.6);
       scene.remove(b.sprite); boss = null; slowmo = 1; $('bossbar').classList.add('hidden');
@@ -3101,16 +3210,19 @@ function drawOverlay() {
   ctx.clearRect(0, 0, W, H);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   const now = performance.now() * 0.001, spin = performance.now() * 0.05;
+  // round 13: in bullet time the world items are greyed in one pass (btGreyPass) and the plane's own items (propeller,
+  // contrails, health bar, squad count, UP ring, Omega charge glow and beam, power flash) are drawn after it, in colour
+  const grey = BT.k > 0.002;
   if (S.mode === 'play') auditBugs();
   // round-2 propellers and contrails
-  if (planeSprite.visible) drawProp(S.px, 0.62, -1.05, 0.62, spin);
+  if (planeSprite.visible && !grey) drawProp(S.px, 0.62, -1.05, 0.62, spin);
   for (const w of wingmen) drawProp(w.sprite.position.x, w.sprite.position.y + 0.03, w.z - 0.45, 0.27, spin + w.ph);
   ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1.2;
   ctx.beginPath();
   for (const w of wingmen) for (const o of [-0.58, 0.58]) {
     const a = toScreen(w.x + o, 0.45, w.z + 0.1), b = toScreen(w.x + o, 0.45, w.z + 2.4); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
   }
-  if (planeSprite.visible) for (const o of [-1.35, 1.35]) { const a = toScreen(S.px + o, 0.55, 0.05), b = toScreen(S.px + o, 0.55, 3.5); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); }
+  if (!grey) planeTrails();
   ctx.stroke();
   // acid landing markers (so the lob can be dodged)
   for (const a of acids) {
@@ -3229,27 +3341,7 @@ function drawOverlay() {
     const u = unitPx(w.x, 0.45, w.z); const [x, y] = toScreen(w.x, 0.45, w.z - 0.8);
     lifeBar(x, y, u * 0.95, Math.max(3, u * 0.12), w.hp / w.max, Math.min(1, w.barT / 0.35));
   }
-  if (planeSprite.visible && S.barT > 0) {
-    const u = unitPx(S.px, 0.55, 0); const [x, y] = toScreen(S.px, 0.55, 1.15);
-    lifeBar(x, y, u * 1.9, Math.max(5, u * 0.16), S.hp / S.hpMax, Math.min(1, S.barT / 0.4));
-  }
-  // drone count
-  if (S.mode === 'play') {
-    const [x, y] = toScreen(S.px, 0, 1.9);
-    const full = S.drones >= MAXD, label = '\u00d7' + S.drones + (full ? ' MAX' : '');
-    ctx.font = `900 16px ${FONT}`; const tw = ctx.measureText(label).width + 32;
-    ctx.fillStyle = full ? 'rgba(90,60,0,.8)' : 'rgba(12,40,80,.72)'; ctx.strokeStyle = full ? 'rgba(255,220,110,.95)' : 'rgba(160,225,255,.95)'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.roundRect(x - tw / 2, y - 12, tw, 24, 12); ctx.fill(); ctx.stroke();
-    const pi = TEX.plane.image; ctx.drawImage(pi, x - tw / 2 + 4, y - 7, 24, 24 * pi.height / pi.width);
-    txt(label, x + 12, y + 1, 16, full ? '#ffe066' : '#fff', '#0b2440', 0.12);
-  }
-  // UP ring on big gains and power-ups (tinted with the new bullet colour)
-  if (upRing && planeSprite.visible) {
-    const [x, y] = toScreen(S.px, 0.5, 0.2); const k = upRing.t / 0.9, r = 40 + k * 120, col = upRing.col || '#ffd84a';
-    ctx.globalAlpha = 1 - k; ctx.strokeStyle = col; ctx.lineWidth = 10 * (1 - k) + 2; ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.7, 0, 0, TAU); ctx.stroke();
-    ctx.strokeStyle = '#fff6c0'; ctx.lineWidth = 3 * (1 - k) + 1; ctx.beginPath(); ctx.ellipse(x, y, r * 0.92, r * 0.64, 0, 0, TAU); ctx.stroke();
-    ctx.globalAlpha = Math.min(1, (1 - k) * 2); txt('UP', x, y - 60 - k * 40, 34 + 10 * Math.sin(Math.min(1, k * 4) * Math.PI / 2), col, '#3a2200', 0.2, true); ctx.globalAlpha = 1;
-  }
+  if (!grey) { planeBar(); squadCount(); upRingDraw(); }
   for (const f of flyIcons) {
     const k = f.t, e = k * k * (3 - 2 * k);
     const [ax, ay] = toScreen(f.x, 1, f.z), [bx, by] = toScreen(S.px, 0.6, 0);
@@ -3292,6 +3384,48 @@ function drawOverlay() {
       ctx.restore();
     }
   }
+  if (!grey) { omegaCharge(now); if (S.omegaT > 0 || omegaFlash > 0) drawOmegaBeam(now); powerFlash(); }
+  if (flashRed > 0) {
+    const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, H * 0.75);
+    g.addColorStop(0, 'rgba(255,0,0,0)'); g.addColorStop(1, `rgba(255,20,10,${flashRed * 0.55})`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  }
+  if (grey) {   // round 13: bullet time: grey everything drawn so far, then the plane's own items in full colour
+    btGreyPass();
+    if (planeSprite.visible) drawProp(S.px, 0.62, -1.05, 0.62, spin);
+    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1.2; ctx.beginPath(); planeTrails(); ctx.stroke();
+    planeBar(); squadCount(); upRingDraw(); omegaCharge(now); if (S.omegaT > 0 || omegaFlash > 0) drawOmegaBeam(now); powerFlash();
+  }
+}
+// round 13: the player's own overlay items, split out so bullet time can draw them after the grey pass
+function planeTrails() {   // adds the plane's two contrails to the current path
+  if (planeSprite.visible) for (const o of [-1.35, 1.35]) { const a = toScreen(S.px + o, 0.55, 0.05), b = toScreen(S.px + o, 0.55, 3.5); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); }
+}
+function planeBar() {
+  if (planeSprite.visible && S.barT > 0) {
+    const u = unitPx(S.px, 0.55, 0); const [x, y] = toScreen(S.px, 0.55, 1.15);
+    lifeBar(x, y, u * 1.9, Math.max(5, u * 0.16), S.hp / S.hpMax, Math.min(1, S.barT / 0.4));
+  }
+}
+function squadCount() {   // drone count
+  if (S.mode === 'play') {
+    const [x, y] = toScreen(S.px, 0, 1.9);
+    const full = S.drones >= MAXD, label = '×' + S.drones + (full ? ' MAX' : '');
+    ctx.font = `900 16px ${FONT}`; const tw = ctx.measureText(label).width + 32;
+    ctx.fillStyle = full ? 'rgba(90,60,0,.8)' : 'rgba(12,40,80,.72)'; ctx.strokeStyle = full ? 'rgba(255,220,110,.95)' : 'rgba(160,225,255,.95)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(x - tw / 2, y - 12, tw, 24, 12); ctx.fill(); ctx.stroke();
+    const pi = TEX.plane.image; ctx.drawImage(pi, x - tw / 2 + 4, y - 7, 24, 24 * pi.height / pi.width);
+    txt(label, x + 12, y + 1, 16, full ? '#ffe066' : '#fff', '#0b2440', 0.12);
+  }
+}
+function upRingDraw() {   // UP ring on big gains and power-ups (tinted with the new bullet colour)
+  if (upRing && planeSprite.visible) {
+    const [x, y] = toScreen(S.px, 0.5, 0.2); const k = upRing.t / 0.9, r = 40 + k * 120, col = upRing.col || '#ffd84a';
+    ctx.globalAlpha = 1 - k; ctx.strokeStyle = col; ctx.lineWidth = 10 * (1 - k) + 2; ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.7, 0, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = '#fff6c0'; ctx.lineWidth = 3 * (1 - k) + 1; ctx.beginPath(); ctx.ellipse(x, y, r * 0.92, r * 0.64, 0, 0, TAU); ctx.stroke();
+    ctx.globalAlpha = Math.min(1, (1 - k) * 2); txt('UP', x, y - 60 - k * 40, 34 + 10 * Math.sin(Math.min(1, k * 4) * Math.PI / 2), col, '#3a2200', 0.2, true); ctx.globalAlpha = 1;
+  }
+}
+function omegaCharge(now) {   // the Omega charge glow at the nose (the overlay half; the particles are planeFx)
   if (S.mode === 'play' && S.omega >= 1 && planeSprite.visible && S.omegaT <= 0) {
     const [nx, ny] = toScreen(S.px, 0.62, -1.2), u = unitPx(S.px, 0.6, 0), p = 0.5 + 0.5 * Math.sin(now * 9);
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
@@ -3306,15 +3440,12 @@ function drawOverlay() {
     }
     ctx.restore();
   }
-  if (S.omegaT > 0 || omegaFlash > 0) drawOmegaBeam(now);
+}
+function powerFlash() {   // the power-up flash around the plane
   if (weaponFlash > 0) {
     const [x, y] = toScreen(S.px, 0.5, -0.5); const c = S.tier === 2 ? '150,200,255' : S.tier === 1 ? '255,190,120' : '255,240,180';
     const g = ctx.createRadialGradient(x, y, 0, x, y, H * 0.6); g.addColorStop(0, `rgba(${c},${weaponFlash * 0.45})`); g.addColorStop(1, `rgba(${c},0)`);
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-  }
-  if (flashRed > 0) {
-    const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, H * 0.75);
-    g.addColorStop(0, 'rgba(255,0,0,0)'); g.addColorStop(1, `rgba(255,20,10,${flashRed * 0.55})`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   }
 }
 
@@ -3397,34 +3528,77 @@ function loop(t) {
   drawOverlay();
 }
 
-// camera shake with parallax: ground (wcam) most, clouds (ccam) less, gameplay (camera) slightly. The HUD is HTML
-// and stays put, except during the Omega Beam, when it rumbles along with the world.
-const HUD_SHAKE = ['hud', 'bossbar', 'banner', 'threat', 'ui'];
+// camera shake with parallax (round 13): the bursts and the Omega rumble move the gameplay layer (camera) by their size
+// in CSS px, the clouds (ccam) and the ground (wcam) by CFG.shake.clouds / .ground times that, and the ground also rolls.
+// The HUD is HTML: it moves only by the HUD share (the Omega rumble, the boss's final blast). In bullet time the shake
+// fades out with the slow motion, so the tutorial pictures stay steady. round 13: the overlay canvas (#ui) is no longer
+// in this list: its world items already follow the gameplay camera, so moving it too shook them twice.
+const HUD_SHAKE = ['hud', 'bossbar', 'banner', 'threat'];
+const HUD_EL = [];
 let hudShaken = false;
+// the Omega earthquake: a fresh jolt target rumble.hz times a second, reached over `snap` of the step, then held
+const RUM = { k: 0, t: 0, x0: 0, y0: 0, x1: 0, y1: 0, x: 0, y: 0, an: 0 };
+function rumbleStep(dt, on) {
+  const R = CFG.shake.rumble, step = 1 / R.hz;
+  RUM.k = on ? Math.min(1, RUM.k + dt / R.rumbleIn) : Math.max(0, RUM.k - dt / R.rumbleOut);
+  if (RUM.k <= 0) { RUM.x = RUM.y = RUM.x0 = RUM.y0 = RUM.x1 = RUM.y1 = 0; RUM.t = step; return; }
+  RUM.t += dt;
+  while (RUM.t >= step) {
+    RUM.t -= step; RUM.x0 = RUM.x; RUM.y0 = RUM.y;
+    RUM.an += Math.PI + rand(-1.1, 1.1); const r = rand(0.65, 1);   // roughly the opposite way each time, like a quake
+    RUM.x1 = Math.cos(RUM.an) * r; RUM.y1 = Math.sin(RUM.an) * r * 0.85;
+  }
+  const f0 = clamp(RUM.t / (step * R.snap), 0, 1), f = f0 * f0 * (3 - 2 * f0);
+  RUM.x = lerp(RUM.x0, RUM.x1, f); RUM.y = lerp(RUM.y0, RUM.y1, f);
+}
+// one layer: bullet-time push-in plus the shake offset (CSS px) and roll; returns the on-screen move in px
+function shakeLayer(cam, ox, oy, zf, roll) {
+  const z = 1 + zf * BT.k;   // round 12: bullet-time push-in toward the plane (each layer by its own amount: parallax)
+  if (ox * ox + oy * oy < 1e-4 && z < 1.0005) { if (cam.view && cam.view.enabled) cam.clearViewOffset(); return 0; }
+  const ax = BT.anchor ? BT.anchor[0] : W / 2, ay = BT.anchor ? BT.anchor[1] : H * 0.8;
+  cam.setViewOffset(W, H, ax * (1 - 1 / z) + ox, ay * (1 - 1 / z) + oy, W / z, H / z); if (roll) cam.rotateZ(roll);
+  return Math.hypot(ox, oy) * z;
+}
+// round 13: per-frame applied offsets for tests, a fixed ring (never grows): real time ms, game time, then the
+// ground, clouds, gameplay and HUD moves in CSS px. Read the last min(n, cap) entries ending at index n - 1.
+const SHK_CAP = 2400;
+AUD.shk = { cap: SHK_CAP, n: 0, rt: new Float64Array(SHK_CAP), st: new Float32Array(SHK_CAP), g: new Float32Array(SHK_CAP), c: new Float32Array(SHK_CAP), p: new Float32Array(SHK_CAP), h: new Float32Array(SHK_CAP) };
+let shakeClock = 0;
 function applyShake(dt) {
-  const C = CFG.shake, sh = trauma * trauma, omega = S.omegaT > 0 && S.mode === 'play';
-  shakePh += dt * (omega ? C.rumbleFreq : C.freq);
-  const nx = vnoise(shakePh, 1), ny = vnoise(shakePh, 2), nr = vnoise(shakePh, 3);
+  // round 13: bursts run on their own real-time clock (up to 0.25 s a frame), so a thud lasts its length even when
+  // frames are slow (the game loop caps its step at 0.05 s)
+  const nowMs = performance.now(); if (shakeClock) dt = Math.min(0.25, (nowMs - shakeClock) / 1000) * TS; shakeClock = nowMs;
+  const C = CFG.shake, omega = S.omegaT > 0 && S.mode === 'play', calm = 1 - BT.k;
+  // sum the bursts (gameplay px) and their HUD shares
+  let x = 0, y = 0, hx = 0, hy = 0;
+  for (const s of SHK) {
+    if (!s.on) continue;
+    s.t += dt; burstAt(s); x += SHK_O.bx; y += SHK_O.by;
+    if (s.h > 0) { const r = s.h / s.a; hx += SHK_O.bx * r; hy += SHK_O.by * r; }
+  }
+  rumbleStep(dt, omega);
+  const R = C.rumble, rk = RUM.k;
+  x += RUM.x * R.game * rk; y += RUM.y * R.game * rk; hx += RUM.x * R.hud * rk; hy += RUM.y * R.hud * rk;
+  const m = Math.hypot(x, y); if (m > C.maxPx) { x *= C.maxPx / m; y *= C.maxPx / m; }
+  x *= calm; y *= calm; hx *= calm; hy *= calm;
+  trauma = Math.sqrt(clamp(Math.hypot(x, y) / C.ev.thud[0], 0, 1));   // round 13: kept as a 0..1 read-out (__G.trauma); the bursts drive the shake
   wcam.position.set(CAM_POS.x + S.px * 0.25, CAM_POS.y, CAM_POS.z); wcam.lookAt(CAM_LOOK.x + S.px * 0.2, CAM_LOOK.y, CAM_LOOK.z);
   camera.position.set(GCAM_POS.x + S.px * 0.22, GCAM_POS.y, GCAM_POS.z); camera.lookAt(GCAM_LOOK.x + S.px * 0.18, GCAM_LOOK.y, GCAM_LOOK.z);
   ccam.copy(wcam);
-  const layer = (cam, f, zf) => {
-    const z = 1 + zf * BT.k;   // round 12: bullet-time push-in toward the plane (each layer by its own amount: parallax)
-    if (sh < 1e-4 && z < 1.0005) { if (cam.view && cam.view.enabled) cam.clearViewOffset(); return 0; }
-    const ox = nx * C.ground * f * sh, oy = ny * C.ground * f * sh * 0.8, a = BT.anchor || [W / 2, H * 0.8];
-    cam.setViewOffset(W, H, a[0] * (1 - 1 / z) + ox, a[1] * (1 - 1 / z) + oy, W / z, H / z); if (sh >= 1e-4) cam.rotateZ(nr * C.roll * f * sh);
-    return Math.hypot(ox, oy);
-  };
-  const ZF = CFG.bt.zoom, g = layer(wcam, 1, ZF[0]), c = layer(ccam, C.clouds, ZF[1]), p = layer(camera, C.game, ZF[2]);
+  const ZF = CFG.bt.zoom, rl = x * C.roll;
+  const g = shakeLayer(wcam, x * C.ground, y * C.ground, ZF[0], rl), c = shakeLayer(ccam, x * C.clouds, y * C.clouds, ZF[1], rl * 0.5), p = shakeLayer(camera, x, y, ZF[2], rl * 0.1);
   camera.updateMatrixWorld();
-  S.shakePx = [+g.toFixed(1), +c.toFixed(1), +p.toFixed(1)];
-  if (omega) {
-    if (AUD.omegaRumble.length < 600) AUD.omegaRumble.push([+S.t.toFixed(2), +sh.toFixed(3), +g.toFixed(1)]);
-    const k = C.hud * sh;
-    for (const id of HUD_SHAKE) { const el = $(id); el.style.translate = `${(nx * k).toFixed(1)}px ${(ny * k * 0.8).toFixed(1)}px`; el.style.rotate = `${(nr * sh * 0.8).toFixed(2)}deg`; }
+  const hm = Math.hypot(hx, hy);
+  const SP = S.shakePx || (S.shakePx = [0, 0, 0, 0]); SP[0] = Math.round(g * 10) / 10; SP[1] = Math.round(c * 10) / 10; SP[2] = Math.round(p * 10) / 10; SP[3] = Math.round(hm * 10) / 10;
+  if (!HUD_EL.length) for (const id of HUD_SHAKE) HUD_EL.push($(id));
+  if (hm > 0.05) {
+    const tr = `${hx.toFixed(1)}px ${hy.toFixed(1)}px`, ro = `${(hx * 0.05).toFixed(2)}deg`;
+    for (const el of HUD_EL) { el.style.translate = tr; el.style.rotate = ro; }
     hudShaken = true;
-  } else if (hudShaken) { hudShaken = false; for (const id of HUD_SHAKE) { const el = $(id); el.style.translate = ''; el.style.rotate = ''; } }
-  if (boss && boss.state === 'dying' && AUD.bossTrace.length < 500) AUD.bossTrace.push([+boss.t.toFixed(3), +sh.toFixed(3)]);
+  } else if (hudShaken) { hudShaken = false; for (const el of HUD_EL) { el.style.translate = ''; el.style.rotate = ''; } }
+  const A = AUD.shk, i = A.n % A.cap; A.rt[i] = nowMs; A.st[i] = S.t; A.g[i] = g; A.c[i] = c; A.p[i] = p; A.h[i] = hm; A.n++;
+  if (omega && AUD.omegaRumble.length < 600) AUD.omegaRumble.push([+S.t.toFixed(2), +p.toFixed(1), +g.toFixed(1), +hm.toFixed(1)]);
+  if (boss && boss.state === 'dying' && AUD.bossTrace.length < 500) AUD.bossTrace.push([+boss.t.toFixed(3), +p.toFixed(1)]);
 }
 
 async function boot() {
