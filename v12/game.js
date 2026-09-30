@@ -1428,18 +1428,9 @@ $('mute').addEventListener('pointerdown', (e) => {
 $('again').addEventListener('pointerdown', (e) => { e.stopPropagation(); initAudio(); startGame(); });
 
 function startGame() {
-  teardownEnd();
-  $('start').classList.add('hidden'); $('hud').classList.remove('hidden'); $('bossbar').classList.add('hidden');
+  $('start').classList.add('hidden'); $('end').classList.add('hidden'); $('hud').classList.remove('hidden'); $('bossbar').classList.add('hidden');
   planeSprite.visible = true; resetGame(true); BT.on = false; BT.p = 0; BT.k = 0; BT.s = 1; BT.anchor = null;
-  // round 13: no "MISSION 1 / Get to Beacon" banner at the start (Bupé); the title screen carries the mission name
-}
-// round 13: back to the title screen after a run (CONTINUE), so the Workshop and the cards can be used between runs
-function goHome() {
-  teardownEnd();
-  $('hud').classList.add('hidden'); $('bossbar').classList.add('hidden');
-  planeSprite.visible = true; resetGame(false); BT.on = false; BT.p = 0; BT.k = 0; BT.s = 1; BT.anchor = null;
-  $('start').classList.remove('hidden'); placeSteerHand();
-  if (window.JCMETA) window.JCMETA.onHome();
+  if (!Q.get('warp')) banner('MISSION 1', 'Get to Beacon', false, 1.8);
 }
 // ---------------------------------------------------------------- Mission Complete (round 5): stomp, cartoon stars, celebration
 // Star rules: 1 = complete the mission; 2 = finish with >= 50% health OR rescue the pilot;
@@ -1451,14 +1442,6 @@ let endTimers = [];
 function endLater(ms, f) { endTimers.push(setTimeout(f, ms)); }
 function shakeEnd(kind) { const e = $('end'); e.classList.remove('shk-big', 'shk-small'); void e.offsetWidth; e.classList.add(kind === 'big' ? 'shk-big' : 'shk-small'); }
 let celTimers = [], celebrated = false;
-// round 13: stop everything the end screens leave running before the next run or the title screen
-// (endGame timers, the celebration, the effects canvas, the payout timeline and its idle stone effects, the coin tally)
-let tallyToken = 0;
-function teardownEnd() {
-  endTimers.forEach(clearTimeout); endTimers = []; celTimers.forEach(clearTimeout); celTimers = []; celebrated = false;
-  EFX.reset(); RES.stop(); tallyToken++;
-  const e = $('end'); e.classList.add('hidden'); e.classList.remove('mega', 'nice', 'shk-big', 'shk-small', 'landed', 'win', 'lose', 'skipped', 'shine', 'play');
-}
 // the celebration scales with the stars: 3 = glow, confetti, fireworks; 2 = a little confetti; 1 = nothing extra
 function celebrate(stars) {
   if (celebrated) return; celebrated = true; const e = $('end');
@@ -1509,7 +1492,7 @@ function skipEnd() {
   e.classList.add('skipped'); celebrate(AUD.stars); RES.skip();
 }
 $('end').addEventListener('pointerdown', (ev) => { if (ev.target.closest && ev.target.closest('button')) return; initAudio(); skipEnd(); });
-$('again2').addEventListener('pointerdown', (e) => { e.stopPropagation(); initAudio(); goHome(); });   // round 13: CONTINUE returns to the title screen
+$('again2').addEventListener('pointerdown', (e) => { e.stopPropagation(); initAudio(); startGame(); });
 
 // ---------------------------------------------------------------- Mission Complete payout sequence (round 7)
 // One timeline (ms from the end of the mission), driven by a single rAF loop so tap-to-skip can jump straight to the
@@ -1654,9 +1637,8 @@ function coinTally(win) {
   let bank = 0; try { bank = Number(localStorage.getItem('grokdemo.coins') || 0) + S.coins; localStorage.setItem('grokdemo.coins', String(bank)); } catch (e) { }
   $('cs-bank').textContent = bank ? `Bank ${bank}` : '';
   AUD.results = { coins: S.coins, killCoins: S.killCoins, lootCoins: S.lootCoins, gems: S.gems, diamonds: S.diamonds, killsBy: { ...S.killsBy }, kills: S.kills, bank };
-  const el = $('st-coins'); el.textContent = '0'; const t0 = performance.now() + (win ? 2300 : 700), dur = 1500, total = S.coins, tok = tallyToken;
+  const el = $('st-coins'); el.textContent = '0'; const t0 = performance.now() + (win ? 2300 : 700), dur = 1500, total = S.coins;
   const step = (t) => {
-    if (tok !== tallyToken) return;
     const k = clamp((t - t0) / dur, 0, 1), v = Math.round(total * (1 - Math.pow(1 - k, 3)));
     if (t >= t0) { if (el.textContent !== String(v)) { el.textContent = v; sfx('count'); } }
     if (k < 1) requestAnimationFrame(step); else { el.textContent = total; $('coinsum').classList.remove('done'); void el.offsetWidth; $('coinsum').classList.add('done'); sfx('gate'); AUD.results.shown = total; }
@@ -3243,8 +3225,6 @@ async function boot() {
   TEX.omegaorb = makeOmegaOrbTex();
   setupIcons(); setupWorld(); resize(); computeSlots(); resetGame(false);
   ready = true; $('loading').textContent = ''; placeSteerHand();
-  // round 13: the meta layer (meta.js: title icons and cards, the Workshop, the bank, Settings) talks to the game only here
-  if (window.JCMETA) window.JCMETA.init({ startGame, goHome, initAudio, sfx: (n, a) => sfx(n, a), get S() { return S; }, CFG, TEX, get planeSprite() { return planeSprite; } });
   if (Q.has('autostart') || Q.has('autoplay')) startGame();
 }
 requestAnimationFrame(loop);
@@ -3258,5 +3238,5 @@ window.__G = { S, AUD, get bugs() { return bugs; }, get pods() { return pods; },
   get cocoons() { return cocoons; }, get pilots() { return pilots; }, GLOG, CFG, get SLOTS() { return SLOTS; }, MAXD, get trauma() { return trauma; }, dropLoot: (w, x = 0, z = -8) => dropLoot(w, x, z), setRapid: (n) => setRapid(n, S.px, -6),
   showThreat: () => showThreat(), get coinFx() { return coinFx; }, get mood() { return moodOn; }, addShake: (k, m) => addShake(k, m), get BOT_Z() { return BOT_Z; }, planeScreen,
   BT, btEnter: () => btEnter(), btExit: () => btExit(), TUT, doGesture: (g, i) => doGesture(g, i), tutWant: (id) => TUT.want(id),
-  fireOmega: () => fireOmega(), goHome: () => goHome(), teardownEnd: () => teardownEnd(), setBeam: (v) => setBeam(v), omega: (v) => { S.omega = v; }, spawnCocoon: (o) => spawnCocoon(Object.assign({ x: -2.2, side: -1, hp: 260, drones: 8 }, o || {})),
+  fireOmega: () => fireOmega(), setBeam: (v) => setBeam(v), omega: (v) => { S.omega = v; }, spawnCocoon: (o) => spawnCocoon(Object.assign({ x: -2.2, side: -1, hp: 260, drones: 8 }, o || {})),
   spawnBug: (x, z, type = 'spider', hp = 20) => newBug(x, z, type, hp), spawnGate: (x, val, z) => { spawnEvent({ k: 'gate', x, val, d: S.dist + (z ? -z : 30) }); return gates[gates.length - 1]; } };

@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 OUT=${1:-_site}
 rm -rf "$OUT"; mkdir -p "$OUT/assets" "$OUT/vendor" "$OUT/fonts"
-cp index.html style.css game.js "$OUT/"
+cp index.html style.css game.js meta.js meta.css "$OUT/"
 V=$(git rev-parse --short HEAD 2>/dev/null || date +%s); sed -i "s/__BUILD__/$V/g" "$OUT/index.html"
 python3 tools/build_assets.py "$OUT/assets"
 for f in art/*.b64; do base64 -d "$f" > "$OUT/assets/$(basename "$f" .b64)"; done
@@ -37,5 +37,7 @@ if [ -d v9 ]; then cp -r v9 "$OUT/v9"; fi
 if [ -d v10 ]; then cp -r v10 "$OUT/v10"; fi
 # Frozen round-11 build (commit 91fa01f), served at /v11/
 if [ -d v11 ]; then cp -r v11 "$OUT/v11"; fi
+# Frozen round-12 build (commit 8c229b8), served at /v12/
+if [ -d v12 ]; then cp -r v12 "$OUT/v12"; fi
 touch "$OUT/.nojekyll"
 du -sh "$OUT"

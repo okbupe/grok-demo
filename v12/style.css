@@ -459,8 +459,3 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-acti
 #tut .mini.hp i{background:linear-gradient(#8dff7a,#2fbf3a);animation:hpDrain 3.2s cubic-bezier(.1,.7,.25,1) infinite}
 #tut .mini.hp s{position:absolute;left:22%;top:-2px;bottom:-2px;width:3px;background:#ffcf3a;box-shadow:0 0 4px #ffcf3a}
 @keyframes hpDrain{0%{width:100%;background:linear-gradient(#8dff7a,#2fbf3a)}60%{background:linear-gradient(#ffd24a,#e89a00)}85%,100%{width:23%;background:linear-gradient(#ff6a5a,#c21a2c)}}
-
-
-/* ==== round 13, area B2: the new picture tutorials (gates, canisters). Only area B2 edits between these markers. ==== */
-
-/* ==== end of area B2 ==== */

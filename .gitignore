@@ -47,3 +47,7 @@ __pycache__/
 !/v11/assets/
 !/v11/vendor/
 !/v11/fonts/
+# frozen round-12 build served at /v12/ (committed on purpose)
+!/v12/assets/
+!/v12/vendor/
+!/v12/fonts/
