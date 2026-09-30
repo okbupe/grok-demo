@@ -1,9 +1,9 @@
-# Grok Demo: Mission 1, "Get to Beacon" (round 12)
+# Grok Demo: Mission 1, "Get to Beacon" (round 13)
 
-A portrait, touch-first sky shooter for mobile browsers, and a prototype of *Jetcraft: Invasion Earth*. Atlas flies the biplane across the Channel coast to **Beacon**, the base. On the way you build a drone squad, shoot gates positive, crack weapon canisters, smash loot crates, rescue a cocooned pilot and bring down the **Xora Queen**. The alien race is the **Xora**.
+A portrait, touch-first sky shooter for mobile browsers, and a prototype of *Jetcraft: Invasion Earth*. Atlas flies the biplane across the Channel coast to **Beacon**, the base. On the way you build a drone squad, shoot gates positive, crack weapon canisters, smash loot crates, rescue a cocooned pilot and bring down **Mordrix**. The alien race is the **Xora**.
 
 **Play:** https://okbupe.github.io/grok-demo/
-Earlier rounds are kept frozen for comparison: **Round 11** at https://okbupe.github.io/grok-demo/v11/, **Round 10** at https://okbupe.github.io/grok-demo/v10/, **Round 9** at https://okbupe.github.io/grok-demo/v9/, **Round 8** at https://okbupe.github.io/grok-demo/v8/, **Round 7** at https://okbupe.github.io/grok-demo/v7/, **Round 6** at https://okbupe.github.io/grok-demo/v6/, **Round 5** at https://okbupe.github.io/grok-demo/v5/, **Round 4** at https://okbupe.github.io/grok-demo/v4/, **Round 3** at https://okbupe.github.io/grok-demo/v3/ and **Round 2** at https://okbupe.github.io/grok-demo/v2/. The title screen links to all ten on one line ("Previous versions: 11 · 10 · 9 · 8 · 7 · 6 · 5 · 4 · 3 · 2", 264 px wide at 390 px).
+Earlier rounds are kept frozen for comparison: **Round 12** at https://okbupe.github.io/grok-demo/v12/, **Round 11** at https://okbupe.github.io/grok-demo/v11/, **Round 10** at https://okbupe.github.io/grok-demo/v10/, **Round 9** at https://okbupe.github.io/grok-demo/v9/, **Round 8** at https://okbupe.github.io/grok-demo/v8/, **Round 7** at https://okbupe.github.io/grok-demo/v7/, **Round 6** at https://okbupe.github.io/grok-demo/v6/, **Round 5** at https://okbupe.github.io/grok-demo/v5/, **Round 4** at https://okbupe.github.io/grok-demo/v4/, **Round 3** at https://okbupe.github.io/grok-demo/v3/ and **Round 2** at https://okbupe.github.io/grok-demo/v2/. From round 13 they are linked from **Settings, Old rounds** (12 down to 2).
 
 ## Controls
 All gestures work **anywhere on the screen**.
@@ -19,6 +19,39 @@ All gestures work **anywhere on the screen**.
   - **Tap:** under 200 ms (`tapMs`) and under 12 px of movement (`tapPx`).
   - **Double tap:** the second tap starts within 300 ms of the first ending (`dblTapMs`) and within 70 px of it (`dblTapPx`).
   - A single tap does nothing in play. Steering drags, slow or diagonal drags, and a drag that ends in an upward flick never count as a swipe or a tap.
+
+## New in round 13
+- **Home screen.** The title screen is now a home you come back to between runs.
+  - "GROK DEMO" is gone. The mission block reads **MISSION 1** (small), **GET TO BEACON** (large) and **MISSION THREAT** with a small C rank.
+  - Top left, stacked: **Base**, **Store** and **Settings**. Top right: the **bank** (coins, gems, rubies, diamonds).
+  - Three cards: **Depot**, **Hangar** and **Workshop**. The Workshop card shows a badge when you can afford an upgrade.
+  - The pointing hand's finger is shorter, with no dark line across the knuckles.
+  - Tapping empty space still flies. Tapping an icon or a card opens its panel and never starts a run.
+- **The bank** (`localStorage` `jc.bank`). A win banks the final total and the run's stones. SHOT DOWN banks the coins and stones you picked up (you keep what you earned). Back on the home screen the coins and stones fly into the bank bar and it counts up. The round 5 to 12 coin total (`grokdemo.coins`) is carried over once.
+- **The Workshop works** (`jc.workshop`). Three tracks: **Fire Rate**, **Damage** and **Revenue** (coins per Xora).
+  - Each level is five pips, then a **LEVEL UP** milestone. A pip adds 5 % (Fire Rate, Damage) or 10 % (Revenue). A milestone adds 25 % (Fire Rate, Damage) or 50 % (Revenue).
+  - A pip costs 250 coins x 1.35 to the power of the pips already bought on that track, rounded to two significant figures. A milestone costs 2 gems x the level number, plus 1.5 x the next pip's coins. The table is `WS` at the top of `meta.js` (prototype numbers, not the final economy).
+  - Damage reaches your bullets, the drones' rounds and rockets. Revenue carries its fractions from kill to kill.
+- **Settings:** Music, Sound and Vibration switches (saved in `jc.settings`; the in-game mute button is the Sound switch), **Replay** tutorials, **Old rounds** (links to 12 down to 2) and **Reset** (asks first; clears the bank and the Workshop).
+- **Store, Depot, Hangar and Base** are "coming soon" previews: supply crates Private to Elite and stone packs (Store), currency trade and power-ups (Depot), the aircraft roster with the Lawnmower equipped (Hangar), and Beacon at night (Base). Nothing in them can be bought.
+- **CONTINUE** after a win returns to the home screen.
+- **SHOT DOWN** is rebuilt in the results style: a red plate stomps in, then a card with how far you got towards Beacon, the coins you keep, any stones and one picture of what got you, then **FLY AGAIN** and **UPGRADE** (opens the Workshop). A tap skips to the end.
+- **Results screen:** hard-edged drop shadows.
+- **Sound from the first touch.** Audio is unlocked inside the first touch (it used to stay silent for up to 30 s on Android).
+- **Shakes** are per-event bursts tuned to the results star thud (`CFG.shake`): crates and canisters jolt the whole scene, the ground and clouds move more than the plane, the Omega Beam is an earthquake that shakes the HUD too, and the boss death shakes on every explosion, then settles. Normal fire never shakes.
+- **Solid bullets:** every tier is one opaque, high-contrast round from the first shot.
+- **Bullet time** keeps your plane, its purple Omega charge glow and your Saber Beam in full colour while the world greys. Its render buffer is smaller and freed once bullet time ends.
+- **Gates** grow up to +50 % at MAX (`gateGrow`). **No wasted gates:** drones that fit join the squad (cap 50) and every gate point beyond the free room pays coins (`gateOverflowCoin`). A full squad's rescued-pilot drones and an Omega orb on a full bar also pay coins.
+- **Honest popups:** they show the drones that actually joined or were lost. SQUAD FULL only shows when drones were refused.
+- **Names:** the Mission 1 boss is **MORDRIX** (MORDRIX DOWN!, and on the boss bar). The swipe beam is the **SABER BEAM**. The +8 drone canister is now a loot crate.
+- **Two new picture tutorials** in bullet time, pointing at the real object: **gates** (a hand under the first gate: shoot it to grow it) and **cans** (a crosshair on the first crate or canister: shoot it open, do not ram it). Both continue on a tap.
+- **Fixes:**
+  - Steering follows one finger, so a second finger no longer breaks it, and the other finger takes over when the steering thumb lifts.
+  - The results screen no longer leaks into the next run, and tutorial state no longer carries between runs.
+  - During a tutorial only its own gesture (or a tap) counts. The tap that ends a tutorial can never be the first half of a double tap.
+  - A tutorial cut short (a death, or back to the home screen) shows again next time.
+  - Rescued-pilot rewards only land in play. Gate textures are freed.
+  - A lost WebGL context recovers instead of leaving a blank screen.
 
 ## New in round 12
 - **Bullet-time tutorials** replace every tutorial bubble.
@@ -54,7 +87,7 @@ The round-9 sequence, sizes and impact are kept, with these changes:
 - **BEACON IN SIGHT** is exactly the round-6 title again: Lilita One 28 px, normal letter spacing, gold `#ffd64a` with a 2 px brown `#3a2208` outline and a 4 px drop. It sits at the top of the card as in round 6 (16 px card padding).
 - **Coin number:** the round-6 coin-number format (Luckiest Guy, normal spacing, `#ffe066`, brown outline and drop), scaled from 30 px to 56 px so the digits (42 px cap height plus outline) are a little shorter than the 55 px coin. The coin stays on the left, and the star sticker works as before.
 - **DRONES row, rebuilt:** a bigger drone icon (70×58 px) and a bigger count (Luckiest Guy 52 px, the same style as the coin number in light blue), then the word DRONES with the **×0.4 chip directly under it, left-aligned**. The coin row and the drones row share one left edge and one 70 px icon column, so the two numbers line up. When the drain reaches 0, only the icon and the number fade.
-- **Stones idle shine,** each on its own random timers so they never sync: **gems** get a light glint sweeping across the stone every 2.2–5.2 s; **rubies** get the same glint plus a soft, slow red glow; **diamonds** get the glint plus small twinkling star sparkles popping around them every 0.2–0.6 s. It's subtle. The old big halo and holy rays still only appear for extraordinary runs (`CFG.results`, `&shine=1`). `window.__AUDIT.stoneFx` logs every glint and sparkle with its time.
+- **Stones idle shine,** each on its own random timers so they never sync: **gems** get a light glint sweeping across the stone every 2.2 to 5.2 s; **rubies** get the same glint plus a soft, slow red glow; **diamonds** get the glint plus small twinkling star sparkles popping around them every 0.2 to 0.6 s. It's subtle. The old big halo and holy rays still only appear for extraordinary runs (`CFG.results`, `&shine=1`). `window.__AUDIT.stoneFx` logs every glint and sparkle with its time.
 - Round 9 (commit 0cbb2ac) is frozen at `/v9/`.
 
 ## New in round 9

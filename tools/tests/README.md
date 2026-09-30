@@ -1,4 +1,4 @@
-# Headless test scripts (round 12)
+# Headless test scripts (round 13)
 
 Copied from the working folder on the agent box (`/workspace/r12/`), where every round was checked before it was pushed. They are not part of the build and are not run by CI. They drive the game in headless Chrome at a 390x844 phone viewport through Playwright and read `window.__G` and `window.__AUDIT`.
 
@@ -11,5 +11,9 @@ Setup: `pip install playwright && playwright install chromium`. Set `CHROME=/pat
 | `res.py` | Plays the whole mission with the bot, screenshots each Mission Complete beat (`seq`) or a tap-to-skip (`skip:MS`), and checks the payout maths against `__AUDIT.results` (prints OK or MISMATCH) | `python res.py "http://localhost:8000/?autoplay&tut=0" /tmp/out/r seq` |
 | `tut.py` | Screenshots each bullet-time tutorial and prints `AUD.tut` / `AUD.bt` | `python tut.py "http://localhost:8000/?autoplay&tut=1" /tmp/out 400` |
 | `threat.py` | Waits for the boss hazard-tape warning, screenshots four frames and prints the tape, name and B-RANK plate boxes | `python threat.py "http://localhost:8000/?autoplay&tut=0" /tmp/out/thr` |
+| `r13_A.py` | Round 13 home screen and meta layer: the mission block, icons, bank bar and cards, every panel opens and never starts a run, the Workshop buys and applies its multipliers, Settings, CONTINUE to home, the SHOT DOWN card (`SHOTDIR` saves DPR 2 screenshots) | `python r13_A.py http://localhost:8000/ /tmp/out/a` |
+| `r13_B1.py` | Round 13 feel: shake bursts per event (crates, Omega earthquake with the HUD, boss death chain, none on normal fire), solid bullets, bullet time in colour, the bullet-time buffer freed, WebGL context loss, gates +50 % | `python r13_B1.py http://localhost:8000/` |
+| `r13_B2.py` | Round 13 mechanics: sound from the first touch, two-finger steering, honest popups, gate overflow coins, loot instead of +8 drones, MORDRIX and the Saber Beam, the gates and cans tutorials, tutorial reset between runs, stray gestures ignored | `python r13_B2.py http://localhost:8000/ /tmp/out/b2` |
+| `r13_arena.py` | Round 13 arena fixes: the tap that ends a tutorial is never half a double tap, a tutorial cut short is not marked seen, Enter after a panel starts a run with no panel over it, the home reward effects stop when a run starts, SHOT DOWN reaches its buttons in about 2 s and skips on a tap | `python r13_arena.py http://localhost:8000/` |
 
 To test a local build: `bash tools/build.sh _site && python3 -m http.server 8000 -d _site`. When a new round is frozen, add it to `PATHS` in `loadchk.py`.
