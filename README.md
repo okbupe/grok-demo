@@ -1,15 +1,15 @@
-# Grok Demo: Mission 1, "Get to Beacon" (round 13)
+# Grok Demo: Mission 1, "Get to Beacon" (round 14)
 
 A portrait, touch-first sky shooter for mobile browsers, and a prototype of *Jetcraft: Invasion Earth*. Atlas flies the biplane across the Channel coast to **Beacon**, the base. On the way you build a drone squad, shoot gates positive, crack weapon canisters, smash loot crates, rescue a cocooned pilot and bring down **Mordrix**. The alien race is the **Xora**.
 
 **Play:** https://okbupe.github.io/grok-demo/
-Earlier rounds are kept frozen for comparison: **Round 12** at https://okbupe.github.io/grok-demo/v12/, **Round 11** at https://okbupe.github.io/grok-demo/v11/, **Round 10** at https://okbupe.github.io/grok-demo/v10/, **Round 9** at https://okbupe.github.io/grok-demo/v9/, **Round 8** at https://okbupe.github.io/grok-demo/v8/, **Round 7** at https://okbupe.github.io/grok-demo/v7/, **Round 6** at https://okbupe.github.io/grok-demo/v6/, **Round 5** at https://okbupe.github.io/grok-demo/v5/, **Round 4** at https://okbupe.github.io/grok-demo/v4/, **Round 3** at https://okbupe.github.io/grok-demo/v3/ and **Round 2** at https://okbupe.github.io/grok-demo/v2/. From round 13 they are linked from **Settings, Old rounds** (12 down to 2).
+Earlier rounds are kept frozen for comparison: **Round 13** at https://okbupe.github.io/grok-demo/v13/, **Round 12** at https://okbupe.github.io/grok-demo/v12/, **Round 11** at https://okbupe.github.io/grok-demo/v11/, **Round 10** at https://okbupe.github.io/grok-demo/v10/, **Round 9** at https://okbupe.github.io/grok-demo/v9/, **Round 8** at https://okbupe.github.io/grok-demo/v8/, **Round 7** at https://okbupe.github.io/grok-demo/v7/, **Round 6** at https://okbupe.github.io/grok-demo/v6/, **Round 5** at https://okbupe.github.io/grok-demo/v5/, **Round 4** at https://okbupe.github.io/grok-demo/v4/, **Round 3** at https://okbupe.github.io/grok-demo/v3/ and **Round 2** at https://okbupe.github.io/grok-demo/v2/. From round 13 they are linked from **Settings, Old rounds** (13 down to 2).
 
 ## Controls
 All gestures work **anywhere on the screen**.
 - **Steer:** drag left or right. Firing is automatic from the first frame.
 - **Beam** (after you collect the BEAM canister): **swipe up** to switch it on, **swipe down** to switch it off. The first 5 s are free. After that it drains your health and the plane smokes. The drain eases off as you get close to the 12 HP cut-off, where it shuts off by itself.
-- **Omega Beam:** when the purple HUD bar is full, **double-tap** to fire a screen-wide beam.
+- **Omega Beam:** when the purple HUD bar is full, **tap** anywhere to fire a screen-wide beam (a single tap from round 14; it was a double tap in rounds 12 and 13).
 - **Shake off clinging Xora:** steer hard left and right.
 - **Desktop:** arrow keys or A/D to steer, W/↑ for beam on, S/↓ for beam off, Space or E for Omega, Enter to continue an explainer.
 - **Gesture rules (`CFG`):**
@@ -17,8 +17,17 @@ All gestures work **anywhere on the screen**.
   - It must be mostly vertical, with |dy| > 2.2·|dx| (`swipeRatio`), and move at least 0.45 px/ms (`swipeMinV`).
   - It must have less than 34 px of sideways travel before it (`swipeMaxPathX`). The flick's own few px of steering are handed back.
   - **Tap:** under 200 ms (`tapMs`) and under 12 px of movement (`tapPx`).
-  - **Double tap:** the second tap starts within 300 ms of the first ending (`dblTapMs`) and within 70 px of it (`dblTapPx`).
-  - A single tap does nothing in play. Steering drags, slow or diagonal drags, and a drag that ends in an upward flick never count as a swipe or a tap.
+  - A tap fires Omega only when it is charged. An uncharged tap does nothing, and while an explainer is up a tap only continues it. The few px a tap steered are handed back.
+  - A touch held longer than 200 ms is never a tap. Steering drags, slow or diagonal drags, and a drag that ends in an upward flick never count as a swipe or a tap.
+
+## New in round 14
+- **Round 13 frozen** at `/v13/` (the deployed build of commit cfcf8eb) and listed in **Settings, Old rounds**.
+- **Bullets.** The energy bullets keep their round-13 shape but lose the black outline. Each tier now has a bright solid core, an opaque body and a saturated edge and soft glow in its own colour: white-hot and pale gold for the starting gun, orange for ORANGE ROUNDS, electric blue for BLUE ROUNDS. The blue tier is a touch slimmer than round 13's, so twin guns and a full squad stay readable.
+- **Coin.** Bupé's gold C coin is used everywhere: the HUD counter, the results and SHOT DOWN cards, the home bank, Workshop costs, the icons flying into the bank, coins flying off kills and crates, and the crate pile. `assets/coin.png` is the front view cut out of the blue (192 px). World coins spin through `assets/coin_spin.png`, a 12-frame half turn built from the front, angled and edge views. Every coin has its own shine: a glint sweeps across the face (baked into the spin, and a CSS sweep on the icons). `tools/make_coin.py` rebuilds both files.
+- **Results.** No glow behind the coins and stones. The halo and rays now appear only for a genuine coin boost (`CFG.results`), not for a big total or a stone haul, and the ruby no longer pulses red. The hard drop shadows on the text are unchanged.
+- **Omega.** The charge no longer covers the plane. A soft purple aura sits behind the plane, and a thin pulsing ring with sparkles runs just outside the wings, in normal play and in bullet time. Omega fires on a **single tap** anywhere (the tutorial and the HUD show one tap). Steering drags, holds and the swipe-up Saber Beam never fire it.
+- **Stones.** Gems are the most common, then rubies, and diamonds are the rarest. Gem crates hold 2 to 3. Ruby chances are 10% per crate, 35% per elite and 60% for the carrier. The late stone crate holds a diamond half the time and a ruby otherwise, so a full run gives about 5 gems, 2.6 rubies and 0.5 diamonds (it was about 3, 0.9 and 1).
+- Test: `tools/tests/r14.py` (screenshots of every point above, and the tap gestures).
 
 ## New in round 13
 - **Home screen.** The title screen is now a home you come back to between runs.
