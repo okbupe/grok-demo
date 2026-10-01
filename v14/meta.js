@@ -334,7 +334,7 @@ const PANELS = {
   },
   settings() {
     const tog = (k, ico, name) => `<div class="st-row"><span class="st-ico">${ART[ico]}</span><span class="st-name">${name}</span><button class="st-tog${settings[k] ? ' on' : ''}" data-k="${k}" aria-label="${name}"><i></i></button></div>`;
-    const vers = []; for (let v = 14; v >= 2; v--) vers.push(`<a class="st-ver" href="v${v}/">${v}</a>`);
+    const vers = []; for (let v = 13; v >= 2; v--) vers.push(`<a class="st-ver" href="../v${v}/">${v}</a>`);
     return `<div class="st-list">${tog('music', 'music', 'MUSIC')}${tog('sfx', 'sfx', 'SOUND')}${tog('vibe', 'vibe', 'VIBRATION')}
       <div class="st-row"><span class="st-ico">${ART.replay}</span><span class="st-name">TUTORIALS</span><button class="st-btn" id="st-tut">REPLAY</button></div>
       <div class="st-row st-vers"><span class="st-ico">${ART.history}</span><span class="st-name">OLD ROUNDS</span><div class="st-verlist">${vers.join('')}</div></div>
