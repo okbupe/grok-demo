@@ -103,7 +103,7 @@ const CFG = {
     rumble: { game: 10, hud: 9.5, hz: 20, snap: 0.35, rumbleIn: 0.08, rumbleOut: 0.18 },
     // per event: [gameplay px at the first peak, duration s, HUD px (0 = the HUD stays still)]
     ev: { thud: [13.5, 0.46, 0], medium: [6.5, 0.34, 0], pickup: [3, 0.24, 0], gateMax: [4.5, 0.3, 0], omega: [11, 0.4, 0], omegaEnd: [15, 0.55, 0],
-      bomb: [12, 0.3, 0], bossFinal: [19, 0.8, 4.5], death: [15, 0.6, 0], stomp: [10, 0.45, 0], star: [6, 0.3, 0] },
+      bomb: [12, 0.3, 0], bossFinal: [19, 0.8, 4.5], death: [15, 0.6, 0], stomp: [10, 0.45, 0], star: [6, 0.3, 0], combo: [13, 0.65, 5], crash: [16, 0.5, 3] },
     decay: 2.7, omegaRumble: 0,   // round 13: inert, only read by the old trauma lines at the end of update(), which no longer drive the shake
   },
   // --- coins per Xora killed (by type) and loot inside crates
@@ -117,7 +117,15 @@ const CFG = {
   // --- Mission Complete payout (round 7): stage coins (kills + crate loot), then every drone left cashes in
   // droneCoinBase x the plane's droneCoinMult, then the whole total is multiplied by the star bonus.
   plane: 'lawnmower',
-  planes: { lawnmower: { name: 'Lawnmower', droneCoinMult: 0.4 } },   // per-plane drone value multiplier (Lawnmower = base plane)
+  // per-plane drone value multiplier (Lawnmower = base plane). Round 15: w = on-screen width (world units), guns = the
+  // wing guns' x offset, trail = the contrails' x offset. The Patchwork's top view is about square (the Lawnmower is
+  // 0.62 tall for its width), so it is drawn a little narrower to read at the same size.
+  planes: { lawnmower: { name: 'Lawnmower', droneCoinMult: 0.4, w: 2.8, guns: 0.55, trail: 1.35 },
+    patchwork: { name: 'Patchwork', droneCoinMult: 0.4, w: 2.35, guns: 0.6, trail: 1.08 } },
+  // round 15 (Bupé): MAX gate combo. Consecutive MAX gates passed pay coins[i] and stones[i] (the 5th and every one after
+  // pays the last entry). A non-MAX gate passed, or a MAX gate missed, resets the count. Stones roll gem/ruby/diamond by w.
+  combo: { coins: [50, 100, 500, 1000, 5000], stones: [0, 0, 1, 2, 3], w: { gem: 0.6, ruby: 0.28, diamond: 0.12 } },
+  bareCap: 10,   // round 15: the Patchwork after the crash, bare bones (Settings, FOUNDERS off): 10 drones, no Omega
   droneCoinBase: 10,                       // coins per drone before the plane multiplier (45 drones x 10 x 0.4 = 180)
   starBonus: { 1: 1.0, 2: 1.25, 3: 1.5 },   // coin multiplier by stars earned
   // --- round 9: results look. The shine (coin halo, holy rays behind rare stones, glows) is only for extraordinary runs.
@@ -139,9 +147,9 @@ const SPEED = CFG.scroll;
 const OBJ_V = CFG.objV;
 const G = 36;                // ground depth below play level
 const TILE = 170;            // world units per terrain tile
-const MAXD = CFG.maxDrones;  // drone cap (everywhere, including gate gains)
+let MAXD = CFG.maxDrones;    // drone cap (everywhere, including gate gains); round 15: per mission (the bare-bones Patchwork has 10)
 const GATE_MAX = CFG.gateMax;
-const PLANE_W = CFG.planeW, WING_W = CFG.droneW;   // round-2 plane and drones
+let PLANE_W = CFG.planeW; const WING_W = CFG.droneW;   // round-2 plane and drones (round 15: PLANE_W follows the mission's plane)
 const GW_PX = 512, GH_PX = 300;               // round-2 glass gate, flattened
 const GATE_W = CFG.gateW, GATE_H = GATE_W * GH_PX / GW_PX;   // three would fit side by side, but a row never has more than one
 const GAP_Z = 6.5;           // bugs never sit closer than this behind a gate (about 1.5 gate-heights of clear sky on screen)
@@ -287,15 +295,38 @@ function makeOmegaOrbTex() {
     g.fillStyle = '#fff'; for (const [a, l] of [[0, 110], [Math.PI / 2, 80]]) { g.save(); g.translate(c, c); g.rotate(a); g.beginPath(); g.moveTo(-l, 0); g.lineTo(0, -5); g.lineTo(l, 0); g.lineTo(0, 5); g.fill(); g.restore(); }
   });
 }
+// round 15: sky themes per mission (the sky gradient, the fog, the clear colour, a tint on the ground and the clouds,
+// an optional low sun). Mission 2 is dusk: an orange tint over the day map, a stopgap until a generated sunset map.
+const SKIES = {
+  day: { top: '#4f93dc', mid: '#79b3e6', hz: '#c2dcef', haze: '#bcd6ea', clear: 0xb8d3e8, ground: [1, 1, 1], cloud: [1, 1, 1], smoke: true },
+  dusk: { top: '#26306e', mid: '#a4507a', hz: '#ffa060', haze: '#e9936a', clear: 0xd88a66, ground: [1.0, 0.66, 0.5], cloud: [1, 0.74, 0.62], smoke: true, sun: '255,190,110' },
+  morning: { top: '#5aa3e6', mid: '#9ccaee', hz: '#f4e4c6', haze: '#e7ddcb', clear: 0xdcd6c8, ground: [1.04, 1.0, 0.9], cloud: [1, 0.98, 0.92], smoke: false },
+};
+let SKY = SKIES.day;
 function makeSky() {
   const v = new THREE.Vector3(0, -G, -4000).project(wcam);
-  const hy = clamp((1 - (v.y * 0.5 + 0.5)), 0.02, 0.9);
-  return canvasTex(4, 512, (g, w, h) => {
+  const hy = clamp((1 - (v.y * 0.5 + 0.5)), 0.02, 0.9), K = SKY;
+  return canvasTex(K.sun ? 256 : 4, 512, (g, w, h) => {
     const gr = g.createLinearGradient(0, 0, 0, h);
-    gr.addColorStop(0, '#4f93dc'); gr.addColorStop(Math.max(0.001, hy * 0.55), '#79b3e6');
-    gr.addColorStop(Math.max(0.002, hy - 0.004), '#c2dcef'); gr.addColorStop(Math.min(0.999, hy + 0.01), '#bcd6ea'); gr.addColorStop(1, '#bcd6ea');
+    gr.addColorStop(0, K.top); gr.addColorStop(Math.max(0.001, hy * 0.55), K.mid);
+    gr.addColorStop(Math.max(0.002, hy - 0.004), K.hz); gr.addColorStop(Math.min(0.999, hy + 0.01), K.haze); gr.addColorStop(1, K.haze);
     g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    if (K.sun) {   // a low sun glowing on the horizon
+      const sx = w * 0.7, sy = hy * h - 6, gl = g.createRadialGradient(sx, sy, 0, sx, sy, w * 0.55);
+      gl.addColorStop(0, 'rgba(255,248,220,1)'); gl.addColorStop(0.08, `rgba(${K.sun},.95)`); gl.addColorStop(0.35, `rgba(${K.sun},.35)`); gl.addColorStop(1, `rgba(${K.sun},0)`);
+      g.fillStyle = gl; g.fillRect(0, 0, w, h);
+    }
   });
+}
+function applySky(name) {
+  SKY = SKIES[name] || SKIES.day; const K = SKY;
+  world.fog.color.set(K.haze); renderer.setClearColor(K.clear);
+  if (ground) ground.material.color.setRGB(K.ground[0], K.ground[1], K.ground[2]);
+  for (const c of clouds) c.material.color.setRGB(K.cloud[0], K.cloud[1], K.cloud[2]);
+  for (const s of smokes) s.visible = K.smoke;
+  if (world.background) world.background.dispose();
+  world.background = makeSky();
+  AUD.sky = name;
 }
 
 // ---------------------------------------------------------------- batches
@@ -419,13 +450,14 @@ function spawnCloud(z) {
     c.position.set(side * rand(9, 24), rand(-G * 0.75, -5), z);
   }
   if (Math.random() < 0.5) c.scale.x *= -1;
+  c.material.color.setRGB(SKY.cloud[0], SKY.cloud[1], SKY.cloud[2]);
   clouds.push(c);
 }
 function spawnSmoke(z) {
   const s = sprite(TEX.smoke, rand(5, 8), 0.5, 0.02, -3, world);
   s.scale.y *= rand(0.9, 1.3);
   s.position.set((Math.random() < 0.5 ? -1 : 1) * rand(4, 60), -G, z);
-  s.userData.ph = rand(0, 10); smokes.push(s);
+  s.userData.ph = rand(0, 10); s.visible = SKY.smoke; smokes.push(s);
 }
 
 // ---------------------------------------------------------------- gate art (round-2 glass gates, flattened)
@@ -583,8 +615,8 @@ function makeBadge(name, tint) {
 }
 function setupIcons() {
   ICON_IMG.power = TEX.icon_minigun.image; ICON_IMG.rockets = TEX.icon_rockets.image; ICON_IMG.bazooka = TEX.icon_bazooka.image;
-  ICON_IMG.beam = laserIcon(); ICON_IMG.drones = TEX.plane.image; ICON_IMG.rapid = rapidIcon();
-  LOOT_IMG.coin = coinIcon(64); LOOT_IMG.coins = pileIcon(); LOOT_IMG.gems = gemIcon(); LOOT_IMG.diamond = diamondIcon(); LOOT_IMG.ruby = rubyIcon();
+  ICON_IMG.beam = laserIcon(); ICON_IMG.drones = TEX.drone.image; ICON_IMG.rapid = rapidIcon();
+  LOOT_IMG.coin = coinIcon(64); LOOT_IMG.coins = pileIcon(); LOOT_IMG.gems = gemIcon(); LOOT_IMG.diamond = diamondIcon(); LOOT_IMG.ruby = rubyIcon(); LOOT_IMG.scrap = LOOT_IMG.coins;   // round 15: wreck pods show the coin pile
   const root = document.documentElement.style;   // the HUD counters and the results card use the same art
   root.setProperty('--coin', TEX.coin ? `url(assets/coin.png?v=${VER})` : `url(${coinIcon(96).toDataURL()})`); root.setProperty('--gem', `url(${LOOT_IMG.gems.toDataURL()})`); root.setProperty('--dia', `url(${LOOT_IMG.diamond.toDataURL()})`); root.setProperty('--ruby', `url(${LOOT_IMG.ruby.toDataURL()})`);
   root.setProperty('--drone', `url(${ICON_IMG.drones.src})`);
@@ -600,7 +632,7 @@ function initAudio() {
   if (ac) { if (ac.state !== 'running') { try { const p = ac.resume(); if (p && p.catch) p.catch(() => { }); } catch (e) { } } return; }
   const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
   try { ac = new AC(); } catch (e) { ac = null; return; }
-  master = ac.createGain(); master.gain.value = muted ? 0 : 0.55; master.connect(ac.destination);
+  master = ac.createGain(); master.gain.value = 0; master.connect(ac.destination);   // round 15: applyAudioSettings sets it (volume, sound)
   noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate); const d = noiseBuf.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   silentBuf = ac.createBuffer(1, 1, 22050);   // round 13: the one-sample buffer played inside a gesture to unlock output
@@ -732,6 +764,7 @@ Object.assign(SFX, {
   zip() { if (gap('zip', 0.03)) return; noise(0.07, 2400, 5200, 0.06, 'bandpass', 4); },
   dcoin(k = 0) { if (gap('dcoin', 0.028)) return; const f = 900 * Math.pow(2, clamp(k, 0, 1) * 1.3); tone(f, 0.06, 0.045, 'square'); tone(f * 1.5, 0.08, 0.02, 'triangle', 0.02); },
   pthud() { noise(0.22, 800, 60, 0.4); tone(110, 0.2, 0.22, 'sine', 0, 0.5); },
+  clunk() { if (gap('clunk', 0.12)) return; noise(0.14, 700, 120, 0.5); tone(150, 0.14, 0.2, 'square', 0, 0.6); tone(95, 0.18, 0.16, 'sine', 0.05, 0.7); },   // round 15: a locked thing
   riser() { tone(220, 0.6, 0.06, 'sawtooth', 0, 4); noise(0.6, 400, 6000, 0.08, 'bandpass', 2); },
   punch() { noise(0.5, 1200, 50, 0.7); tone(65, 0.45, 0.35, 'sine', 0, 0.4); [523, 659, 784, 1046].forEach((f) => tone(f, 0.35, 0.05, 'sawtooth')); noise(0.8, 9000, 4000, 0.12, 'highpass', 1); },
   choir() { [523.3, 659.3, 784, 1046.5, 1318.5].forEach((f, i) => { pad(f, 1.6, 0.035, 'sine', i * 0.04, 0.18, 0.006); pad(f * 1.004, 1.5, 0.02, 'triangle', i * 0.04 + 0.02, 0.22, 0.008); });
@@ -757,16 +790,24 @@ const AUD = { btMin: 1, pickups: [], tut: [], bt: [], gest: [], bugs: 0, seen: 0
 // every lattice spot is tested against the plane's real silhouette (its alpha mask, as seen through the gameplay
 // camera), so the first drones tuck in right beside the wingtips, the nose and the tail with no hollow ring.
 let SLOTS = [];
-function computeSlots() {
-  const iw = 64, ih = Math.max(8, Math.round(64 * PLANE_AR));
+// round 15: the plane and the drones can differ (the Patchwork leads round-2 drones), so each has its own mask
+function alphaMask(img, iw, ih) {
   const c = document.createElement('canvas'); c.width = iw; c.height = ih; const g = c.getContext('2d', { willReadFrequently: true });
-  g.drawImage(TEX.plane.image, 0, 0, iw, ih);
-  const d = g.getImageData(0, 0, iw, ih).data, M = new Uint8Array(iw * ih), pad = CFG.droneHugPad;
+  g.drawImage(img, 0, 0, iw, ih);
+  const d = g.getImageData(0, 0, iw, ih).data, M = new Uint8Array(iw * ih);
   for (let i = 0; i < iw * ih; i++) M[i] = d[i * 4 + 3] > 60 ? 1 : 0;
+  return M;
+}
+const SLOT_CACHE = {};
+function computeSlots() {
+  if (SLOT_CACHE[CFG.plane]) { SLOTS = SLOT_CACHE[CFG.plane].slots; AUD.slots = SLOT_CACHE[CFG.plane].aud; return; }
+  const iw = 64, ih = Math.max(8, Math.round(64 * PLANE_AR)), pad = CFG.droneHugPad;
+  const M = alphaMask(TEX.plane.image, iw, ih);
   const D = new Uint8Array(iw * ih);   // plane mask dilated by `pad` pixels
   for (let y = 0; y < ih; y++) for (let x = 0; x < iw; x++) if (M[y * iw + x]) for (let yy = -pad; yy <= pad; yy++) for (let xx = -pad; xx <= pad; xx++) { const X = x + xx, Y = y + yy; if (X >= 0 && Y >= 0 && X < iw && Y < ih) D[Y * iw + X] = 1; }
-  const dronePts = [], planePts = [];
-  for (let y = 0; y < ih; y++) for (let x = 0; x < iw; x++) if (M[y * iw + x]) { dronePts.push([(x + 0.5) / iw - 0.5, (y + 0.5) / ih - 0.5]); planePts.push([(x + 0.5) / iw - 0.5, (y + 0.5) / ih - 0.5]); }
+  const dronePts = [], planePts = [], dw0 = 64, dh0 = Math.max(8, Math.round(64 * DRONE_AR)), DM = alphaMask(TEX.drone.image, dw0, dh0);
+  for (let y = 0; y < ih; y++) for (let x = 0; x < iw; x++) if (M[y * iw + x]) planePts.push([(x + 0.5) / iw - 0.5, (y + 0.5) / ih - 0.5]);
+  for (let y = 0; y < dh0; y++) for (let x = 0; x < dw0; x++) if (DM[y * dw0 + x]) dronePts.push([(x + 0.5) / dw0 - 0.5, (y + 0.5) / dh0 - 0.5]);
   const [pcx, pcy] = toScreen(0, 0.55, 0), pu = unitPx(0, 0.55, 0), pw = PLANE_W * pu, ph = PLANE_W * PLANE_AR * pu;
   const planeScr = planePts.filter((_, i) => i % 3 === 0).map(([u, v]) => [pcx + u * pw, pcy + v * ph]);
   const inPlane = (sx, sy) => { const x = Math.floor(((sx - pcx) / pw + 0.5) * iw), y = Math.floor(((sy - pcy) / ph + 0.5) * ih); return x >= 0 && y >= 0 && x < iw && y < ih && D[y * iw + x] === 1; };
@@ -778,7 +819,7 @@ function computeSlots() {
       const odd = ((r % 2) + 2) % 2 === 1;
       for (let cc = -6; cc <= 6; cc++) {
         const x = cc * dx + (odd ? dx / 2 : 0); if (Math.abs(x) > 3.75) continue;
-        const [sx, sy] = toScreen(x, 0.45, z), du = unitPx(x, 0.45, z), dw = WING_W * du, dh = WING_W * PLANE_AR * du;
+        const [sx, sy] = toScreen(x, 0.45, z), du = unitPx(x, 0.45, z), dw = WING_W * du, dh = WING_W * DRONE_AR * du;
         let hit = 0; for (const [u, v] of dronePts) if (inPlane(sx + u * dw, sy + v * dh)) hit++;
         const ov = hit / dronePts.length; if (ov > CFG.droneHug || inPlane(sx, sy)) continue;
         let sil = 1e9; for (const [qx, qy] of planeScr) { const q = Math.hypot(sx - qx, sy - qy); if (q < sil) sil = q; }
@@ -787,17 +828,26 @@ function computeSlots() {
       }
     }
     pts.sort((a, b) => (a.sil + a.cen * 0.3 + a.pen) - (b.sil + b.cen * 0.3 + b.pen) || Math.abs(a.x) - Math.abs(b.x) || a.x - b.x);
-    return pts.slice(0, MAXD);
+    return pts.slice(0, CFG.maxDrones);   // round 15: slots always for the full 50 (a smaller cap uses the first ones)
   };
   // pick the row phase that packs the squad in tightest (smallest total clearance for the first slots)
   let best = null, bs = 1e9;
   for (let z0 = 0; z0 < dz * 2 - 1e-6; z0 += 0.05) {
-    const p = build(+z0.toFixed(3)); if (p.length < MAXD) continue;
+    const p = build(+z0.toFixed(3)); if (p.length < CFG.maxDrones) continue;
     const sc = p.slice(0, 16).reduce((a, s) => a + s.sil, 0) + p.reduce((a, s) => a + s.cen, 0) * 0.05;
     if (sc < bs) { bs = sc; best = p; }
   }
   SLOTS = best.map((s) => [+s.x.toFixed(3), +s.z.toFixed(3)]);
-  AUD.slots = { first: best.slice(0, 12).map((s) => [+s.x.toFixed(2), +s.z.toFixed(2), +s.sil.toFixed(2), +s.ov.toFixed(2)]), maxClear16: +Math.max(...best.slice(0, 16).map((s) => s.sil)).toFixed(2) };
+  AUD.slots = { first: best.slice(0, 12).map((s) => [+s.x.toFixed(2), +s.z.toFixed(2), +s.sil.toFixed(2), +s.ov.toFixed(2)]), maxClear16: +Math.max(...best.slice(0, 16).map((s) => s.sil)).toFixed(2), plane: CFG.plane };
+  SLOT_CACHE[CFG.plane] = { slots: SLOTS, aud: AUD.slots };
+}
+// round 15: the mission's plane (the Lawnmower for Missions 1 and 2, the Patchwork from Mission 3)
+function setPlane(key) {
+  if (!CFG.planes[key]) key = 'lawnmower';
+  const tex = key === 'patchwork' ? TEX.patchwork : TEX.lawnmower;
+  CFG.plane = key; TEX.plane = tex; PLANE_W = CFG.planes[key].w; PLANE_AR = tex.image.height / tex.image.width;
+  if (planeSprite) { planeSprite.material.map = tex; planeSprite.material.needsUpdate = true; planeSprite.scale.set(PLANE_W, PLANE_W * PLANE_AR, 1); }
+  computeSlots();
 }
 
 // bullet tiers, Last War style: standard -> ORANGE -> BLUE. Each power pickup swaps every round in the air at once.
@@ -820,7 +870,7 @@ function updateWeaponHud() {
   if (S.rapidLv) h += ` <i class="rf">\u26a1RAPID \u00d7${CFG.rapidMul[S.rapidLv]}</i>`;
   if (S.rocketLv) h += ` <i>ROCKETS \u00d7${S.rocketLv * 2}</i>`;
   if (S.bazookaLv) h += ` <i>BAZOOKA</i>`;
-  $('weap').innerHTML = h;
+  AUD.weap = h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();   // round 15: no longer on screen (Bupé); kept for the tests
 }
 function hpColor(f) { return `hsl(${Math.round(clamp(f, 0, 1) * 120)},90%,48%)`; }
 function updateHP() {
@@ -832,8 +882,20 @@ function updateHP() {
 // Times are when an object appears at the top edge (seconds). Gates and canisters reach the plane ~10 s later,
 // bugs a little sooner because they fly at you. Each row holds at most ONE gate.
 const BOSS_T = 66;
+// round 15: the three missions of the canon storyline. len = seconds of flight (the progress meter), end = what ends it
+// (the boss, the scripted crash, the flight home), sky = SKIES theme, filler = the trickle of Xora between waves,
+// kit = what you start with. Mission 2 ends in the crash and the reset (no results); Mission 3 is the bare-bones salvage run.
+const MISSIONS = {
+  1: { n: 1, name: 'GET TO BEACON', plane: 'lawnmower', sky: 'day', len: BOSS_T, end: 'boss', resName: 'BEACON IN SIGHT', story: 'm1end' },
+  2: { n: 2, name: 'LAST LIGHT', plane: 'lawnmower', sky: 'dusk', len: 64, end: 'crash', story: 'reset',
+    filler: { min: 5, max: 7, every: 0.2, lull: 1.6, hp0: 10, hpPerS: 0.45 }, kit: { tier: 1, rockets: 1, drones: 8 } },
+  3: { n: 3, name: 'SALVAGE RUN', plane: 'patchwork', sky: 'morning', len: 60, end: 'home', resName: 'SALVAGE HOME', story: 'haldane',
+    filler: { min: 1, max: 2, every: 1.4, lull: 2.0, hp0: 4, hpPerS: 0.15 } },
+};
+let MIS = MISSIONS[1];
+const CRASH_T = 62;   // Mission 2: the engine catches fire here
 function buildLevel() {
-  seed = 20260928;
+  seed = 20260928 + (MIS.n - 1) * 7919;
   const L = [];
   const D = (T) => T * OBJ_V + SPAWN_D0;
   const gate = (T, x, val, o = {}) => L.push({ d: D(T), k: 'gate', x, val, ...o });
@@ -863,6 +925,65 @@ function buildLevel() {
   const wedge = (T, xc, n, hp) => { n = Math.round(n * CFG.hordeMul); hp = Math.max(3, Math.round(hp * CFG.hordeHp)); for (let i = 0; i < n; i++) { const r = Math.ceil(i / 2), s = i % 2 ? 1 : -1; bug(T + r * 0.2, clamp(xc + s * r * 0.8 * CFG.hordeSpacing, -4, 4), 'spider', hp); } };
   const brutes = (T, n, hp) => { for (let i = 0; i < n; i++) bug(T + i * 0.5, (i % 2 ? 1 : -1) * srand(0.8, 2.6), 'brute', hp); };
   const wasps = (T, n) => { for (let i = 0; i < n; i++) bug(T + i * 0.55, (i % 2 ? 1 : -1) * srand(2.4, 3.6), 'wasp', 16); };
+  const wreck = (T, x, hp) => L.push({ d: D(T), k: 'pod', x, hp, reward: { loot: 'scrap' }, kind: 'wreck' });
+  // round 15: Mission 2, LAST LIGHT. Dusk over Beacon, the horde at its heaviest; you start with orange rounds, rockets
+  // and 8 drones. There is no boss: at CRASH_T the engine catches fire and the Lawnmower goes down.
+  function m2() {
+    rows(-0.6, 0, 8, 6, 12); gate(1.4, 0, 6);
+    rows(2.6, -2.2, 8, 4, 14); rows(3.2, 2.2, 8, 4, 14); brutes(4.0, 2, 120);
+    gate(5.6, -2.0, -40); rows(5.6, 2.3, 6, 3, 15);
+    rows(7.4, 0, 14, 7, 16); wasps(8.0, 3); loot(8.6, 2.4, 60, 'coins');
+    orb(10.4, -2.0, 200, { power: 1 }); gate(10.4, 2.0, -80);
+    rows(12.0, 0, 18, 8, 18); brutes(12.6, 2, 160); ambush(13.4, 5, 26);
+    gate(15.0, 1.6, 4); rows(15.0, -2.4, 6, 3, 20); omegaOrb(16.2, -2.2);
+    rows(17.4, 0, 20, 8, 22); bug(18.6, 0, 'beetle', 300); wasps(19.0, 3);
+    rapid(20.4, 2.3, 140); gate(20.4, -2.0, -160);
+    rows(22.2, 0, 22, 8, 24); brutes(22.8, 3, 200); loot(23.6, -2.4, 120, 'gems');
+    can(25.6, -2.2, 190, { weapon: 'beam' }); gate(25.6, 2.0, 6);
+    rows(27.4, 0, 24, 8, 26); ambush(28.0, 6, 32); bug(29.0, 2.6, 'redspider', 30); bug(29.0, -2.6, 'redspider', 30);
+    gate(30.8, 0, -300); omegaOrb(32.0, 2.2);
+    rows(32.6, 0, 26, 9, 28); brutes(33.2, 3, 230); bug(34.4, 0, 'spitter', 160); wasps(34.8, 4);
+    gate(36.4, -1.8, 8); loot(36.4, 2.3, 160, 'coins');
+    rows(38.2, 0, 28, 9, 30); ambush(39.0, 6, 36);
+    orb(40.6, 2.0, 360, { bazooka: 1 }); gate(40.6, -2.0, -420);
+    rows(42.4, 0, 30, 9, 32); brutes(43.0, 4, 260); bug(44.2, 0, 'beetle', 360);
+    rapid(45.6, -2.3, 240); gate(45.6, 2.0, 10); omegaOrb(47.0, 0);
+    rows(47.6, 0, 32, 9, 34); wasps(48.2, 4); ambush(49.0, 7, 40);
+    at(50.0, 'warnglow');   // the horde thickens: the red edge glow and the siren, like the boss warning
+    rows(51.0, 0, 34, 9, 36); brutes(51.6, 4, 300); bug(52.6, -2.6, 'spitter', 200); bug(52.6, 2.6, 'spitter', 200);
+    gate(53.6, 0, -500); loot(53.6, 2.4, 200, Math.random() < 0.5 ? 'ruby' : 'gems');
+    rows(55.4, 0, 36, 9, 38); ambush(56.0, 8, 44); brutes(57.0, 4, 320);
+    rows(59.0, 0, 36, 9, 40); wasps(59.6, 5);
+    at(CRASH_T, 'crash');
+  }
+  // round 15: Mission 3, SALVAGE RUN. Calm morning after the attack, the Patchwork's first flight, bare bones: a few
+  // Xora, lots of supply crates and the wrecks of downed drones to shoot open for coins, small gates. Ends at home.
+  function m3() {
+    rows(0.0, 0, 3, 3, 4); gate(1.4, 0, 2);
+    wreck(3.0, -2.2, 26); loot(3.0, 2.2, 22, 'coins');
+    rows(4.6, 0, 4, 4, 5); gate(6.0, 2.0, 3); wreck(6.0, -2.3, 30);
+    loot(8.2, -2.2, 30, 'coins'); wreck(8.2, 2.3, 30);
+    rows(9.8, 0, 5, 5, 6); gate(11.4, -1.8, -4); wreck(11.4, 2.2, 34);
+    can(13.4, 2.1, 50, { power: 1 }); loot(13.4, -2.3, 36, 'gems');
+    rows(15.0, 0, 6, 6, 7); wreck(16.6, -2.2, 38); gate(16.6, 2.0, 5);
+    loot(18.6, 2.3, 40, 'coins'); wreck(18.6, -2.3, 40);
+    ambush(20.0, 2, 14); rows(21.0, 0, 6, 6, 8);
+    gate(22.6, 0, 4); wreck(24.2, -2.2, 44); loot(24.2, 2.2, 44, 'coins');
+    rapid(26.2, -2.2, 70); wreck(26.2, 2.2, 46);
+    rows(27.8, 0, 7, 7, 9); gate(29.4, 1.8, -6); loot(29.4, -2.3, 50, 'gems');
+    wreck(31.4, 2.3, 50); loot(31.4, -2.2, 50, 'coins');
+    bug(33.0, 0, 'beetle', 160); rows(33.6, 0, 6, 6, 10);
+    gate(35.2, -2.0, 6); wreck(35.2, 2.2, 54);
+    loot(37.4, 2.3, 56, 'coins'); wreck(37.4, -2.3, 56);
+    rows(39.0, 0, 8, 8, 11); gate(40.6, 0, 5);
+    can(42.4, -2.2, 90, { rockets: 1 }); wreck(42.4, 2.2, 60);
+    loot(44.6, 2.3, 60, Math.random() < 0.5 ? 'ruby' : 'gems'); wreck(44.6, -2.3, 60);
+    rows(46.2, 0, 8, 8, 12); gate(47.8, 2.0, 8); wreck(47.8, -2.2, 64);
+    loot(49.8, -2.3, 64, 'coins'); wreck(49.8, 2.3, 64);
+    wreck(52.0, 0, 70); gate(53.6, -2.0, 6); loot(53.6, 2.2, 70, 'coins');
+    at(MIS.len, 'home');
+  }
+  if (MIS.n === 2) m2(); else if (MIS.n === 3) m3(); else {
 
   // -- opening: guns hot from the first frame, a first wave to shoot, one +2 gate you cannot miss
   at(0.3, 'tip', { text: 'Drag to steer!', target: 'plane', dur: 2.6 });
@@ -918,6 +1039,7 @@ function buildLevel() {
   rows(58.2, 0, 24, 8, 36); brutes(58.8, 2, 240);
   // final: MORDRIX (round 13 name; the round-2 boss art)
   at(BOSS_T, 'boss');
+  }
   // never park a bug directly behind a gate: push it back to leave clear sky
   const gs = L.filter((e) => e.k === 'gate');
   for (const e of L) {
@@ -931,7 +1053,22 @@ function buildLevel() {
   return L;
 }
 
+// round 15: what this run is. The meta layer (meta.js) owns the saved mission progress, the FOUNDERS switch and the
+// Workshop levels; it answers plan() with { n, founders }. Bare bones = the Patchwork with FOUNDERS off: 10 drones and
+// no Omega (the Omega bar is hidden). With FOUNDERS on the Patchwork keeps the Lawnmower's 50 drones and Omega.
+function missionKit() {
+  const M = window.JCMETA, plan = M && M.plan ? M.plan() : { n: 1, founders: false };
+  const mis = MISSIONS[plan.n] || MISSIONS[1], bare = mis.plane === 'patchwork' && !plan.founders;
+  return { mis, founders: !!plan.founders, bare, cap: bare ? CFG.bareCap : CFG.maxDrones, omega: !bare };
+}
 function resetGame(play) {
+  const K = missionKit(); MIS = K.mis;
+  if (CFG.plane !== MIS.plane || TEX.plane !== (MIS.plane === 'patchwork' ? TEX.patchwork : TEX.lawnmower)) setPlane(MIS.plane);
+  if (AUD.sky !== MIS.sky) applySky(MIS.sky);
+  if (planeSprite) { planeSprite.scale.set(PLANE_W, PLANE_W * PLANE_AR, 1); planeSprite.material.color.setScalar(1); }
+  MAXD = K.cap;
+  if (window.JCMETA && window.JCMETA.useFor) window.JCMETA.useFor(MIS.plane);   // the Workshop multipliers for this plane
+  AUD.mission = { n: MIS.n, plane: MIS.plane, sky: MIS.sky, cap: MAXD, omega: K.omega, founders: K.founders, len: MIS.len };
   for (const a of [bugs, pods]) for (const o of a) { scene.remove(o.sprite); if (o.glow) scene.remove(o.glow); }
   for (const g of gates) dropGate(g); S.gateCoins = 0;   // round 13: gate textures and materials are freed, gate coins reset
   for (const w of wingmen) scene.remove(w.sprite);
@@ -943,17 +1080,24 @@ function resetGame(play) {
     tier: 0, primary: 'gun', rocketLv: 0, bazookaLv: 0, fireT: 0, missileT: 0.8, cannonT: 1, laserT: 0, gunSide: 0, smokeT: 0, endT: 0, maxDrones: 0, ended: false, deathBy: '',
     beamOwned: false, beamOn: false, beamT: 0, beamHintShown: false, beamStopHint: false, beamSmokeT: 0,
     omega: 0, omegaT: 0, omegaHint: false, combo: 0, comboT: 0, cleanT: 0, rescued: false, shakeT: 0, shakeHint: false, drainHurt: 0, latched: 0,
-    rapidLv: 0, fillT: 0, lullUntil: 0, visBugs: 0, coins: 0, coinsShown: 0, killCoins: 0, lootCoins: 0, gems: 0, gemsShown: 0, rubies: 0, rubiesShown: 0, diamonds: 0, diamondsShown: 0, killsBy: {} });
+    rapidLv: 0, fillT: 0, lullUntil: 0, visBugs: 0, coins: 0, coinsShown: 0, killCoins: 0, lootCoins: 0, gems: 0, gemsShown: 0, rubies: 0, rubiesShown: 0, diamonds: 0, diamondsShown: 0, killsBy: {},
+    maxCombo: 0, crash: null, omegaOK: K.omega, founders: K.founders, mission: MIS.n });
+  comboFx = null; edgeGlow(0); { const f = $('fade'); if (f) f.classList.remove('on'); } { const cw = $('crashwarn'); if (cw) cw.className = ''; }
+  $('hud').classList.toggle('noomega', !K.omega); $('prog').dataset.end = MIS.end;
   coinFx = []; setMood(false); $('threat').className = ''; updateLootHud(true);
   slowmo = 1; trauma = 0; flashRed = 0; weaponFlash = 0; omegaFlash = 0;
   level = buildLevel(); levelIdx = 0;
-  setDrones(play ? 2 : 0, 0, 0, true);
+  setDrones(play ? (MIS.kit ? MIS.kit.drones : 2) : 0, 0, 0, true);
+  if (play && MIS.kit) { S.tier = MIS.kit.tier || 0; S.rocketLv = MIS.kit.rockets || 0; }   // round 15: Mission 2 starts armed
+  // round 15 (item w): FOUNDERS on: the Patchwork keeps the Lawnmower's kit (its Mission 2 powers, the beam, Omega, the 50-drone cap)
+  if (play && K.founders && MIS.plane === 'patchwork') { const k = MISSIONS[2].kit; S.tier = Math.max(S.tier, k.tier); S.rocketLv = Math.max(S.rocketLv, k.rockets); S.beamOwned = true; S.beamHintShown = true; setDrones(k.drones, 0, 0, true); }
+  AUD.mission.kit = play ? { tier: S.tier, rockets: S.rocketLv, beam: S.beamOwned, drones: S.drones } : null;
   const warp = Number(Q.get('warp') || 0); // debug: skip ahead (seconds)
   if (play && warp > 0) {
     S.t = warp; S.dist = warp * OBJ_V;
     while (levelIdx < level.length && level[levelIdx].key < warp) levelIdx++;
     setDrones(Number(Q.get('drones') || 14), 0, 0, true);
-    S.tier = warp > 31 ? 2 : warp > 9 ? 1 : 0; if (warp > 20) S.rocketLv = 1; if (warp > 39) { S.beamOwned = true; S.beamHintShown = true; }
+    S.tier = Math.max(S.tier, warp > 31 ? 2 : warp > 9 ? 1 : 0); if (warp > 20) S.rocketLv = Math.max(1, S.rocketLv); if (warp > 39) { S.beamOwned = true; S.beamHintShown = true; }
   }
   if (play) {
     if (Q.get('drones') && !warp) setDrones(Number(Q.get('drones')), 0, 0, true);
@@ -975,7 +1119,7 @@ function setDrones(n, fromX, fromZ, quiet) {
   n = clamp(Math.round(n), 0, MAXD);
   let k = 0;
   while (wingmen.length < n) {
-    const s = sprite(TEX.plane, WING_W, 0.5, 0.5, 2);
+    const s = sprite(TEX.drone, WING_W, 0.5, 0.5, 2);
     // a new drone pops in just outside its slot (pushed away from the squad), big and stretched, then eases in
     const [sx, sz] = SLOTS[wingmen.length] || [0, 2];
     const dl = Math.hypot(sx, sz - 0.05) || 1, ox = sx / dl, oz = (sz - 0.05) / dl;
@@ -1043,7 +1187,9 @@ function newBug(x, z, type, hp, src = 'wave') {
   s.position.set(x, 0.3, z);
   bugs.push(o); AUD.bugs++; return o;
 }
-const POD = { can: { tex: 'pod', w: 2.3, cy: 0.05 }, orb: { tex: 'capsule', w: 3.2, cy: 0.32 }, crate1: { tex: 'crate1', w: 1.95, cy: 0.32 }, omega: { tex: 'omegaorb', w: CFG.omegaOrbW, cy: 0.5 } };
+const POD = { can: { tex: 'pod', w: 2.3, cy: 0.05 }, orb: { tex: 'capsule', w: 3.2, cy: 0.32 }, crate1: { tex: 'crate1', w: 1.95, cy: 0.32 }, omega: { tex: 'omegaorb', w: CFG.omegaOrbW, cy: 0.5 },
+  wreck: { tex: 'wreck', w: 2.3, cy: 0.4 } };   // round 15: a downed drone's wreck (Mission 3 salvage)
+const GATEMAX = Q.get('gatemax') === '1';   // round 15 debug: every positive gate starts at MAX (the combo tests)
 function spawnEvent(e) {
   // everything with a position spawns beyond the top edge, even if the script is running late
   const z = e.d !== undefined ? Math.min(-(e.d - S.dist), TOP_Z - 2) : 0;
@@ -1055,7 +1201,7 @@ function spawnEvent(e) {
     if (e.kind === 'omega') { s.material.blending = THREE.AdditiveBlending; s.renderOrder = 1.5; }
     pods.push({ sprite: s, kind: e.kind, x: e.x, z, hp: e.hp, max: e.hp, reward: e.reward, flash: 0, jolt: 0, w: pw, ph: rand(0, TAU) });
   } else if (e.k === 'gate') {
-    AUD.gates++;
+    AUD.gates++; if (GATEMAX && e.val > 0) e = { ...e, val: GATE_MAX };
     if (gates.some((o) => !o.passed && Math.abs(o.z - z) < 3)) AUD.gatePairs++;
     const tex = canvasTex(GW_PX, GH_PX, () => { });
     const g = { x: e.x, z, val: e.val, tex, passed: false, bump: 0, dirty: false, redrawT: 0, flash: 0, kind: '', gs: 1, pulse: 0, grown: e.val <= 0 };
@@ -1070,6 +1216,9 @@ function spawnEvent(e) {
   else if (e.k === 'boss') spawnBoss(MISSION_BOSS);
   else if (e.k === 'cocoon') spawnCocoon(e);
   else if (e.k === 'ambush') spawnAmbush(e.n, e.hp);
+  else if (e.k === 'warnglow') { edgeGlow(3200); sfx('siren'); setMood(true); flashRed = Math.max(flashRed, 0.4); addShake('medium', 0.6); AUD.warnGlow = +S.t.toFixed(2); }
+  else if (e.k === 'crash') startCrash();
+  else if (e.k === 'home') missionHome();
 }
 function spawnAmbush(n, hp) {
   for (let i = 0; i < n; i++) {
@@ -1177,20 +1326,20 @@ function banner(text, sub, warn, dur = 1.6) {
 
 // ---------------------------------------------------------------- damage & rewards
 function hurtPlayer(dmg = 20, by = '') {
-  if (S.inv > 0 || godMode || S.mode !== 'play') return;
+  if (S.inv > 0 || godMode || S.mode !== 'play' || S.crash) return;
   S.hp = Math.max(0, S.hp - dmg); S.inv = 0.6; S.barT = 2.2; flashRed = 1; updateHP(); sfx('hurt'); S.cleanT = 0;
   if (navigator.vibrate && navigator.userActivation && navigator.userActivation.hasBeenActive && !(window.JCMETA && window.JCMETA.settings.vibe === false)) try { navigator.vibrate(80); } catch (e) { }
   if (S.hp <= 0) { S.deathBy = by; killPlayer(); }
 }
 // damage over time (clinging bugs, beam drain): no invulnerability frames, a soft red pulse instead of a flash
 function drainPlayer(dmg, by = '') {
-  if (godMode || S.mode !== 'play' || dmg <= 0) return;
+  if (godMode || S.mode !== 'play' || dmg <= 0 || S.crash) return;
   S.hp = Math.max(0, S.hp - dmg); S.barT = 2.2; S.cleanT = 0; flashRed = Math.max(flashRed, 0.22);
   S.drainHurt += dmg; if (S.drainHurt > 3) { S.drainHurt = 0; updateHP(); sfx('scratch'); }
   if (S.hp <= 0) { updateHP(); S.deathBy = by; killPlayer(); }
 }
 function killPlayer() {
-  if (S.mode !== 'play') return;
+  if (S.mode !== 'play' || S.crash) return;
   explode(S.px, 0.5, 0, 2.2); addShake('death'); flashRed = 1; planeSprite.visible = false; setDrones(0);
   S.hp = 0; updateHP(); S.mode = 'dead'; S.endT = 1.6; sfx('lose');
 }
@@ -1216,6 +1365,7 @@ function breakPod(p, i) {
   if (i < 0 || pods[i] !== p) { i = pods.indexOf(p); if (i < 0) return; }
   if (k === 'omega') { collectOmegaOrb(p); scene.remove(p.sprite); pods.splice(i, 1); return; }
   if (k === 'orb') { burst(p.x, p.z, 'glass', 36); sfx('glass'); explode(p.x, 0.9, p.z, 1.4, false); }
+  else if (k === 'wreck') { burst(p.x, p.z, 'metal', 22); explode(p.x, 0.8, p.z, 1.5, true, [0.45, 0.42, 0.38]); for (let j = 0; j < 10; j++) smokeFx.spawn({ x: p.x + rand(-0.6, 0.6), y: 0.6, z: p.z, vx: rand(-1, 1), vy: rand(1, 2.5), vz: rand(-0.5, 0.5), life: rand(0.8, 1.3), s0: 0.8, s1: 2.4, r: 0.22, g: 0.2, b: 0.2, a: 0.6, drag: 0.95, world: true, fadeIn: true }); }
   else if (k === 'can') { burst(p.x, p.z, 'metal', 16); explode(p.x, 1, p.z, 1.6, true, [0.6, 0.62, 0.66]); }
   else { burst(p.x, p.z, 'wood', 26); sfx('wood'); sfx('thud'); explode(p.x, 0.8, p.z, 1.3, false); }
   addShake('thud'); buzz(55);   // round 13: breaking a crate, canister or power box jolts the whole scene like the results star thud
@@ -1315,6 +1465,7 @@ function awardKill(type, x, z) {
 function dropLoot(what, x, z) {
   const L = CFG.loot; let c = 0;
   if (what === 'coins') { const n = Math.round(rand(L.coins[0], L.coins[1])); c = n * 2; spawnCoins('coin', n, c, x, 0.9, z, 1.25); pop('+' + c, x, 2.2, z, '#ffd84a', 1.1, '#3a1d00', 0, true, true); }
+  else if (what === 'scrap') { const n = Math.round(rand(14, 22)); c = n * 3; spawnCoins('coin', n, c, x, 0.9, z, 1.3); pop('+' + c, x, 2.2, z, '#ffd84a', 1.15, '#3a1d00', 0, true, true); }   // round 15: a wreck's salvage
   else if (what === 'gems') { const n = Math.round(rand(L.gems[0], L.gems[1])); S.gems += n; c = L.gemCoins; spawnCoins('gem', n, n, x, 0.9, z, 1.1); spawnCoins('coin', 6, c, x, 0.9, z, 1.1); pop('GEM \u00d7' + n, x, 2.3, z, '#7dffb0', 1.0, '#063a1e', 0, true); sfx('gem'); $('gemBox').classList.remove('hidden'); }
   else if (what === 'ruby') { S.rubies += 1; c = L.rubyCoins; spawnCoins('ruby', 1, 1, x, 0.9, z, 1.0); spawnCoins('coin', 8, c, x, 0.9, z, 1.2); pop('RUBY!', x, 2.4, z, '#ff8a9a', 1.1, '#4a0010', 0, true); sfx('ruby'); $('rbBox').classList.remove('hidden'); AUD.rubies.push({ t: +S.t.toFixed(2), src: 'stoneCrate', rubies: S.rubies }); }
   else { S.diamonds += 1; c = L.diamondCoins; spawnCoins('diamond', 1, 1, x, 0.9, z, 1.0); spawnCoins('coin', 10, c, x, 0.9, z, 1.2); pop('DIAMOND!', x, 2.4, z, '#bff4ff', 1.15, '#0a3a5a', 0, true); sfx('diamond'); $('diaBox').classList.remove('hidden');
@@ -1356,7 +1507,7 @@ function showThreat() {
   // round 9: hazard tape across the screen, the boss's name in chunky 3D letters overhanging the tape, pulsing in contrast
   el.innerHTML = `<div class="tape"></div><div class="tr-name">${name}</div><div class="tr-sub"><span class="tr-b">${THREAT.boss}-RANK</span> THREAT APPROACHING</div>`;
   el.className = ''; void el.offsetWidth; el.className = 'show';
-  sfx('siren'); setMood(true); flashRed = Math.max(flashRed, 0.5); addShake('medium', 0.8);
+  sfx('siren'); setMood(true); flashRed = Math.max(flashRed, 0.5); addShake('medium', 0.8); edgeGlow(3800);   // round 15: the red edge glow pulses with the warning
   AUD.threat = { t: +S.t.toFixed(2), text: `${THREAT.boss}-RANK THREAT: ${name} APPROACHING`, bossT: BOSS_T, mood: moodOn, audio: !!ac };
   setTimeout(() => { if (el.className === 'show') el.className = 'out'; }, 3800);
 }
@@ -1387,14 +1538,17 @@ function damage(t, kind, dmg, i, tick = 1) {
 // only what was really gained or lost. Healing is unchanged.
 function passGate(g) {
   const v = g.val, gold = v >= GATE_MAX;
+  S.maxCombo = gold ? (S.maxCombo || 0) + 1 : 0;   // round 15: consecutive MAX gates (any other gate passed breaks it)
   if (v > 0) {
-    const got = gainDrones(v, g.x, g.z, true), over = v - got, coins = over > 0 ? Math.ceil(over * CFG.gateOverflowCoin) : 0;
+    // round 15: a MAX gate pays the combo (maxComboPay) instead of the overflow coins
+    const got = gainDrones(v, g.x, g.z, true), over = v - got, coins = !gold && over > 0 ? Math.ceil(over * CFG.gateOverflowCoin) : 0;
     const heal = Math.min(S.hpMax - S.hp, 15 + Math.min(35, v));
     if (got > 0) pop('+' + got, S.px, 2.4, -1.5, gold ? '#ffe066' : '#9fe8ff', 1.6, gold ? '#5a3300' : '#0b2a5a');
     if (coins > 0) bonusCoins(coins, S.px, 0.9, got > 0 ? -2.6 : -0.6, 'gate');
     if (heal > 0) { S.hp += heal; S.barT = 2.2; pop('+' + Math.round(heal) + ' HP', S.px, 1.2, 0.8, '#8dff7a', 0.9, '#0b3a10', 0, true); updateHP(); }
     AUD.gatePass = AUD.gatePass || []; if (AUD.gatePass.length < 60) AUD.gatePass.push({ t: +S.t.toFixed(2), val: v, got, over, coins });
     sfx(gold ? 'max' : 'gate');
+    if (gold) maxComboPay(g);
   } else if (v < 0) {
     if (S.drones <= 0) { pop('\u2212' + Math.abs(v), S.px, 2.4, -1.5, '#ff6a5a', 1.6, '#3a0b0b'); S.deathBy = 'gate'; killPlayer(); return; }
     const lost = Math.min(S.drones, -v);   // round 13: the drones actually lost
@@ -1403,6 +1557,28 @@ function passGate(g) {
   }
   const c = gold ? [1, 0.85, 0.3] : v >= 0 ? [0.5, 0.85, 1] : [1, 0.4, 0.35];
   for (let k = 0; k < 40; k++) fx.spawn({ x: g.x + rand(-1.2, 1.2), y: rand(0.3, 1.8), z: g.z, vx: rand(-3, 3), vy: rand(-1, 3), vz: rand(-2, 4), life: rand(0.3, 0.7), s0: 0.5, s1: 0.1, r: c[0], g: c[1], b: c[2], a: 1, world: true });
+}
+// round 15 (Bupé): the MAX gate combo. 1st MAX gate 50 coins; 2nd "2x" 100; 3rd "3x MAX COMBO" 500 + 1 stone; 4th
+// "4x MAX COMBO" 1,000 + 2 stones; 5th and every one after "MAX COMBO" in the big gold lettering with a gate shake burst,
+// 5,000 + 3 stones. Each stone is rolled on its own (CFG.combo.w), so any mix of types can come.
+let comboFx = null;
+function rollStone() { const w = CFG.combo.w, r = Math.random() * (w.gem + w.ruby + w.diamond); return r < w.gem ? 'gem' : r < w.gem + w.ruby ? 'ruby' : 'diamond'; }
+function maxComboPay(g) {
+  const C = CFG.combo, n = S.maxCombo, i = Math.min(n, C.coins.length) - 1, coins = C.coins[i], ns = C.stones[i], got = [];
+  bonusCoins(coins, S.px, 0.9, -2.6, 'combo');
+  for (let k = 0; k < ns; k++) {
+    const s = rollStone(); got.push(s);
+    if (s === 'gem') { S.gems++; $('gemBox').classList.remove('hidden'); } else if (s === 'ruby') { S.rubies++; $('rbBox').classList.remove('hidden'); } else { S.diamonds++; $('diaBox').classList.remove('hidden'); }
+    spawnCoins(s, 1, 1, S.px + (k - (ns - 1) / 2) * 0.9, 1.0, -2.2, 1.1);
+  }
+  if (n >= C.coins.length) {   // the 5th and later: the big gold MAX COMBO and a gate shake burst
+    comboFx = { t: 0, n }; addShake('combo'); sfx('punch'); setTimeout(() => sfx('fanfare'), 120); buzz([60, 30, 90]);
+    for (let k = 0; k < 80; k++) fx.spawn({ x: g.x + rand(-1.6, 1.6), y: rand(0.3, 2.2), z: g.z, vx: rand(-6, 6), vy: rand(1, 6), vz: rand(-3, 3), life: rand(0.5, 1.1), s0: 0.9, s1: 0.1, r: 1, g: 0.85, b: 0.3, a: 1, world: true });
+  } else if (n >= 2) {
+    pop(n === 2 ? '2x' : n + 'x MAX COMBO', S.px, 2.9, -3.8, '#ffe066', n === 2 ? 1.25 : 1.45, '#5a2e00', 0.04, true);
+    if (n >= 3) { addShake('gateMax', 1.5); sfx('choir'); } else sfx('rsurge', 0.6);
+  }
+  const A = AUD.combo || (AUD.combo = []); if (A.length < 60) A.push({ t: +S.t.toFixed(2), n, coins, stones: got });
 }
 // round 13: a removed gate frees its 512x300 canvas texture and its material (they were only removed from the scene)
 function dropGate(g) {
@@ -1473,13 +1649,9 @@ function renderScenes() {
 
 // the cartoon glove with a pointing finger (drawn here, no emoji). Round 13: the finger is a third shorter (the fingertip stays
 // at the same point, the fist sits higher) and it is drawn over the fist, so no outline crosses it where it meets the knuckles.
-const HAND_SVG = `<svg class="hand" viewBox="0 0 64 84" aria-hidden="true"><g stroke="#16203a" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">
-  <rect x="16" y="55" width="32" height="13" rx="4" fill="#3d8bff"/><path d="M19.5 58.6 h25" stroke="#9cc6ff" stroke-width="2"/>
-  <path d="M38 24 Q43 23.5 44 29 Q46 25.5 50 25.5 Q56.5 25.5 56.5 32 V44 Q55 58.5 40 59.5 H25 Q15 58.5 10.5 47 Q6 37.5 13 33.5 Q19 30.5 24 27 Z" fill="#fff"/>
-  <path d="M13.5 49 Q18 56.8 26 57 H40 Q52.5 56.5 54.4 46 Q55 57 40 57.6 H25.5 Q17 57.4 13.5 49Z" fill="#d3def3" stroke="none"/>
-  <path d="M24 31 V10 A7 7 0 0 1 38 10 V31 Z" fill="#fff" stroke="none"/><rect x="33" y="9" width="4.2" height="21" rx="2" fill="#dde6f6" stroke="none"/>
-  <path d="M24 27 V10 A7 7 0 0 1 38 10 V24" fill="none"/>
-  <path d="M44 29 v6.5 M24.5 33 Q24 41.5 16.5 46.5" fill="none" stroke-width="2.4"/></g></svg>`;
+// Round 15: Bupé's glove art (stripes removed, the cuff in the old blue) in the same 64 x 84 box, its fingertip on the old
+// fingertip (31, 3), so every tutorial position and animation still lines up.
+const HAND_SVG = `<svg class="hand" viewBox="0 0 64 84" overflow="visible" aria-hidden="true"><image href="assets/hand.png?v=${VER}" x="-1.6" y="2" width="61.7" height="72"/></svg>`;
 const TAP_SVG = `<svg class="tapico" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="8" fill="#fff"/><circle cx="20" cy="20" r="14" fill="none" stroke="#fff" stroke-width="3" opacity=".6"/><circle cx="20" cy="20" r="19" fill="none" stroke="#fff" stroke-width="2" opacity=".3"/></svg>`;
 const HEART_SVG = `<svg class="heart" viewBox="0 0 32 28" aria-hidden="true"><path d="M16 27 C6 19 1 14 1 8 C1 4 4 1 8.5 1 C12 1 14.5 3 16 6 C17.5 3 20 1 23.5 1 C28 1 31 4 31 8 C31 14 26 19 16 27Z" fill="#ff4d5e" stroke="#3a0008" stroke-width="2.4"/><ellipse cx="9" cy="8" rx="3" ry="2" fill="#fff" opacity=".7"/></svg>`;
 // Tutorials: each shows once (localStorage 'grokdemo.tut'); ?tut=1 resets them, ?tut=0 turns them off. Performing
@@ -1502,7 +1674,7 @@ const TUT = (() => {
   const gateArt = () => { if (!gateUrl) { const c = document.createElement('canvas'); c.width = 256; c.height = 150; c.getContext('2d').drawImage(gateBg('blue'), 0, 0, 256, 150); gateUrl = c.toDataURL(); } return gateUrl; };
   // round 13: a target counts once it is inside bullet range, ahead of the plane and low enough on screen to sit clear of
   // the HUD once bullet time zooms in (a quarter of the way down); never near the boss
-  const early = () => !boss && S.t < BOSS_T - 15;
+  const early = () => !boss && S.t < MIS.len - 15 && !S.crash;
   const inRange = (x, z) => z < -4 && z > RANGE_Z && toScreen(x, 0, z)[1] > H * 0.25;
   const findGate = () => { for (const g of gates) if (!g.passed && g.val < GATE_MAX && inRange(g.x, g.z)) return g; return null; };
   const findPod = () => { if (hold && pods.includes(hold) && inRange(hold.x, hold.z)) return hold; for (const p of pods) if (p.kind !== 'omega' && p.hp > 0 && inRange(p.x, p.z)) return p; return null; };
@@ -1620,7 +1792,10 @@ const TUT = (() => {
   function gesture(g) { if (cur && g === cur.def.need && t > 0.25) end('done'); }
   // round 13: Settings, Replay tutorials: every tutorial shows again from the next run
   function forget() { done = {}; save(); reset(); }
-  return { want, update, gesture, reset, forget, get active() { return !!cur; }, get busy() { return !!cur || queue.length > 0; }, get holdBeam() { return !off && !!done.beamOff && !done.beamRisk; }, get holdOmega() { return !off && !!done.omega && !done.omegaFill; },
+  // round 15: the Help panel shows each tutorial's picture card (the same markup, no game state needed)
+  const HELP = ['omega', 'omegaFill', 'beamOn', 'beamOff', 'beamRisk', 'gates', 'cans'];
+  function preview(id) { if (!DEF[id]) return ''; const a = aim; aim = null; try { return DEF[id].build(); } catch (e) { return ''; } finally { aim = a; } }
+  return { want, preview, HELP, update, gesture, reset, forget, get active() { return !!cur; }, get busy() { return !!cur || queue.length > 0; }, get holdBeam() { return !off && !!done.beamOff && !done.beamRisk; }, get holdOmega() { return !off && !!done.omega && !done.omegaFill; },
     get id() { return cur ? cur.id : null; }, get need() { return cur ? cur.def.need : null; }, get done() { return { ...done }; }, off,
     get state() { return { cur: cur ? cur.id : null, queue: queue.slice(), t: +t.toFixed(2), lastBeam, beamOffAt, omegaEnd, lastOmegaT } } };
 })();
@@ -1713,12 +1888,7 @@ window.addEventListener('keyup', (e) => {
   if (['ArrowLeft', 'a', 'A'].includes(e.key)) keyL = false;
   if (['ArrowRight', 'd', 'D'].includes(e.key)) keyR = false;
 });
-// round 13: the in-game mute button is the Sound effects switch in Settings (kept in sync, saved in jc.settings)
-$('mute').addEventListener('pointerdown', (e) => {
-  e.stopPropagation(); initAudio();
-  if (window.JCMETA && window.JCMETA.set) window.JCMETA.set('sfx', !window.JCMETA.settings.sfx); else muted = !muted;
-  applyAudioSettings();
-});
+// round 15: the in-run mute button is gone (Bupé); Settings has VOLUME, MUSIC and SOUND
 // round 13: apply Settings to the audio. Sound effects off: the master gain is 0. Music off: the ambience and the boss mood
 // (moved onto their own music bus the first time they exist) are 0. Safe to call before the audio exists.
 let musicBus = null;
@@ -1726,11 +1896,11 @@ const audRouted = { amb: null, mood: null };
 function applyAudioSettings() {
   const st = (window.JCMETA && window.JCMETA.settings) || {};
   if (window.JCMETA) muted = st.sfx === false;
-  const mb = $('mute'); if (mb) mb.classList.toggle('off', muted);
+  const vol = clamp(typeof st.vol === 'number' ? st.vol : 1, 0, 1);   // round 15: Settings, VOLUME (0..1, scales everything)
   if (!ac || !master) return;
-  master.gain.value = muted ? 0 : 0.55;
+  master.gain.value = muted ? 0 : 0.55 * vol;
   if (!musicBus) { musicBus = ac.createGain(); musicBus.connect(ac.destination); }
-  musicBus.gain.value = st.music === false ? 0 : 0.55;
+  musicBus.gain.value = st.music === false ? 0 : 0.55 * vol;
   const route = (n) => { try { n.disconnect(); } catch (err) { } n.connect(musicBus); };
   if (amb !== audRouted.amb) { if (amb) route(amb.gn); audRouted.amb = amb; }
   if (moodNodes !== audRouted.mood) { if (moodNodes) { route(moodNodes.pg); route(moodNodes.dg); } audRouted.mood = moodNodes; }
@@ -1740,7 +1910,7 @@ $('again').addEventListener('pointerdown', (e) => { e.stopPropagation(); initAud
 function startGame() {
   teardownEnd(); if (window.JCMETA && window.JCMETA.onStart) window.JCMETA.onStart();   // round 13: the title's effects stop before the run
   $('start').classList.add('hidden'); $('hud').classList.remove('hidden'); $('bossbar').classList.add('hidden');
-  planeSprite.visible = true; resetGame(true); BT.on = false; BT.p = 0; BT.k = 0; BT.s = 1; BT.anchor = null;
+  planeSprite.visible = true; planeSprite.material.color.setScalar(1); resetGame(true); BT.on = false; BT.p = 0; BT.k = 0; BT.s = 1; BT.anchor = null;
   // round 13: no "MISSION 1 / Get to Beacon" banner at the start (Bupé); the title screen carries the mission name
 }
 // round 13: back to the title screen after a run (CONTINUE), so the Workshop and the cards can be used between runs
@@ -1749,7 +1919,59 @@ function goHome() {
   $('hud').classList.add('hidden'); $('bossbar').classList.add('hidden');
   planeSprite.visible = true; resetGame(false); BT.on = false; BT.p = 0; BT.k = 0; BT.s = 1; BT.anchor = null;
   $('start').classList.remove('hidden'); placeSteerHand();
+  // round 15: a story scene owed by the run that just ended (the first time) plays before the title shows
+  const st = window.JCMETA && window.JCMETA.takeStory ? window.JCMETA.takeStory() : null;
+  if (st && storyOn()) { window.JCSTORY.play(st.id, () => { if (window.JCMETA) window.JCMETA.onHome(); }, st.data); return; }
   if (window.JCMETA) window.JCMETA.onHome();
+}
+const storyOn = () => Q.get('story') !== '0' && !!window.JCSTORY;
+// round 15: the title shows the selected mission's plane and sky (meta.js calls this when a mission medallion is picked)
+function refreshTitle() { if (S.mode === 'title') { resetGame(false); planeSprite.visible = true; placeSteerHand(); } }
+// ---------------------------------------------------------------- round 15: the red edge glow (boss warning, Mission 2, the crash)
+let glowTimer = 0;
+function edgeGlow(ms, hard) {
+  const el = $('edgeglow'); if (!el) return; clearTimeout(glowTimer);
+  if (!ms) { el.className = ''; return; }
+  el.className = 'on' + (hard ? ' hard' : ''); AUD.edgeGlow = (AUD.edgeGlow || 0) + 1;
+  if (ms > 0) glowTimer = setTimeout(() => { el.className = ''; }, ms);
+}
+// ---------------------------------------------------------------- round 15: Mission 2's crash (fire, warning, wobble, fade, crash)
+function startCrash() {
+  if (S.crash || S.mode !== 'play') return;
+  S.crash = { t: 0, shk: 0, drop: 1.4, fade: false, done: false }; AUD.crash = { at: +S.t.toFixed(2), coins: S.coins };
+  if (S.beamOn) setBeam(false, true);
+  edgeGlow(-1, true); $('crashwarn').className = 'show'; sfx('warn'); sfx('siren'); setMood(true); addShake('crash'); buzz([80, 40, 80]);
+  TUT.reset();
+}
+function crashStep(dt, now) {
+  const C = S.crash; C.t += dt; const k = clamp(C.t / 4.2, 0, 1);
+  // fire and black smoke pouring from the engine
+  for (let j = 0; j < 3; j++) {
+    fx.spawn({ x: S.px + rand(-0.35, 0.35), y: 0.7, z: rand(-0.6, 0.3), vx: rand(-0.4, 0.4), vy: rand(0.5, 1.5), vz: rand(3, 6), life: rand(0.25, 0.45), s0: 1.0 + k * 0.6, s1: 0.3, r: 1, g: rand(0.45, 0.7), b: 0.12, a: 1 });
+    smokeFx.spawn({ x: S.px + rand(-0.4, 0.4), y: 0.7, z: rand(-0.3, 0.4), vx: rand(-0.3, 0.3), vy: rand(0.2, 0.6), vz: rand(4, 7), life: rand(0.8, 1.3), s0: 0.5, s1: 2.2 + k * 1.5, r: 0.14, g: 0.12, b: 0.12, a: 0.75, drag: 0.98 });
+  }
+  // the shake grows, the plane wobbles and drifts, the drones fall away
+  C.shk -= dt; if (C.shk <= 0) { C.shk = 0.55 - k * 0.32; addShake(k > 0.55 ? 'crash' : 'medium', 0.5 + k * 0.7); buzz(25); sfx(k > 0.5 ? 'boom' : 'pop'); }
+  S.tx = clamp(S.tx + Math.sin(C.t * 2.7) * dt * 5 * k, -XMAX, XMAX);
+  planeSprite.material.rotation += Math.sin(C.t * 10) * 0.32 * (0.3 + k);
+  const sk = 1 - k * 0.22; planeSprite.scale.set(PLANE_W * sk, PLANE_W * PLANE_AR * sk, 1); planeSprite.material.color.setScalar(1 - k * 0.45);
+  C.drop -= dt; if (C.drop <= 0 && S.drones > 0) { C.drop = 0.18; setDrones(S.drones - 1); }
+  if (C.t > 3.4 && !C.fade) { C.fade = true; $('fade').classList.add('on'); sfx('big'); addShake('death'); buzz(200); }
+  if (C.t > 5.0 && !C.done) { C.done = true; finishCrash(); }
+}
+function finishCrash() {
+  S.mode = 'crashed'; $('hud').classList.add('hidden'); $('crashwarn').className = ''; edgeGlow(0); setMood(false);
+  const M = window.JCMETA, info = M && M.crash ? M.crash({ coins: S.coins, gems: S.gems, rubies: S.rubies, diamonds: S.diamonds }) : null;
+  AUD.crash.done = true; AUD.crash.info = info;
+  const go = () => { goHome(); setTimeout(() => $('fade').classList.remove('on'), 60); };
+  if (info && info.first && storyOn()) window.JCSTORY.play('reset', go, { salvage: info.salvage });
+  else setTimeout(go, 700);
+}
+// round 15: Mission 3 ends when the Patchwork reaches home with its salvage
+function missionHome() {
+  if (S.mode !== 'play') return;
+  S.mode = 'win'; S.endT = 2.4; sfx('win'); banner('SALVAGE HOME!', '', false, 2.4); AUD.home = +S.t.toFixed(2);
+  for (const b of bugs) b.state = 'flee';
 }
 // ---------------------------------------------------------------- Mission Complete (round 5): stomp, cartoon stars, celebration
 // Star rules: 1 = complete the mission; 2 = finish with >= 50% health OR rescue the pilot;
@@ -1789,7 +2011,9 @@ function endGame(win) {
   AUD.stars = stars; AUD.starInfo = { hp: Math.round(hpF * 100), rescued: S.rescued, drones: S.drones };
   const els = [...document.querySelectorAll('.bstar')];
   els.forEach((el, i) => { el.innerHTML = starSvg(i < stars); el.className = 'bstar s' + (i + 1) + (i < stars ? ' on' : ' off'); });
-  $('hud').classList.add('hidden'); $('bossbar').classList.add('hidden'); setMood(false);
+  $('hud').classList.add('hidden'); $('bossbar').classList.add('hidden'); setMood(false); edgeGlow(0);
+  if (win && window.JCMETA && window.JCMETA.missionDone) window.JCMETA.missionDone(MIS.n);   // round 15: unlocks the next mission (and its story)
+  $('r-name').textContent = MIS.resName || 'MISSION COMPLETE';
   if (!win) {   // round 13: SHOT DOWN in the results style: the red plate stomps in like the gold banner (jolt and dust), then the card (coinTally)
     const bw = $('badgewrap'); bw.classList.remove('stomp'); void bw.offsetWidth; bw.classList.add('stomp'); sfx('whooshDown');
     endLater(330, () => { shakeEnd('big'); sfx('thud'); addShake('stomp'); EFX.dust(); e.classList.add('landed'); buzz(50); });
@@ -1823,7 +2047,7 @@ function skipLose() {
   const e = $('end'), L = $('lose'); if (e.classList.contains('hidden') || !L || L.classList.contains('btns')) return;
   endTimers.forEach(clearTimeout); endTimers = []; tallyToken++;
   if (!e.classList.contains('landed')) { e.classList.add('landed'); $('badgewrap').classList.add('shown'); }
-  const far = clamp(S.t / BOSS_T, 0, 1); $('l-fill').style.width = (far * 100).toFixed(1) + '%'; $('l-plane').style.left = (far * 100).toFixed(1) + '%';
+  const far = clamp(S.t / MIS.len, 0, 1); $('l-fill').style.width = (far * 100).toFixed(1) + '%'; $('l-plane').style.left = (far * 100).toFixed(1) + '%';
   $('l-coinN').textContent = S.coins; $('l-coins').classList.add('rin', 'land'); [...$('l-stones').children].forEach((c) => c.classList.add('rin'));
   L.classList.add('rin', 'bar', 'cause', 'btns'); if (AUD.results) AUD.results.shown = S.coins;
 }
@@ -1945,8 +2169,8 @@ const RES = (() => {
       $('end').classList.toggle('shine', P.shine);   // round 9: the shine only for extraordinary runs (CFG.results)
       q('r-stones').classList.toggle('none', !P.stones.length);
       // round 13: the final total and the run's stones go into the bank (meta.js, jc.bank); BANK shows the coin bank
-      const bank = window.JCMETA ? window.JCMETA.bankAdd({ coins: P.final, gems: S.gems, rubies: S.rubies, diamonds: S.diamonds }).coins : 0;
-      q('r-bank').textContent = bank ? `BANK ${bank.toLocaleString('en-GB')}` : '';
+      const bk = window.JCMETA ? window.JCMETA.bankAdd({ coins: P.final, gems: S.gems, rubies: S.rubies, diamonds: S.diamonds }) : null, bank = bk && !bk.locked ? bk.coins : 0;
+      q('r-bank').textContent = bank ? `BANK ${bank.toLocaleString('en-GB')}` : '';   // round 15: before the crash the haul is salvage (no bank yet)
       AUD.results = { stage: P.stage, killCoins: P.killCoins, lootCoins: P.lootCoins, drones: P.D, droneCoinBase: P.base, droneCoinMult: P.mult, plane: P.plane, droneBonus: P.droneBonus,
         stars: P.stars, starMult: P.sm, shine: P.shine, shineWhy: P.why, preStar: P.pre, final: P.final, expected: Math.round((P.stage + Math.round(P.D * P.base * P.mult)) * P.sm), gems: S.gems, rubies: S.rubies, diamonds: S.diamonds,
         kills: S.kills, killsBy: { ...S.killsBy }, bank, timeline: { ...P.T, segs: P.T.segs }, shown: null, skipped: false, coins: S.coins, t0: 0 };
@@ -1967,8 +2191,11 @@ const RES = (() => {
 // when tallyToken changes, so teardownEnd() stops all of it.
 function coinTally(win) {
   S.coinsShown = S.coins; S.gemsShown = S.gems; S.rubiesShown = S.rubies; S.diamondsShown = S.diamonds; coinFx = []; updateLootHud(true);
-  const M = window.JCMETA, bank = M ? M.bankAdd({ coins: S.coins, gems: S.gems, rubies: S.rubies, diamonds: S.diamonds }).coins : 0;
-  const far = clamp(S.t / BOSS_T, 0, 1), cause = M ? M.cause(S.deathBy) : { pic: '', words: '' }, total = S.coins, tok = tallyToken;
+  const M = window.JCMETA, bk = M ? M.bankAdd({ coins: S.coins, gems: S.gems, rubies: S.rubies, diamonds: S.diamonds }) : null, bank = bk ? bk.coins : 0;
+  $('upg').classList.toggle('hidden', !!(bk && bk.locked));   // round 15: no Workshop before the crash
+  { const lb = document.querySelector('.l-beacon'); if (lb && M && M.medal) lb.innerHTML = M.medal(MIS.n); }   // round 15: the goal of this mission
+  $('l-plane').style.setProperty('--pl', `url(assets/${MIS.plane === 'patchwork' ? 'patchwork' : 'r2_plane'}.webp?v=${VER})`);
+  const far = clamp(S.t / MIS.len, 0, 1), cause = M ? M.cause(S.deathBy) : { pic: '', words: '' }, total = S.coins, tok = tallyToken;
   AUD.results = { coins: S.coins, killCoins: S.killCoins, lootCoins: S.lootCoins, gems: S.gems, rubies: S.rubies, diamonds: S.diamonds, killsBy: { ...S.killsBy }, kills: S.kills, bank, far: +far.toFixed(3), cause: S.deathBy || 'xora', shown: null };
   const L = $('lose'); L.className = ''; $('l-fill').style.width = '0%'; $('l-plane').style.left = '0%';
   const cn = $('l-coinN'); cn.textContent = '0';
@@ -2145,7 +2372,7 @@ function firePrimary(dt) {
   while (S.fireT <= 0) {
     S.fireT += 1 / (T.rate * rapidMul() * WSM.rate);
     if (AUD.firstShotT < 0) AUD.firstShotT = +S.t.toFixed(3);
-    const guns = T.twin ? [-0.55, 0.55] : [S.gunSide ? 0.55 : -0.55]; S.gunSide ^= 1;
+    const gx0 = CFG.planes[CFG.plane].guns, guns = T.twin ? [-gx0, gx0] : [S.gunSide ? gx0 : -gx0]; S.gunSide ^= 1;   // round 15: per plane
     AUD.shotsPlane += guns.length;
     for (const gx of guns) {
       fire(S.px + gx, -0.9, 0, -62, false);
@@ -2246,6 +2473,7 @@ function update(dt) {
   planeSprite.material.rotation = clamp(-S.vx * 0.035, -0.35, 0.35);
   planeSprite.scale.x = PLANE_W * (1 - Math.min(0.18, Math.abs(S.vx) * 0.015));
   planeSprite.material.opacity = S.inv > 0 ? (Math.sin(S.inv * 30) > 0 ? 1 : 0.45) : 1;
+  if (S.crash && play) crashStep(dt, now);
 
   // damage smoke: the lower the health, the thicker the trail
   if (play && planeSprite.visible && S.hp < 65) {
@@ -2272,14 +2500,16 @@ function update(dt) {
     const spawning = w.spawn < 1;
     w.spawn = Math.min(1, w.spawn + dt / 0.6); w.barT = Math.max(0, w.barT - dt);
     const k = 1 - Math.exp(-dt * (spawning ? 6 : 7));
-    w.x = lerp(w.x, S.px + sx, k); w.z = lerp(w.z, sz, k);
+    // round 15 (Bupé): a gentle sway left and right on each drone's own timer, so the bullet streams are never ruler-straight
+    const sw = Math.sin(now * 0.0019 + w.ph) * 0.11 + Math.sin(now * 0.0043 + w.ph * 1.7) * 0.04;
+    w.x = lerp(w.x, S.px + sx + sw, k); w.z = lerp(w.z, sz, k);
     w.aimHold = Math.max(0, (w.aimHold || 0) - dt); if (w.aimHold <= 0) w.aimT = 0;
     w.aim = lerp(w.aim, w.aimT, 1 - Math.exp(-dt * 12));
     const wb = Math.sin(now * 0.004 + w.ph) * 0.1;
     w.sprite.position.set(w.x, 0.45 + wb, w.z);
-    w.sprite.material.rotation = clamp(-(S.px + sx - w.x) * 0.25, -0.4, 0.4) + w.aim;
+    w.sprite.material.rotation = clamp(-(S.px + sx - w.x) * 0.25, -0.4, 0.4) + w.aim + Math.cos(now * 0.0019 + w.ph) * 0.05;
     const e = 1 - w.spawn, big = 1 + 0.5 * e * e, st = 0.55 * e * e;   // scaled up + stretched away from the squad
-    w.sprite.scale.set(WING_W * big * (1 + st * Math.abs(w.ox)), WING_W * PLANE_AR * big * (1 + st * Math.abs(w.oz)), 1);
+    w.sprite.scale.set(WING_W * big * (1 + st * Math.abs(w.ox)), WING_W * DRONE_AR * big * (1 + st * Math.abs(w.oz)), 1);
     w.sprite.material.color.setScalar(1 + e * 0.8);
   });
 
@@ -2390,10 +2620,10 @@ function update(dt) {
   // round 8: FILLER STREAM. Between hordes a trickle of crawlers keeps coming in from beyond the top edge, so the
   // sky is never empty (>= CFG.filler.min on screen or about to enter). Paused for CFG.filler.lull s after an Omega Beam.
   if (play) {
-    const F = CFG.filler; let vis = 0, pend = 0; S.fillT -= dt;
+    const F = MIS.filler || CFG.filler; let vis = 0, pend = 0; S.fillT -= dt;
     for (const b of bugs) { if (b.state === 'flee') continue; if (b.z < TOP_Z) { if (b.z > TOP_Z - 9) pend++; } else if (b.z < BOT_Z) vis++; }
     S.visBugs = vis;
-    const quiet = S.t < S.lullUntil || (boss && boss.state === 'dying') || S.t < 1.2;
+    const quiet = S.t < S.lullUntil || (boss && boss.state === 'dying') || S.t < 1.2 || !!S.crash;
     if (!quiet && vis + pend < F.min && S.fillT <= 0) {
       const n = vis === 0 ? 2 : 1, hw = hwAt(TOP_Z) * 0.8;
       for (let k = 0; k < n; k++) { const b = newBug(rand(-hw, hw), TOP_Z - rand(0.3, 1.8), 'spider', Math.round(F.hp0 + S.t * F.hpPerS), 'filler'); b.bx = b.x; }
@@ -2497,6 +2727,7 @@ function update(dt) {
         passGate(g);
         dropGate(g); gates.splice(i, 1); continue;
       }
+      if (g.val >= GATE_MAX && S.maxCombo) { const A = AUD.comboMiss || (AUD.comboMiss = []); A.push({ t: +S.t.toFixed(2), was: S.maxCombo }); S.maxCombo = 0; }   // round 15: a missed MAX gate breaks the combo
     }
     if (g.z > 5) { dropGate(g); gates.splice(i, 1); }
   }
@@ -2714,7 +2945,7 @@ function update(dt) {
   fx.update(dt, v); smokeFx.update(dt, v); worldFx.update(dt, v);
 
   if (S.mode === 'dead' || S.mode === 'win') { S.endT -= dt / Math.max(slowmo, 0.3); if (S.endT <= 0 && !S.ended) { S.ended = true; endGame(S.mode === 'win'); } }
-  if (play) $('progfill').style.width = clamp(S.t / BOSS_T * 100, 0, 100) + '%';
+  if (play) $('progfill').style.width = clamp(S.t / MIS.len * 100, 0, 100) + '%';
   if (bannerT > 0) { bannerT -= dt; if (bannerT <= 0) $('banner').className = ''; }
   trauma = Math.max(0, trauma - dt * CFG.shake.decay);
   if (S.omegaT > 0) trauma = Math.max(trauma, CFG.shake.omegaRumble);   // Omega: a continuous earthquake under everything
@@ -2726,7 +2957,7 @@ function lob(x0, z0, x1, T) {
 
 
 // ---------------------------------------------------------------- hunters: clinging (round 5)
-let PLANE_AR = 198 / 320;   // plane sprite aspect, set from the texture at boot
+let PLANE_AR = 198 / 320, DRONE_AR = 198 / 320;   // plane and drone sprite aspects, set from the textures at boot
 // where bugs grab the main plane (x, z offsets from its centre): wings, tail, nose
 const PLANE_LATCH = [[-0.95, 0.2], [0.95, 0.2], [-0.5, 0.85], [0.5, 0.85], [-1.4, 0.45], [1.4, 0.45], [0, 0.95], [-1.25, -0.2], [1.25, -0.2]];
 function assignHost(s) {
@@ -2772,7 +3003,7 @@ function setBeam(on, quiet) {
 
 // ---------------------------------------------------------------- Omega Beam (round 5; ORB_TIERS.omega is active)
 function omegaGain(a) {
-  if (S.mode !== 'play' || S.omega >= 1 || a <= 0) return;
+  if (S.mode !== 'play' || S.omega >= 1 || a <= 0 || !S.omegaOK) return;   // round 15: the bare-bones Patchwork has no Omega
   S.omega = Math.min(1, S.omega + a);
   if (S.omega >= 1) {
     sfx('charge');
@@ -2780,7 +3011,7 @@ function omegaGain(a) {
   }
 }
 function collectOmegaOrb(p) {
-  const full = S.omega >= 1;   // round 13: honest. A full bar cannot take more, so the orb pays coins instead of a fake +OMEGA
+  const full = S.omega >= 1 || !S.omegaOK;   // round 13: honest. A full bar cannot take more, so the orb pays coins instead of a fake +OMEGA
   AUD.orbs++; if (!full) omegaGain(p.reward.omega || 0.34); addShake('pickup'); sfx('orb');
   burst(p.x, p.z, 'omega', 18);
   for (let k = 0; k < 30; k++) { const a = rand(0, TAU), sp = rand(2, 6); fx.spawn({ x: p.x, y: 0.7, z: p.z, vx: Math.cos(a) * sp, vy: rand(0, 2), vz: Math.sin(a) * sp, life: rand(0.3, 0.6), s0: 0.7, s1: 0.1, r: 0.85, g: 0.7, b: 1, a: 1, world: true }); }
@@ -2788,7 +3019,7 @@ function collectOmegaOrb(p) {
   else pop('+OMEGA', p.x, 1.8, p.z, '#e6c8ff', 0.9, '#2a0a4a', 0, true);
 }
 function fireOmega() {
-  if (S.mode !== 'play' || S.omega < 1 || S.omegaT > 0 || !planeSprite.visible) return false;
+  if (S.mode !== 'play' || !S.omegaOK || S.crash || S.omega < 1 || S.omegaT > 0 || !planeSprite.visible) return false;
   S.omega = 0; S.omegaT = CFG.omegaTime; S.omegaTick = 0; AUD.omegaFires++; S.lullUntil = S.t + CFG.omegaTime + CFG.filler.lull;
   omegaFlash = 1; addShake('omega'); buzz([90, 40, 90, 40, 90, 40, 90, 40, 160]); sfx('omega');
   omegaStrike(1);
@@ -3265,7 +3496,7 @@ function drawOverlay() {
   const grey = BT.k > 0.002;
   if (S.mode === 'play') auditBugs();
   // round-2 propellers and contrails
-  if (planeSprite.visible && !grey) drawProp(S.px, 0.62, -1.05, 0.62, spin);
+  if (planeSprite.visible && !grey) drawEngine(spin, now);
   for (const w of wingmen) drawProp(w.sprite.position.x, w.sprite.position.y + 0.03, w.z - 0.45, 0.27, spin + w.ph);
   ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1.2;
   ctx.beginPath();
@@ -3335,7 +3566,7 @@ function drawOverlay() {
       ctx.fillStyle = r.hp ? 'rgba(20,90,30,.88)' : 'rgba(12,40,90,.88)'; ctx.strokeStyle = r.hp ? '#9dff8a' : '#9fe0ff'; ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.roundRect(bx - bw / 2, by - bh / 2 + bb, bw, bh, bh / 2); ctx.fill(); ctx.stroke();
       if (r.hp) txt('\u2665 +' + r.hp, bx, by + bb + 1, bh * 0.62, '#b8ffa8', '#0b2a10', 0.14);
-      else { const pi = TEX.plane.image, iw = bh * 1.25; ctx.drawImage(pi, bx - bw / 2 + 4, by - iw * pi.height / pi.width / 2 + bb, iw, iw * pi.height / pi.width); txt('+' + r.drones, bx + bh * 0.42, by + bb + 1, bh * 0.66, '#fff', '#0b2440', 0.14); }
+      else { const pi = TEX.drone.image, iw = bh * 1.25; ctx.drawImage(pi, bx - bw / 2 + 4, by - iw * pi.height / pi.width / 2 + bb, iw, iw * pi.height / pi.width); txt('+' + r.drones, bx + bh * 0.42, by + bb + 1, bh * 0.66, '#fff', '#0b2440', 0.14); }
     }
   }
   // cocoon rescue: HP just below the amber glass, the reward beside it, the carrier's bar when hit
@@ -3442,14 +3673,45 @@ function drawOverlay() {
   }
   if (grey) {   // round 13: bullet time: grey everything drawn so far, then the plane's own items in full colour
     btGreyPass();
-    if (planeSprite.visible) drawProp(S.px, 0.62, -1.05, 0.62, spin);
+    if (planeSprite.visible) drawEngine(spin, now);
     ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1.2; ctx.beginPath(); planeTrails(); ctx.stroke();
     planeBar(); squadCount(); upRingDraw(); omegaCharge(now); if (S.omegaT > 0 || omegaFlash > 0) drawOmegaBeam(now); powerFlash();
   }
+  if (comboFx) drawCombo(now);
+}
+// round 15: the Lawnmower's propeller, or the Patchwork's jet exhaust (a flickering flame out of the tail nozzle)
+function drawEngine(spin, now) {
+  if (CFG.plane !== 'patchwork') { drawProp(S.px, 0.62, -1.05, 0.62, spin); return; }
+  const p = planeSprite.position, [x, y] = toScreen(p.x, p.y, 0), u = unitPx(p.x, p.y, 0), ty = y + u * PLANE_W * PLANE_AR * 0.44;
+  const fl = 0.85 + 0.15 * Math.sin(now * 47) + 0.08 * Math.sin(now * 23), len = u * 0.95 * fl, w = u * 0.2;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  let g = ctx.createLinearGradient(x, ty, x, ty + len); g.addColorStop(0, 'rgba(255,250,220,.95)'); g.addColorStop(0.25, 'rgba(255,190,90,.85)'); g.addColorStop(0.7, 'rgba(255,90,30,.35)'); g.addColorStop(1, 'rgba(255,60,20,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x - w, ty); ctx.quadraticCurveTo(x - w * 0.9, ty + len * 0.5, x, ty + len); ctx.quadraticCurveTo(x + w * 0.9, ty + len * 0.5, x + w, ty); ctx.closePath(); ctx.fill();
+  g = ctx.createLinearGradient(x, ty, x, ty + len * 0.5); g.addColorStop(0, 'rgba(160,220,255,.9)'); g.addColorStop(1, 'rgba(120,180,255,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(x, ty + len * 0.16, w * 0.5, len * 0.22, 0, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+// round 15: the 5th (and later) MAX gate in a row: MAX COMBO in big gold lettering over a spinning starburst
+function drawCombo(now) {
+  const C = comboFx; C.t += 1 / 60; if (C.t > 1.9) { comboFx = null; return; }
+  const k = C.t, sc = k < 0.22 ? easeBack(k / 0.22) * 1.0 : 1 + 0.04 * Math.sin(k * 14), a = Math.min(1, (1.9 - k) * 3), cx = W / 2, cy = H * 0.34, fs = Math.min(W * 0.17, 74);
+  ctx.save(); ctx.globalAlpha = a; ctx.translate(cx, cy);
+  ctx.save(); ctx.rotate(now * 0.8); ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 14; i++) { ctx.rotate(TAU / 14); const gr = ctx.createLinearGradient(0, 0, fs * 3.2, 0); gr.addColorStop(0, 'rgba(255,220,90,.55)'); gr.addColorStop(1, 'rgba(255,200,60,0)'); ctx.fillStyle = gr; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(fs * 3.2, -fs * 0.28); ctx.lineTo(fs * 3.2, fs * 0.28); ctx.closePath(); ctx.fill(); }
+  ctx.restore();
+  ctx.scale(sc, sc); ctx.rotate(-0.05); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  ctx.font = `${fs}px ${COMIC}`;
+  ctx.fillStyle = '#5a2400'; ctx.fillText('MAX COMBO', 0, fs * 0.12);   // the hard bevel under the letters
+  ctx.lineWidth = fs * 0.2; ctx.strokeStyle = '#3a1600'; ctx.strokeText('MAX COMBO', 0, 0);
+  const gr = ctx.createLinearGradient(0, -fs * 0.5, 0, fs * 0.45); gr.addColorStop(0, '#fffbe0'); gr.addColorStop(0.42, '#ffd84a'); gr.addColorStop(0.58, '#ffb21a'); gr.addColorStop(1, '#e06a00');
+  ctx.fillStyle = gr; ctx.fillText('MAX COMBO', 0, 0);
+  ctx.globalAlpha = a * 0.7; ctx.fillStyle = '#fff'; ctx.fillRect(-fs * 2.6, -fs * 0.34, fs * 5.2 * clamp((k - 0.2) / 0.5, 0, 1), fs * 0.06);
+  ctx.restore();
 }
 // round 13: the player's own overlay items, split out so bullet time can draw them after the grey pass
 function planeTrails() {   // adds the plane's two contrails to the current path
-  if (planeSprite.visible) for (const o of [-1.35, 1.35]) { const a = toScreen(S.px + o, 0.55, 0.05), b = toScreen(S.px + o, 0.55, 3.5); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); }
+  const tr = CFG.planes[CFG.plane].trail;
+  if (planeSprite.visible && !S.crash) for (const o of [-tr, tr]) { const a = toScreen(S.px + o, 0.55, 0.05), b = toScreen(S.px + o, 0.55, 3.5); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); }
 }
 function planeBar() {
   if (planeSprite.visible && S.barT > 0) {
@@ -3464,7 +3726,7 @@ function squadCount() {   // drone count
     ctx.font = `900 16px ${FONT}`; const tw = ctx.measureText(label).width + 32;
     ctx.fillStyle = full ? 'rgba(90,60,0,.8)' : 'rgba(12,40,80,.72)'; ctx.strokeStyle = full ? 'rgba(255,220,110,.95)' : 'rgba(160,225,255,.95)'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.roundRect(x - tw / 2, y - 12, tw, 24, 12); ctx.fill(); ctx.stroke();
-    const pi = TEX.plane.image; ctx.drawImage(pi, x - tw / 2 + 4, y - 7, 24, 24 * pi.height / pi.width);
+    const pi = TEX.drone.image; ctx.drawImage(pi, x - tw / 2 + 4, y - 7, 24, 24 * pi.height / pi.width);
     txt(label, x + 12, y + 1, 16, full ? '#ffe066' : '#fff', '#0b2440', 0.12);
   }
 }
@@ -3656,13 +3918,13 @@ function applyShake(dt) {
 async function boot() {
   resize();
   // round-2 plane, drones, spiders, Queen and canister; round-3 bugs kept for cameos; Bupé's gold weapon icons
-  const names = ['plane:r2_plane', 'spider:r2_spider', 'boss:r2_boss', 'pod:r2_pod', 'redspider:spider', 'beetle', 'wasp', 'spitter', 'crate1', 'capsule', 'cocoon_intact', 'cocoon_cracked', 'cocoon_broken',
+  const names = ['plane:r2_plane', 'drone:r2_plane', 'patchwork', 'wreck', 'spider:r2_spider', 'boss:r2_boss', 'pod:r2_pod', 'redspider:spider', 'beetle', 'wasp', 'spitter', 'crate1', 'capsule', 'cocoon_intact', 'cocoon_cracked', 'cocoon_broken',
     'icon_minigun', 'icon_rockets', 'icon_bazooka', 'cloud1', 'cloud2', 'cloud3', 'smoke'];
   const files = { terrain: 'assets/terrain.jpg?v=' + VER, coin: 'assets/coin.png?v=' + VER, coinspin: 'assets/coin_spin.png?v=' + VER };   // round 14: Bupé's coin
   for (const n of names) { const [k, f] = n.split(':'); files[k] = `assets/${f || k}.webp?v=${VER}`; }
   await Promise.all(Object.entries(files).map(([k, f]) => loadTex(k, f)));
   try { await Promise.race([Promise.all([document.fonts.load(`900 40px NunitoG`), document.fonts.load('40px Lilita'), document.fonts.load('40px LuckiestG')]), new Promise((r) => setTimeout(r, 2000))]); } catch (e) { }
-  PLANE_AR = TEX.plane.image.height / TEX.plane.image.width;
+  TEX.lawnmower = TEX.plane; PLANE_AR = TEX.plane.image.height / TEX.plane.image.width; DRONE_AR = TEX.drone.image.height / TEX.drone.image.width;
   TEX.omegaorb = makeOmegaOrbTex();
   setupIcons(); setupWorld(); resize(); computeSlots(); resetGame(false);
   ready = true; $('loading').textContent = ''; placeSteerHand();
@@ -3670,7 +3932,7 @@ async function boot() {
   if (window.JCMETA) window.JCMETA.init({ startGame, goHome, initAudio, sfx: (n, a) => sfx(n, a), get S() { return S; }, CFG, TEX, get planeSprite() { return planeSprite; },
     // round 13: the Workshop multipliers, Settings for the audio, replaying the tutorials, and the audio state for the tests
     setMult: (m) => { WSM.rate = m.rate || 1; WSM.dmg = m.dmg || 1; WSM.rev = m.rev || 1; }, applyAudio: () => applyAudioSettings(),
-    tutReset: () => (TUT.forget(), true),
+    tutReset: () => (TUT.forget(), true), tutPreview: (id) => TUT.preview(id), tutList: () => TUT.HELP.slice(), refreshTitle: () => refreshTitle(),
     audio: () => ({ ctx: !!ac, master: master ? master.gain.value : null, music: musicBus ? musicBus.gain.value : null, ambOnMusic: !!amb && audRouted.amb === amb, muted }) });
   if (Q.has('autostart') || Q.has('autoplay')) startGame();
 }
@@ -3682,9 +3944,11 @@ window.__AUDIT = AUD;
 window.__G = { S, AUD, get bugs() { return bugs; }, get pods() { return pods; }, get gates() { return gates; }, get boss() { return boss; }, get wingmen() { return wingmen; },
   get shots() { return shots; }, get RANGE_Z() { return RANGE_Z; }, get TOP_Z() { return TOP_Z; }, god(v) { godMode = v; }, give: (r) => giveReward(r), tier: (n) => setTier(n, S.px, -6),
   hurt: (d) => hurtPlayer(d), setDrones: (n) => setDrones(n), toScreen, start: () => startGame(), camera, resize, unitPx, bosses: BOSSES,
-  get cocoons() { return cocoons; }, get pilots() { return pilots; }, GLOG, CFG, get SLOTS() { return SLOTS; }, MAXD, get trauma() { return trauma; }, dropLoot: (w, x = 0, z = -8) => dropLoot(w, x, z), setRapid: (n) => setRapid(n, S.px, -6),
+  get cocoons() { return cocoons; }, get pilots() { return pilots; }, GLOG, CFG, get SLOTS() { return SLOTS; }, get trauma() { return trauma; }, dropLoot: (w, x = 0, z = -8) => dropLoot(w, x, z), setRapid: (n) => setRapid(n, S.px, -6),
   showThreat: () => showThreat(), get coinFx() { return coinFx; }, get mood() { return moodOn; }, addShake: (k, m) => addShake(k, m), get BOT_Z() { return BOT_Z; }, planeScreen,
   BT, btEnter: () => btEnter(), btExit: () => btExit(), TUT, doGesture: (g, i) => doGesture(g, i), tutWant: (id) => TUT.want(id),
   fireOmega: () => fireOmega(), goHome: () => goHome(), teardownEnd: () => teardownEnd(), setBeam: (v) => setBeam(v), omega: (v) => { S.omega = v; }, spawnCocoon: (o) => spawnCocoon(Object.assign({ x: -2.2, side: -1, hp: 260, drones: 8 }, o || {})),
   endGame: (w) => endGame(w),   // round 14: debug, straight to Mission Complete / SHOT DOWN
+  get MIS() { return MIS; }, MISSIONS, get MAXD() { return MAXD; }, startCrash: () => startCrash(), missionHome: () => missionHome(), get comboFx() { return comboFx; }, passGate: (g) => passGate(g), GATE_MAX, refreshTitle: () => refreshTitle(),
+  get plane() { return { key: CFG.plane, w: PLANE_W, ar: PLANE_AR, sky: AUD.sky }; },
   spawnBug: (x, z, type = 'spider', hp = 20) => newBug(x, z, type, hp), spawnGate: (x, val, z) => { spawnEvent({ k: 'gate', x, val, d: S.dist + (z ? -z : 30) }); return gates[gates.length - 1]; } };
