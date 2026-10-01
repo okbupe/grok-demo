@@ -8,7 +8,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="icon" href="data:,">
-<title>Jetcraft: Invasion Earth · Mission 1: Get to Beacon</title>
+<title>Jetcraft: Invasion Earth</title>
 <link rel="preload" href="assets/terrain.jpg?v=__BUILD__" as="image" crossorigin>
 <link rel="preload" href="fonts/nunito.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/lilita.woff2" as="font" type="font/woff2" crossorigin>
@@ -22,12 +22,10 @@
   <canvas id="ui"></canvas>
   <div id="hud" class="hidden">
     <div class="hudrow">
-      <div id="hp"><div id="hpfill"></div><div id="hpseg"></div></div>
+      <div id="hp"><div id="hpfill"></div></div>
       <div id="prog"><div id="progfill"></div><div id="progboss"></div></div>
-      <button id="mute" aria-label="Toggle sound"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 12 H10 L18 5 V27 L10 20 H4 Z" fill="#fff" stroke="#14213d" stroke-width="2.4" stroke-linejoin="round"/><path class="mw" d="M22 11 Q25 16 22 21 M25.5 7.5 Q31 16 25.5 24.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path class="mx" d="M22 12 L30 20 M30 12 L22 20" stroke="#ff6a5a" stroke-width="3.4" stroke-linecap="round"/></svg></button>
     </div>
-    <div id="omega"><div id="omegafill"></div><span class="ol">OMEGA</span><span class="or"><i class="dtap"></i></span></div>
-    <div id="weap"></div>
+    <div id="omega"><div id="omegafill"></div><span class="ol">OMEGA</span></div>
     <div id="loot">
       <span id="coinBox" class="lb"><i id="coinico" class="ico coin"></i><b id="coinN">0</b></span>
       <span id="gemBox" class="lb hidden"><i id="gemico" class="ico gem"></i><b id="gemN">0</b></span>
@@ -39,15 +37,18 @@
     <div id="bossname">MORDRIX</div>
     <div id="bossbg"><div id="bossfill"></div><div id="bosshp">0</div></div>
   </div>
+  <div id="edgeglow"></div>
+  <div id="crashwarn" aria-hidden="true"><svg viewBox="0 0 120 108"><path d="M60 6 L114 100 H6 Z" fill="#ffcf1f"/><path d="M60 22 L100 92 H20 Z" fill="#1a1a1a"/><path d="M60 40 C70 52 74 60 72 70 C71 78 66 84 60 86 C54 84 49 78 48 70 C47 63 51 58 54 53 C55 60 58 62 60 62 C58 55 57 48 60 40Z" fill="#ff5a1a"/><path d="M60 58 C65 65 66 70 65 75 C64 79 62 81 60 82 C58 81 56 79 55 75 C55 71 57 67 60 58Z" fill="#ffd84a"/></svg></div>
   <div id="banner"></div>
   <div id="threat"></div>
   <div id="tut"></div>
   <div id="start" class="screen">
-    <!-- round 13: the home screen: Base, Store and Settings top left, the bank top right, the mission, the Depot, Hangar and Workshop cards (art drawn by meta.js) -->
+    <!-- round 15: the home screen: Base, Shop, Settings and Help top left (Bupé's white icons on a hard drop shadow), the bank top right, the mission and its medallions, Bupé's Depot, Hangar and Workshop cards -->
     <div id="t-left" class="t-ui">
-      <button class="t-ico" id="tb-base" data-open="base" aria-label="Base"><i class="t-btn" data-art="base"></i><span>BASE</span></button>
-      <button class="t-ico" id="tb-store" data-open="store" aria-label="Store"><i class="t-btn" data-art="store"></i><span>STORE</span></button>
-      <button class="t-ico" id="tb-settings" data-open="settings" aria-label="Settings"><i class="t-btn" data-art="settings"></i><span>SETTINGS</span></button>
+      <button class="t-ico" id="tb-base" data-open="base" aria-label="Base"><img class="t-glyph" src="assets/ico_base.png?v=__BUILD__" alt=""><span>BASE</span></button>
+      <button class="t-ico" id="tb-store" data-open="store" aria-label="Shop"><img class="t-glyph" src="assets/ico_shop.png?v=__BUILD__" alt=""><span>SHOP</span></button>
+      <button class="t-ico" id="tb-settings" data-open="settings" aria-label="Settings"><img class="t-glyph" src="assets/ico_settings.png?v=__BUILD__" alt=""><span>SETTINGS</span></button>
+      <button class="t-ico" id="tb-help" data-open="help" aria-label="Help"><img class="t-glyph" src="assets/ico_help.png?v=__BUILD__" alt=""><span>HELP</span></button>
     </div>
     <div id="t-bank" class="t-ui">
       <span class="t-pill coins" id="tbk-coins"><i class="ico coin"></i><b>0</b></span>
@@ -58,16 +59,15 @@
     <div id="t-mission">
       <div class="tm-kick">MISSION 1</div>
       <div class="tm-name">GET TO BEACON</div>
-      <div class="tm-threat"><span>MISSION THREAT</span><span class="rank c">C</span></div>
-    </div>
-    <div id="t-cards" class="t-ui">
-      <button class="t-card depot" id="tc-depot" data-open="depot" aria-label="Depot"><span class="tc-in"><span class="tc-art" data-art="depot"></span><i class="tc-glint"></i></span><span class="tc-name">DEPOT</span></button>
-      <button class="t-card hangar" id="tc-hangar" data-open="hangar" aria-label="Hangar"><span class="tc-in"><span class="tc-art" data-art="hangar"></span><i class="tc-glint"></i></span><span class="tc-name">HANGAR</span></button>
-      <button class="t-card workshop" id="tc-workshop" data-open="workshop" aria-label="Workshop"><span class="tc-in"><span class="tc-art" data-art="workshop"></span><i class="tc-glint"></i></span><span class="tc-name">WORKSHOP</span><i class="tc-badge" id="tc-ws-badge"></i></button>
+      <div class="tm-meds t-ui" id="tm-meds"></div>
     </div>
     <div class="spacer"></div>
-    <div class="tap">TAP TO FLY</div>
-    <div id="steerhand" aria-hidden="true"><div class="track"><i class="al">◀</i><i class="ar">▶</i></div><div class="sh"></div></div>
+    <div id="t-cards" class="t-ui">
+      <button class="t-card depot" id="tc-depot" data-open="depot" aria-label="Depot"><img class="tc-img" src="assets/card_depot.webp?v=__BUILD__" alt=""><i class="tc-glint"></i><i class="tc-lock"></i></button>
+      <button class="t-card hangar" id="tc-hangar" data-open="hangar" aria-label="Hangar"><img class="tc-img" src="assets/card_hangar.webp?v=__BUILD__" alt=""><i class="tc-glint"></i><i class="tc-lock"></i></button>
+      <button class="t-card workshop" id="tc-workshop" data-open="workshop" aria-label="Workshop"><img class="tc-img" src="assets/card_workshop.webp?v=__BUILD__" alt=""><i class="tc-glint"></i><i class="tc-lock"></i><i class="tc-badge" id="tc-ws-badge"></i></button>
+    </div>
+    <div id="steerhand" aria-hidden="true"><div class="sh"></div></div>
     <div id="loading">Loading…</div>
   </div>
   <div id="end" class="screen hidden">
@@ -105,8 +105,11 @@
   <!-- round 13: the panels (Workshop, Settings, Store, Depot, Hangar, Base) slide up over the title; meta.js fills them -->
   <div id="meta" class="hidden"><div class="m-scrim"></div><div class="m-sheet"><div class="m-head"><div class="m-title"></div><button class="m-close" aria-label="Close"></button></div><div class="m-body"></div></div></div>
   <div id="mfx"></div>
+  <div id="story" class="hidden"></div>
+  <div id="fade"></div>
 </div>
 <script type="module" src="meta.js?v=__BUILD__"></script>
+<script type="module" src="story.js?v=__BUILD__"></script>
 <script type="module" src="game.js?v=__BUILD__"></script>
 </body>
 </html>
