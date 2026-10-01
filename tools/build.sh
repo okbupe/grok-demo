@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 OUT=${1:-_site}
 rm -rf "$OUT"; mkdir -p "$OUT/assets" "$OUT/vendor" "$OUT/fonts"
-cp index.html style.css game.js meta.js meta.css "$OUT/"
+cp index.html style.css game.js meta.js meta.css story.js "$OUT/"
 V=$(git rev-parse --short HEAD 2>/dev/null || date +%s); sed -i "s/__BUILD__/$V/g" "$OUT/index.html"
 python3 tools/build_assets.py "$OUT/assets"
 for f in art/*.b64; do base64 -d "$f" > "$OUT/assets/$(basename "$f" .b64)"; done

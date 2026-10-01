@@ -9,10 +9,14 @@ const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const rand = (a, b) => a + Math.random() * (b - a);
 
 // ---------------------------------------------------------------- storage (every access guarded: a private window can throw)
+// round 15 debug flags: ?fresh=1 plays from a blank save, ?m=N jumps to Mission N (both in memory only: nothing is saved),
+// ?founders=1 turns FOUNDERS on (in memory)
+const QS = new URLSearchParams(location.search);
+const MEM = QS.has('fresh') || QS.has('m');
 const store = {
-  get(k, d) { try { const v = localStorage.getItem(k); if (v == null) return d; const o = JSON.parse(v); return o == null ? d : o; } catch (e) { return d; } },
-  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } },
-  del(k) { try { localStorage.removeItem(k); } catch (e) { } },
+  get(k, d) { if (MEM) return d; try { const v = localStorage.getItem(k); if (v == null) return d; const o = JSON.parse(v); return o == null ? d : o; } catch (e) { return d; } },
+  set(k, v) { if (MEM) return; try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } },
+  del(k) { if (MEM) return; try { localStorage.removeItem(k); } catch (e) { } },
 };
 const whole = (v) => { v = Math.floor(Number(v)); return isFinite(v) && v > 0 ? v : 0; };
 
@@ -48,17 +52,40 @@ bank = clean(bank);
 const saveBank = () => store.set('jc.bank', bank);
 let ws = store.get('jc.workshop', {}); ws = { rate: whole(ws && ws.rate), dmg: whole(ws && ws.dmg), rev: whole(ws && ws.rev) };
 const saveWs = () => store.set('jc.workshop', ws);
-const settings = { music: true, sfx: true, vibe: true };
-{ const s = store.get('jc.settings', {}); for (const k of Object.keys(settings)) if (s && typeof s[k] === 'boolean') settings[k] = s[k]; }
+// round 15: VOLUME (0..1) and FOUNDERS (keep the Lawnmower's powers, Omega, drone cap and Workshop upgrades after the crash)
+const settings = { music: true, sfx: true, vibe: true, founders: false, vol: 1 };
+{ const s = store.get('jc.settings', {}); for (const k of Object.keys(settings)) if (s && typeof s[k] === typeof settings[k]) settings[k] = s[k]; }
+settings.vol = clamp(Number(settings.vol) || 0, 0, 1);
+if (QS.get('founders') === '1') settings.founders = true; else if (QS.get('founders') === '0') settings.founders = false;
+// round 15: the missions. done: the missions won (Mission 2 counts once the Lawnmower is down); sel: the one the title flies;
+// crashed: the Lawnmower is totalled (the economy opens); seen: the story scenes already played.
+// An existing save (round 14 and earlier) starts at Mission 1 with its Workshop as the Lawnmower's.
+const lvls = (o) => ({ rate: whole(o && o.rate), dmg: whole(o && o.dmg), rev: whole(o && o.rev) });
+let mis = store.get('jc.missions', null);
+mis = { done: Array.isArray(mis && mis.done) ? mis.done.filter((n) => n >= 1 && n <= 3) : [], sel: clamp(whole(mis && mis.sel) || 1, 1, 3), crashed: !!(mis && mis.crashed), seen: (mis && typeof mis.seen === 'object' && mis.seen) || {} };
+let salvage = clean(store.get('jc.salvage', {}));   // the haul banked before the crash (Doc hands it over at the reset)
+let lm = lvls(store.get('jc.ws_lm', {}));           // the Lawnmower's Workshop levels, frozen at the crash
+{ const n = whole(QS.get('m')); if (n >= 1 && n <= 3) { mis.sel = n; mis.done = []; for (let i = 1; i < n; i++) mis.done.push(i); mis.crashed = n >= 3; } }
+const saveMis = () => { store.set('jc.missions', mis); store.set('jc.salvage', salvage); store.set('jc.ws_lm', lm); };
+const unlocked = (n) => n === 1 || mis.done.includes(n - 1) || (n === 3 && mis.crashed);
+let story = null;   // the story scene owed to the next trip home: { id, data }
 const MULT = { rate: 1, dmg: 1, rev: 1 };
-let api = null;
-function recalc() { for (const k of TRACKS) MULT[k] = trackState(k).mult; if (api && api.setMult) api.setMult({ ...MULT }); }
+let api = null, forPlane = 'lawnmower';
+// the multipliers for the plane flying: the Lawnmower's own levels; the Patchwork's (plus the Lawnmower's with FOUNDERS on)
+function recalc() {
+  for (const k of TRACKS) {
+    const own = trackState(k, forPlane === 'lawnmower' && mis.crashed ? lm[k] : ws[k]).mult, extra = forPlane === 'patchwork' && settings.founders ? trackState(k, lm[k]).mult - 1 : 0;
+    MULT[k] = r2(own + extra);
+  }
+  if (api && api.setMult) api.setMult({ ...MULT });
+}
 recalc();
 const sfx = (n, a) => { if (api && api.sfx) api.sfx(n, a); };
 const unlock = () => { if (api) { if (api.initAudio) api.initAudio(); if (api.applyAudio) api.applyAudio(); } };
 
 // ---------------------------------------------------------------- art: every icon and illustration is drawn here as inline SVG
-const O = '#14213d';   // the chunky dark outline
+const O = 'none';      // round 15: no outlines on the UI art (Bupé); hard drop shadows in meta.css instead
+const DK = '#14213d';  // the old outline colour, where it is a fill (keyholes, pupils)
 const svg = (vb, inner, cls = '') => `<svg${cls ? ` class="${cls}"` : ''} viewBox="${vb}" aria-hidden="true">${inner}</svg>`;
 const P = (cx, cy, a, r) => `${(cx + Math.cos(a) * r).toFixed(1)} ${(cy + Math.sin(a) * r).toFixed(1)}`;
 function gearPath(cx, cy, rOut, rIn, n, tip = 0.42, root = 0.64) {
@@ -181,7 +208,7 @@ const ART = {
     <path d="M5 10 L3 13 L5 16 L3 19 L5 22 M27 10 L29 13 L27 16 L29 19 L27 22" fill="none" stroke="#ffd64a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`),
   replay: svg('0 0 32 32', `<path d="M26 16 A10 10 0 1 1 20 6.8" fill="none" stroke="${O}" stroke-width="7" stroke-linecap="round"/><path d="M26 16 A10 10 0 1 1 20 6.8" fill="none" stroke="#7fe08a" stroke-width="3.2" stroke-linecap="round"/>
     <path d="M17 2.5 L25.5 6 L19 12.5 Z" fill="#7fe08a" stroke="${O}" stroke-width="2.2" stroke-linejoin="round"/><path d="M13.5 11.5 L21 16 L13.5 20.5 Z" fill="#fff" stroke="${O}" stroke-width="2" stroke-linejoin="round"/>`),
-  history: svg('0 0 32 32', `<circle cx="17" cy="16" r="11" fill="#fff" stroke="${O}" stroke-width="2.6"/><path d="M17 9.5 V16 L21.5 19" fill="none" stroke="${O}" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+  history: svg('0 0 32 32', `<circle cx="17" cy="16" r="11" fill="#fff" stroke="${O}" stroke-width="2.6"/><path d="M17 9.5 V16 L21.5 19" fill="none" stroke="${DK}" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
     <path d="M2.5 13 L6 19 L10.5 13.5 Z" fill="#ffd64a" stroke="${O}" stroke-width="2" stroke-linejoin="round"/>`),
   // Beacon's tower, small (the SHOT DOWN distance bar)
   beacon: svg('0 0 40 48', `<circle cx="20" cy="7" r="9" fill="#fff3a0" opacity=".5"/><path d="M15 46 L17 21 H23 L25 46 Z" fill="#eef3fa" stroke="${O}" stroke-width="2.4" stroke-linejoin="round"/>
@@ -262,8 +289,40 @@ function tweenPill(k, to, ms = 450) {
 }
 function bumpPill(k) { const el = $('tbk-' + k); if (!el) return; el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
 function affordable() { return TRACKS.some((k) => { const c = trackState(k).cost; return bank.coins >= c.coins && bank.gems >= c.gems; }); }
-function refreshBadge() { const b = $('tc-ws-badge'); if (b) b.classList.toggle('on', affordable()); }
-function refreshTitle() { for (const k of Object.keys(shown)) setPill(k, shown[k]); refreshBadge(); }
+function refreshBadge() { const b = $('tc-ws-badge'); if (b) b.classList.toggle('on', mis.crashed && affordable()); }
+// round 15: the mission medallions (a picture each: Beacon's tower, the sunset, the salvage crate), a tick when won, a padlock when locked
+const MISN = { 1: { name: 'GET TO BEACON', rank: 'C' }, 2: { name: 'LAST LIGHT', rank: 'B' }, 3: { name: 'SALVAGE RUN', rank: 'C' } };
+const MED = {
+  1: () => ART.beacon,
+  2: () => svg('0 0 40 40', `<defs><linearGradient id="mdSun" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe27a"/><stop offset="1" stop-color="#ff6a2a"/></linearGradient></defs><circle cx="20" cy="24" r="12" fill="url(#mdSun)"/><path d="M2 26 H38 V38 H2 Z" fill="#3a2350"/><path d="M4 30 H16 M22 33 H36" stroke="#ff9a5a" stroke-width="2.4" stroke-linecap="round"/>`),
+  3: () => svg('0 0 80 72', crate(14, 28, 44, 34, 9, { front: '#7c8a55', top: '#a7b77a', side: '#57633a', plank: '#57633a' }) + `<path d="M48 14 L64 30" stroke="#dfe6ee" stroke-width="7" stroke-linecap="round"/><circle cx="46" cy="12" r="7" fill="#dfe6ee"/><circle cx="46" cy="12" r="3" fill="#57633a"/>`),
+};
+const TICK = svg('0 0 24 24', `<circle cx="12" cy="12" r="11" fill="#3fbf4a"/><path d="M6.5 12.5 L10.5 16.5 L18 8" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>`, 'md-tick');
+const PAD = svg('0 0 16 18', `<path d="M4.5 8 V5.5 A3.5 3.5 0 0 1 11.5 5.5 V8" fill="none" stroke="#c9d3df" stroke-width="2.4"/><rect x="2" y="8" width="12" height="9" rx="2" fill="#ffd64a"/><circle cx="8" cy="12.2" r="1.5" fill="${DK}"/>`, 'md-pad');
+function drawMissions() {
+  const n = mis.sel, M = MISN[n], st = $('start'); if (!st) return;
+  const k = st.querySelector('.tm-kick'), nm = st.querySelector('.tm-name'); if (k) k.textContent = 'MISSION ' + n; if (nm) nm.textContent = M.name;
+  const box = $('tm-meds'); if (!box) return;
+  if (!box.childElementCount) {
+    box.innerHTML = [1, 2, 3].map((i) => `<button class="md" data-m="${i}" aria-label="Mission ${i}"><span class="md-pic">${MED[i]()}</span><b>${i}</b>${TICK}${PAD}</button>`).join('');
+    box.querySelectorAll('.md').forEach((b) => b.addEventListener('click', () => {
+      const i = +b.dataset.m; unlock();
+      if (!unlocked(i)) { replay(b, 'nope'); sfx('clunk'); return; }
+      if (i === mis.sel) return;
+      mis.sel = i; saveMis(); sfx('pthud'); drawMissions(); if (api && api.refreshTitle) api.refreshTitle();
+    }));
+  }
+  box.querySelectorAll('.md').forEach((b) => { const i = +b.dataset.m; b.classList.toggle('on', i === n); b.classList.toggle('done', mis.done.includes(i)); b.classList.toggle('lock', !unlocked(i)); });
+}
+// round 15: before the crash there is no economy: the bank bar is hidden, the Depot, Hangar, Workshop and Shop are padlocked
+const LOCKED = ['depot', 'hangar', 'workshop', 'store'];
+const locked = (id) => !mis.crashed && LOCKED.includes(id);
+function refreshTitle() {
+  for (const k of Object.keys(shown)) setPill(k, shown[k]); refreshBadge();
+  const st = $('start'); if (st) st.classList.toggle('pre', !mis.crashed);
+  document.querySelectorAll('[data-open]').forEach((el) => el.classList.toggle('locked', locked(el.dataset.open)));
+  drawMissions();
+}
 // flying icons (coins into the bank bar, coins into a Workshop pip): small DOM elements animated by the compositor
 const flying = [];   // round 13 arena: live fly animations, cancelled when a run starts
 function flyIcons(kind, n, from, to, opt = {}) {
@@ -308,9 +367,9 @@ function homeReward() {
 
 // ---------------------------------------------------------------- panels (a full-screen sheet that slides up)
 let cur = null, closing = 0;
-const TITLES = { workshop: 'WORKSHOP', depot: 'DEPOT', hangar: 'HANGAR', store: 'STORE', base: 'BASE', settings: 'SETTINGS' };
+const TITLES = { workshop: 'WORKSHOP', depot: 'DEPOT', hangar: 'HANGAR', store: 'SHOP', base: 'BASE', settings: 'SETTINGS', help: 'HELP' };
 function openPanel(id) {
-  if (!TITLES[id]) return;
+  if (!TITLES[id] || locked(id)) return;
   if (api && api.S && api.S.mode !== 'title') return;   // round 13 arena: panels only open on the title screen, never over a run
   unlock(); clearTimeout(closing);
   const m = $('meta'), body = m.querySelector('.m-body');
@@ -327,7 +386,7 @@ function closePanel() {
 const soon = () => `<div class="m-soon"><span>COMING SOON</span></div>`;
 const PANELS = {
   workshop() {
-    return `<div class="m-in"><div class="m-hero ws-hero"><div class="hg-rays"></div><img class="wh-plane" src="${asset('r2_plane.webp')}" alt=""><span class="wh-art">${ART.workshop}</span></div><div class="ws-row">${TRACKS.map((k) => `<div class="ws-card ${k}" data-k="${k}"><div class="ws-head">${WS.tracks[k].name}</div><div class="ws-lvl"><b></b></div>
+    return `<div class="m-in"><div class="m-hero ws-hero"><div class="hg-rays"></div><img class="wh-plane" src="${asset(mis.crashed ? 'patchwork.webp' : 'r2_plane.webp')}" alt=""><span class="wh-art">${ART.workshop}</span></div><div class="ws-row">${TRACKS.map((k) => `<div class="ws-card ${k}" data-k="${k}"><div class="ws-head">${WS.tracks[k].name}</div><div class="ws-lvl"><b></b></div>
       <div class="ws-ico">${ART[k]}</div><div class="ws-pips">${'<i></i>'.repeat(WS.pips)}</div><div class="ws-mult"><b></b></div><div class="ws-next"><i></i><b></b></div>
       <button class="ws-buy"><span class="wb-l"></span><span class="wb-c"></span></button><i class="ws-flash"></i></div>`).join('')}</div>
       <div class="ws-key"><span class="wk-pips">${'<i></i>'.repeat(WS.pips)}</span><span class="wk-arrow">${ART.up}</span><span class="wk-lv">LEVEL UP</span></div></div>`;
@@ -335,7 +394,10 @@ const PANELS = {
   settings() {
     const tog = (k, ico, name) => `<div class="st-row"><span class="st-ico">${ART[ico]}</span><span class="st-name">${name}</span><button class="st-tog${settings[k] ? ' on' : ''}" data-k="${k}" aria-label="${name}"><i></i></button></div>`;
     const vers = []; for (let v = 14; v >= 2; v--) vers.push(`<a class="st-ver" href="v${v}/">${v}</a>`);
-    return `<div class="st-list">${tog('music', 'music', 'MUSIC')}${tog('sfx', 'sfx', 'SOUND')}${tog('vibe', 'vibe', 'VIBRATION')}
+    // round 15: VOLUME moved here from the in-game button; FOUNDERS: the Lawnmower's kit carries over to the Patchwork (picture first)
+    const vol = `<div class="st-row st-volrow"><span class="st-ico">${ART.sfx}</span><span class="st-vol"><input type="range" id="st-vol" min="0" max="100" step="5" value="${Math.round(settings.vol * 100)}" aria-label="Volume" style="--v:${Math.round(settings.vol * 100)}%"></span></div>`;
+    const fnd = `<div class="st-row st-fnd"><span class="st-fpic"><img src="${asset('r2_plane.webp')}" alt=""><i class="st-farr">${ART.up}</i><img src="${asset('patchwork.webp')}" alt=""><i class="st-fstar">★</i></span><span class="st-name">FOUNDERS</span><button class="st-tog${settings.founders ? ' on' : ''}" data-k="founders" aria-label="Founders"><i></i></button></div>`;
+    return `<div class="st-list">${vol}${tog('music', 'music', 'MUSIC')}${tog('sfx', 'sfx', 'SOUND')}${tog('vibe', 'vibe', 'VIBRATION')}${fnd}
       <div class="st-row"><span class="st-ico">${ART.replay}</span><span class="st-name">TUTORIALS</span><button class="st-btn" id="st-tut">REPLAY</button></div>
       <div class="st-row st-vers"><span class="st-ico">${ART.history}</span><span class="st-name">OLD ROUNDS</span><div class="st-verlist">${vers.join('')}</div></div>
       <div class="st-row st-reset"><span class="st-ico">${ART.reset}</span><span class="st-name">RESET</span><span class="st-rz"><button class="st-btn red" id="st-reset">RESET</button></span></div></div>`;
@@ -366,11 +428,21 @@ const PANELS = {
       <div class="m-sec">POWER-UPS</div><div class="dp-row">${pu(bolt, C1)}${pu(shield, C2)}${pu(magnet, C3)}</div><div class="dp-row">${pu(rocket, C3)}${pu(repair, C1)}${pu(double, C2)}</div></div>`;
   },
   hangar() {
-    const lock = svg('0 0 16 18', `<path d="M4.5 8 V5.5 A3.5 3.5 0 0 1 11.5 5.5 V8" fill="none" stroke="${O}" stroke-width="4.4"/><path d="M4.5 8 V5.5 A3.5 3.5 0 0 1 11.5 5.5 V8" fill="none" stroke="#c9d3df" stroke-width="2"/><rect x="2" y="8" width="12" height="9" rx="2" fill="#ffd64a" stroke="${O}" stroke-width="1.8"/><circle cx="8" cy="12.2" r="1.5" fill="${O}"/>`, 'hg-lock');
-    const tile = (name) => `<div class="hg-jet${name === 'Lawnmower' ? ' own' : ''}${name === '???' ? ' q' : ''}"><div class="hg-pic"><i class="hg-plane"></i>${name === 'Lawnmower' ? '' : lock}</div><b>${name}</b></div>`;
-    const rows = ROSTER.map(([t, names]) => `<div class="hg-row t${t}"><span class="hg-tier">${t}</span><div class="hg-jets">${names.map(tile).join('')}</div></div>`).join('');
-    return `${soon()}<div class="hg-hero"><div class="hg-rays"></div><img class="hg-big" src="${asset('r2_plane.webp')}" alt=""><div class="hg-plate"><b>LAWNMOWER</b><span class="hg-eq">EQUIPPED</span></div>
+    const lock = svg('0 0 16 18', `<path d="M4.5 8 V5.5 A3.5 3.5 0 0 1 11.5 5.5 V8" fill="none" stroke="${O}" stroke-width="4.4"/><path d="M4.5 8 V5.5 A3.5 3.5 0 0 1 11.5 5.5 V8" fill="none" stroke="#c9d3df" stroke-width="2"/><rect x="2" y="8" width="12" height="9" rx="2" fill="#ffd64a" stroke="${O}" stroke-width="1.8"/><circle cx="8" cy="12.2" r="1.5" fill="${DK}"/>`, 'hg-lock');
+    // round 15: after the crash the Patchwork is the hero; the Lawnmower is a wreck (tap it: a clunk and smoke)
+    const P = mis.crashed ? 'Patchwork' : 'Lawnmower';
+    const tile = (name) => name === 'Patchwork' ? `<div class="hg-jet own pw"><div class="hg-pic"><img class="hg-img" src="${asset('patchwork.webp')}" alt=""></div><b>${name}</b></div>`
+      : name === 'Lawnmower' && mis.crashed ? `<div class="hg-jet dead" id="hg-dead"><div class="hg-pic"><img class="hg-img" src="${asset('lawnmower_dead.webp')}" alt=""></div><b>${name}</b></div>`
+      : `<div class="hg-jet${name === P ? ' own' : ''}${name === '???' ? ' q' : ''}"><div class="hg-pic"><i class="hg-plane"></i>${name === P ? '' : lock}</div><b>${name}</b></div>`;
+    const rows = ROSTER.map(([t, names]) => `<div class="hg-row t${t}"><span class="hg-tier">${t}</span><div class="hg-jets">${(t === '5' && mis.crashed ? ['Patchwork', ...names] : names).map(tile).join('')}</div></div>`).join('');
+    return `${soon()}<div class="hg-hero"><div class="hg-rays"></div><img class="hg-big" src="${asset(mis.crashed ? 'patchwork.webp' : 'r2_plane.webp')}" alt=""><div class="hg-plate"><b>${P.toUpperCase()}</b><span class="hg-eq">EQUIPPED</span></div>
       <div class="hg-stat"><i class="ico drone"></i><span>×0.4</span></div></div><div class="hg-list">${rows}</div>`;
+  },
+  // round 15: Help: every tutorial as a picture tile; a tap plays its animated card
+  help() {
+    const ids = api && api.tutList ? api.tutList() : [];
+    return `<div class="hp-view tutv" id="hp-view"></div><div class="hp-grid">${ids.map((id, i) => `<button class="hp-tile${i ? '' : ' on'}" data-id="${id}"><span class="hp-mini tutv">${api.tutPreview(id)}</span></button>`).join('')}</div>
+      <button class="st-btn hp-all" id="hp-all">${ART.replay}</button>`;
   },
   base() {
     let stars = '', s = 7;
@@ -405,10 +477,13 @@ const WIRE = {
   },
   settings(body) {
     for (const b of body.querySelectorAll('.st-tog')) b.addEventListener('click', () => {
-      const k = b.dataset.k; unlock(); JCMETA.set(k, !settings[k]);
+      const k = b.dataset.k; unlock(); JCMETA.set(k, !settings[k]); if (k === 'founders') { recalc(); if (api && api.refreshTitle) api.refreshTitle(); }
       if (k === 'vibe' && settings.vibe) try { if (navigator.vibrate) navigator.vibrate(30); } catch (e) { }
       sfx(settings[k] ? 'plus' : 'tick');
     });
+    const vol = body.querySelector('#st-vol');
+    vol.addEventListener('pointerdown', (e) => e.stopPropagation());
+    vol.addEventListener('input', () => { unlock(); JCMETA.set('vol', vol.value / 100); vol.style.setProperty('--v', vol.value + '%'); sfx('tick'); });
     const tut = body.querySelector('#st-tut');
     tut.addEventListener('click', () => {
       store.del('grokdemo.tut'); sfx('power');
@@ -423,6 +498,20 @@ const WIRE = {
     };
     rz.querySelector('#st-reset').addEventListener('click', ask);
   },
+};
+WIRE.help = (body) => {
+  const view = body.querySelector('#hp-view'), tiles = [...body.querySelectorAll('.hp-tile')];
+  const show = (t) => { tiles.forEach((x) => x.classList.toggle('on', x === t)); view.className = 'hp-view tutv ' + t.dataset.id; view.innerHTML = api.tutPreview(t.dataset.id); };
+  tiles.forEach((t) => t.addEventListener('click', () => { sfx('tick'); show(t); }));
+  if (tiles[0]) show(tiles[0]);
+  const all = body.querySelector('#hp-all');
+  all.addEventListener('click', () => { store.del('grokdemo.tut'); if (api && api.tutReset) api.tutReset(); all.classList.add('done'); sfx('power'); });
+};
+WIRE.hangar = (body) => {
+  const d = body.querySelector('#hg-dead'); if (!d) return;
+  d.addEventListener('click', () => { replay(d, 'nope'); sfx('clunk'); const fx = $('mfx'), c = centre(d), W = fx.getBoundingClientRect();
+    for (let i = 0; i < 6; i++) { const s = document.createElement('i'); s.className = 'msmoke'; fx.appendChild(s); const x = c.x - W.left + rand(-20, 20), y = c.y - W.top;
+      s.animate([{ transform: `translate(${x}px,${y}px) scale(.4)`, opacity: 0.8 }, { transform: `translate(${x + rand(-20, 20)}px,${y - rand(50, 90)}px) scale(1.6)`, opacity: 0 }], { duration: rand(700, 1100), delay: i * 60, easing: 'ease-out', fill: 'both' }).onfinish = () => s.remove(); } });
 };
 // ---------------------------------------------------------------- the Workshop cards
 function drawTrack(card, st) {
@@ -494,7 +583,10 @@ function build() {
   // taps on the title's icons, cards, bank bar and panels never reach the game's tap to fly (its listener is on #wrap)
   const stop = (e) => { e.stopPropagation(); unlock(); };
   document.querySelectorAll('.t-ui, #meta, #upg').forEach((el) => el.addEventListener('pointerdown', stop));
-  document.querySelectorAll('[data-open]').forEach((el) => el.addEventListener('click', () => { sfx('pthud'); openPanel(el.dataset.open); }));
+  document.querySelectorAll('[data-open]').forEach((el) => el.addEventListener('click', () => {
+    if (locked(el.dataset.open)) { replay(el, 'nope'); sfx('clunk'); return; }   // round 15: padlocked until the crash
+    sfx('pthud'); openPanel(el.dataset.open);
+  }));
   m.querySelector('.m-scrim').addEventListener('click', closePanel);
   m.querySelector('.m-close').addEventListener('click', closePanel);
   dragScroll(m.querySelector('.m-body'));
@@ -504,14 +596,22 @@ function build() {
   window.addEventListener('keydown', (e) => { if (!cur) return; e.stopPropagation(); if (e.key === 'Escape') closePanel(); }, true);
   // the cards idle on their own timers so they never move in step
   document.querySelectorAll('.t-card').forEach((c, i) => { c.style.setProperty('--gd', (-rand(0, 6)).toFixed(2) + 's'); c.style.setProperty('--gt', (5.5 + i * 1.3).toFixed(1) + 's'); c.style.setProperty('--bd', (-rand(0, 3)).toFixed(2) + 's'); });
-  refreshTitle();
+  refreshTitle(); intro();
+}
+// round 15 (item s): the home art sometimes did not show. Every image is now decoded before the intro plays, the intro is
+// a class added by script (never an opacity-0 fill), and a timeout shows everything anyway.
+function intro() {
+  const st = $('start'); if (!st) return;
+  const imgs = [...st.querySelectorAll('img')], done = () => { if (st.classList.contains('ready')) return; st.classList.add('ready', 'intro'); setTimeout(() => st.classList.remove('intro'), 1600); };
+  Promise.all(imgs.map((im) => (im.decode ? im.decode().catch(() => { }) : Promise.resolve()))).then(done);
+  setTimeout(done, 1500);
 }
 build();
 
 const JCMETA = {
   api: null,
   init(a) { api = a; this.api = a; recalc(); if (a.applyAudio) a.applyAudio(); refreshTitle(); },   // called once at the end of boot() with the game's hooks
-  onHome() { if (cur) closePanel(); homeReward(); },   // the title screen is showing again after a run
+  onHome() { if (cur) closePanel(); refreshTitle(); homeReward(); },   // the title screen is showing again after a run
   // round 13 arena: a run is starting: stop the title's reward effects (flying coins, count-ups, their sounds) and settle the bar
   onStart() { if (cur) closePanel(); for (const a of flying.splice(0)) { try { a.cancel(); } catch (e) { } } const fx = $('mfx'); if (fx) fx.innerHTML = ''; for (const k of Object.keys(shown)) { cancelAnimationFrame(tweens[k]); shown[k] = bank[k]; setPill(k, bank[k]); } },
   open(id) { openPanel(id); },   // open a panel: 'workshop' | 'depot' | 'hangar' | 'store' | 'base' | 'settings'
@@ -519,14 +619,42 @@ const JCMETA = {
   get panel() { return cur; },
   mult(kind) { return MULT[kind] || 1; },   // Workshop multipliers: 'rev' (coins per Xora), 'dmg' (damage), 'rate' (fire rate)
   bankAdd(haul) {   // add a run's haul to the bank: { coins, gems, rubies, diamonds }; the bank bar counts it up on the way home
+    if (!mis.crashed) { if (haul) { for (const k of Object.keys(salvage)) salvage[k] += whole(haul[k]); saveMis(); } return { ...bank, locked: true }; }   // round 15: no bank before the crash: it is salvage
     if (haul) { for (const k of Object.keys(bank)) bank[k] += whole(haul[k]); saveBank(); }
     return { ...bank };
   },
+  // round 15: the missions
+  plan() { return { n: mis.sel, founders: !!settings.founders }; },
+  useFor(plane) { forPlane = plane; recalc(); },
+  missions() { return { done: mis.done.slice(), sel: mis.sel, crashed: mis.crashed, seen: { ...mis.seen }, salvage: { ...salvage }, lm: { ...lm }, story }; },
+  select(n) { if (!unlocked(n)) return false; mis.sel = n; saveMis(); drawMissions(); return true; },
+  missionDone(n) {
+    if (!mis.done.includes(n)) mis.done.push(n);
+    if (n < 3 && unlocked(n + 1)) mis.sel = n + 1;
+    const id = n === 1 ? 'm1end' : n === 3 ? 'haldane' : '';
+    if (id && !mis.seen[id]) story = { id, data: {} };
+    saveMis();
+  },
+  crash(haul) {   // the Lawnmower goes down (Mission 2): the first time, the salvage opens the bank and the Workshop starts over
+    const first = !mis.crashed;
+    if (first) {
+      for (const k of Object.keys(salvage)) salvage[k] += whole(haul && haul[k]);
+      for (const k of Object.keys(bank)) bank[k] += salvage[k];
+      lm = { ...ws }; for (const k of TRACKS) ws[k] = 0;
+      mis.crashed = true; if (!mis.done.includes(2)) mis.done.push(2); mis.sel = 3; mis.seen.reset = true;
+      saveBank(); saveWs(); saveMis(); recalc(); refreshTitle();
+      const s = { ...salvage }; return { first, salvage: s };
+    }
+    for (const k of Object.keys(bank)) bank[k] += whole(haul && haul[k]); saveBank();
+    return { first, salvage: clean(haul) };
+  },
+  takeStory() { const s = story; story = null; if (s) { mis.seen[s.id] = true; saveMis(); } return s; },
   bank() { return { ...bank }; },
-  cause(by) { return CAUSE[by] || CAUSE.xora; },   // SHOT DOWN: { pic, words } for S.deathBy
+  cause(by) { return CAUSE[by] || CAUSE.xora; },
+  medal(n) { return (MED[n] || MED[1])(); },   // round 15: the mission's picture (the SHOT DOWN goal, the medallions)   // SHOT DOWN: { pic, words } for S.deathBy
   settings,
   set(k, v) {   // change one setting (Settings and the in-game mute button), save it and apply it to the audio
-    if (!(k in settings)) return; settings[k] = !!v; store.set('jc.settings', { ...settings });
+    if (!(k in settings)) return; settings[k] = k === 'vol' ? clamp(Number(v) || 0, 0, 1) : !!v; store.set('jc.settings', { ...settings });
     const t = document.querySelector(`#meta .st-tog[data-k="${k}"]`); if (t) t.classList.toggle('on', settings[k]);
     if (api && api.applyAudio) api.applyAudio();
   },
@@ -540,10 +668,11 @@ const JCMETA = {
     tweenPill('coins', bank.coins, 420); if (c.gems) tweenPill('gems', bank.gems, 420);
     return { before: st, after: trackState(k) };
   },
-  reset() {   // Settings: reset progress (the bank and the Workshop)
+  reset() {   // Settings: reset progress (the bank, the Workshop and, round 15, the missions)
     for (const k of Object.keys(bank)) { bank[k] = 0; cancelAnimationFrame(tweens[k]); shown[k] = 0; }
-    for (const k of TRACKS) ws[k] = 0;
-    saveBank(); saveWs(); recalc(); refreshTitle(); drawAllTracks();
+    for (const k of TRACKS) { ws[k] = 0; lm[k] = 0; }
+    salvage = clean({}); mis = { done: [], sel: 1, crashed: false, seen: {} }; story = null;
+    saveBank(); saveWs(); saveMis(); recalc(); refreshTitle(); drawAllTracks(); if (api && api.refreshTitle) api.refreshTitle();
   },
 };
 window.JCMETA = JCMETA;
