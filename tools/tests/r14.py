@@ -1,4 +1,5 @@
 # Round 14 checks at 390x844 (headless Chrome, SwiftShader) with screenshots:
+# Round 15: the results run uses ?m=3&story=0 (the bank only exists after the crash; no Haldane scene on the way home) and the first tap lands on open sky above the cards.
 #   bullets at each tier (white-hot, orange, blue), the coin in the HUD and in flight, the Mission Complete card (no
 #   glow behind the coins and stones), the home bank after CONTINUE, the plane visible while Omega is charged (also in
 #   bullet time), and single-tap Omega with synthetic touches (CDP) that never clashes with steering, holds or the
@@ -47,7 +48,7 @@ async def bullets(p):
         await b.close()
 
 async def results(p):
-    b, ctx, pg = await page(p, '?autoplay&tut=0', 'results')
+    b, ctx, pg = await page(p, '?m=3&story=0&autoplay&tut=0', 'results')
     await pg.wait_for_function('__G.S.mode === "play" && __G.S.t > 1', timeout=90000)
     await pg.evaluate('() => { const S = __G.S; __G.god(true); S.gems = 5; S.rubies = 2; S.diamonds = 1; S.coins = 1180; S.killCoins = 900; S.lootCoins = 280; S.rescued = true; __G.endGame(true); }')
     await pg.wait_for_function('document.getElementById("again2").classList.contains("rin")', timeout=60000)
@@ -82,7 +83,7 @@ async def omega(p):
     await b.close()
 
 async def gestures(p):
-    b, ctx, pg = await page(p, '?tut=0', 'gestures')
+    b, ctx, pg = await page(p, '?fresh=1&tut=0', 'gestures')
     cdp = await ctx.new_cdp_session(pg)
     VT = [time.time()]
     async def touch(pts, ms, gap=1.0):
@@ -95,7 +96,7 @@ async def gestures(p):
         VT[0] = t + ms / 1000
     line = lambda a, b_, n: [(a[0] + (b_[0] - a[0]) * i / n, a[1] + (b_[1] - a[1]) * i / n) for i in range(n + 1)]
     st = lambda: pg.evaluate("({tx: +__G.S.tx.toFixed(2), beamOn: __G.S.beamOn, omega: +__G.S.omega.toFixed(2), omegaT: +__G.S.omegaT.toFixed(2), fires: __G.AUD.omegaFires, mode: __G.S.mode})")
-    await touch([(195, 500)], 60); await pg.wait_for_function('__G.S.mode === "play"', timeout=30000); await pg.wait_for_timeout(800)
+    await touch([(195, 330)], 60); await pg.wait_for_function('__G.S.mode === "play"', timeout=30000); await pg.wait_for_timeout(800)
     await pg.evaluate('__G.god(true); __G.S.beamOwned = true; __G.S.hp = 100; __G.setDrones(20)')
     kinds = lambda gl: [g['g'] for g in gl if g['g'] not in ('release', 'tap')]
     async def test(name, fn, expect, charge=True):
