@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#5fa4e5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" href="data:,">
+<title>Grok Demo · Mission 1: Get to Beacon</title>
+<link rel="preload" href="assets/terrain.jpg?v=r7-e003488" as="image" crossorigin>
+<link rel="preload" href="fonts/nunito.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/lilita.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/luckiest.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css?v=r7-e003488">
+</head>
+<body>
+<div id="wrap">
+  <canvas id="gl"></canvas>
+  <canvas id="ui"></canvas>
+  <div id="hud" class="hidden">
+    <div class="hudrow">
+      <div id="hp"><div id="hpfill"></div><div id="hpseg"></div></div>
+      <div id="prog"><div id="progfill"></div><div id="progboss"></div></div>
+      <button id="mute" aria-label="Toggle sound">🔊</button>
+    </div>
+    <div id="omega"><div id="omegafill"></div><span class="ol">OMEGA</span><span class="or">TAP THE PLANE!</span></div>
+    <div id="weap"></div>
+    <div id="loot">
+      <span id="coinBox" class="lb"><i id="coinico" class="ico coin"></i><b id="coinN">0</b></span>
+      <span id="gemBox" class="lb hidden"><i id="gemico" class="ico gem"></i><b id="gemN">0</b></span>
+      <span id="rbBox" class="lb hidden"><i id="rbico" class="ico ruby"></i><b id="rbN">0</b></span>
+      <span id="diaBox" class="lb hidden"><i id="diaico" class="ico dia"></i><b id="diaN">0</b></span>
+    </div>
+  </div>
+  <div id="bossbar" class="hidden">
+    <div id="bossname">XORA QUEEN</div>
+    <div id="bossbg"><div id="bossfill"></div><div id="bosshp">0</div></div>
+  </div>
+  <div id="banner"></div>
+  <div id="threat"></div>
+  <div id="start" class="screen">
+    <div class="logo">
+      <div class="logo-top">GROK DEMO</div>
+      <div class="logo-sub">MISSION 1 · GET TO BEACON</div>
+    </div>
+    <div class="threatcard"><span class="rank c">C</span><span>This mission is filled with <b>C-RANK</b> threats.<br><em>Ready?</em></span></div>
+    <div class="spacer"></div>
+    <div class="tap">TAP TO FLY</div>
+    <div class="hint">Drag left / right to steer · Auto fire<br>Shoot <b class="b">gates</b> to raise them · Break <b>canisters</b> for new guns<br><b class="b">Swipe up</b> on the plane for the beam · <b class="p">Tap</b> it for OMEGA</div>
+    <div id="loading">Loading…</div>
+    <div id="prevver" onpointerdown="event.stopPropagation()">Previous versions: <a href="../v6/">Round 6</a> · <a href="../v5/">Round 5</a> · <a href="../v4/">Round 4</a> · <a href="../v3/">Round 3</a> · <a href="../v2/">Round 2</a></div>
+  </div>
+  <div id="end" class="screen hidden">
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+      <radialGradient id="sgOn" cx="40%" cy="32%" r="75%"><stop offset="0" stop-color="#fff9c4"/><stop offset=".4" stop-color="#ffd83a"/><stop offset=".8" stop-color="#f59a00"/><stop offset="1" stop-color="#d86f00"/></radialGradient>
+      <radialGradient id="sgOff" cx="40%" cy="32%" r="75%"><stop offset="0" stop-color="#8a93a6"/><stop offset="1" stop-color="#454c5c"/></radialGradient>
+    </defs></svg>
+    <div id="badgewrap">
+      <div id="rays"></div>
+      <img id="badge" src="assets/badge_complete.webp" alt="Mission complete">
+      <div id="shine"></div>
+      <div class="bstar s1"></div><div class="bstar s2"></div><div class="bstar s3"></div>
+    </div>
+    <div class="card">
+      <div id="endtitle">MISSION COMPLETE</div>
+      <div id="endsub"></div>
+      <div id="rules"></div>
+      <div class="stats">
+        <div><b id="st-kills">0</b><small>Xora</small></div>
+        <div><b id="st-drones">0</b><small>Drones</small></div>
+        <div><b id="st-time">0s</b><small>Time</small></div>
+      </div>
+      <div id="coinsum">
+        <div class="cs-top"><i class="ico coin"></i><b id="st-coins">0</b><small>COINS</small></div>
+        <div id="cs-rows"></div>
+        <div class="cs-gems"><span><i class="ico gem"></i>&times;<b id="st-gems">0</b></span><span><i class="ico dia"></i>&times;<b id="st-dia">0</b></span><span id="cs-bank"></span></div>
+      </div>
+      <button id="again">FLY AGAIN</button>
+    </div>
+    <!-- round 7: the Mission Complete sequence (coins, drones, star bonus, stones, total) -->
+    <div id="res">
+      <div id="r-name">BEACON IN SIGHT</div>
+      <div id="r-coins"><div class="r-halo"></div><i id="r-coinico" class="ico coin"></i><b id="r-coinN">0</b><div id="r-bonus"></div></div>
+      <div id="r-drones"><div class="r-dtop"><i id="r-droneico" class="ico drone"></i><b id="r-droneN">0</b><span>DRONES</span></div><div id="r-mult">&times;0.4</div></div>
+      <div id="r-stones"></div>
+      <button id="again2" class="againbtn">CONTINUE</button>
+      <div id="r-bank"></div>
+    </div>
+    <div id="r-flash"></div>
+    <canvas id="endfx"></canvas>
+  </div>
+</div>
+<script type="module" src="game.js?v=r7-e003488"></script>
+</body>
+</html>

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#5fa4e5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" href="data:,">
+<title>Jetcraft: Invasion Earth</title>
+<link rel="preload" href="assets/terrain.jpg?v=24d4166" as="image" crossorigin>
+<link rel="preload" href="fonts/nunito.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/lilita.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/luckiest.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css?v=24d4166">
+<link rel="stylesheet" href="meta.css?v=24d4166">
+</head>
+<body>
+<div id="wrap">
+  <canvas id="gl"></canvas>
+  <canvas id="ui"></canvas>
+  <div id="hud" class="hidden">
+    <div class="hudrow">
+      <div id="hp"><div id="hpfill"></div></div>
+      <div id="prog"><div id="progfill"></div><div id="progboss"></div></div>
+    </div>
+    <div id="omega"><div id="omegafill"></div><span class="ol">OMEGA</span></div>
+    <div id="loot">
+      <span id="coinBox" class="lb"><i id="coinico" class="ico coin"></i><b id="coinN">0</b></span>
+      <span id="gemBox" class="lb hidden"><i id="gemico" class="ico gem"></i><b id="gemN">0</b></span>
+      <span id="rbBox" class="lb hidden"><i id="rbico" class="ico ruby"></i><b id="rbN">0</b></span>
+      <span id="diaBox" class="lb hidden"><i id="diaico" class="ico dia"></i><b id="diaN">0</b></span>
+    </div>
+  </div>
+  <div id="bossbar" class="hidden">
+    <div id="bossname">MORDRIX</div>
+    <div id="bossbg"><div id="bossfill"></div><div id="bosshp">0</div></div>
+  </div>
+  <div id="edgeglow"></div>
+  <div id="crashwarn" aria-hidden="true"><svg viewBox="0 0 120 108"><path d="M60 6 L114 100 H6 Z" fill="#ffcf1f"/><path d="M60 22 L100 92 H20 Z" fill="#1a1a1a"/><path d="M60 40 C70 52 74 60 72 70 C71 78 66 84 60 86 C54 84 49 78 48 70 C47 63 51 58 54 53 C55 60 58 62 60 62 C58 55 57 48 60 40Z" fill="#ff5a1a"/><path d="M60 58 C65 65 66 70 65 75 C64 79 62 81 60 82 C58 81 56 79 55 75 C55 71 57 67 60 58Z" fill="#ffd84a"/></svg></div>
+  <div id="banner"></div>
+  <div id="threat"></div>
+  <div id="tut"></div>
+  <div id="start" class="screen">
+    <!-- round 15: the home screen: Base, Shop, Settings and Help top left (Bupé's white icons on a hard drop shadow), the bank top right, the mission and its medallions, Bupé's Depot, Hangar and Workshop cards -->
+    <div id="t-left" class="t-ui">
+      <button class="t-ico" id="tb-base" data-open="base" aria-label="Base"><img class="t-glyph" src="assets/ico_base.png?v=24d4166" alt=""><span>BASE</span></button>
+      <button class="t-ico" id="tb-store" data-open="store" aria-label="Shop"><img class="t-glyph" src="assets/ico_shop.png?v=24d4166" alt=""><span>SHOP</span></button>
+      <button class="t-ico" id="tb-settings" data-open="settings" aria-label="Settings"><img class="t-glyph" src="assets/ico_settings.png?v=24d4166" alt=""><span>SETTINGS</span></button>
+      <button class="t-ico" id="tb-help" data-open="help" aria-label="Help"><img class="t-glyph" src="assets/ico_help.png?v=24d4166" alt=""><span>HELP</span></button>
+    </div>
+    <div id="t-bank" class="t-ui">
+      <span class="t-pill coins" id="tbk-coins"><i class="ico coin"></i><b>0</b></span>
+      <span class="t-pill gems" id="tbk-gems"><i class="ico gem"></i><b>0</b></span>
+      <span class="t-pill rubies" id="tbk-rubies"><i class="ico ruby"></i><b>0</b></span>
+      <span class="t-pill diamonds" id="tbk-diamonds"><i class="ico dia"></i><b>0</b></span>
+    </div>
+    <div id="t-mission">
+      <div class="tm-kick">MISSION 1</div>
+      <div class="tm-name">GET TO BEACON</div>
+      <div class="tm-meds t-ui" id="tm-meds"></div>
+    </div>
+    <div class="spacer"></div>
+    <div id="t-cards" class="t-ui">
+      <button class="t-card depot" id="tc-depot" data-open="depot" aria-label="Depot"><img class="tc-img" src="assets/card_depot.webp?v=24d4166" alt=""><i class="tc-glint"></i><i class="tc-lock"></i></button>
+      <button class="t-card hangar" id="tc-hangar" data-open="hangar" aria-label="Hangar"><img class="tc-img" src="assets/card_hangar.webp?v=24d4166" alt=""><i class="tc-glint"></i><i class="tc-lock"></i></button>
+      <button class="t-card workshop" id="tc-workshop" data-open="workshop" aria-label="Workshop"><img class="tc-img" src="assets/card_workshop.webp?v=24d4166" alt=""><i class="tc-glint"></i><i class="tc-lock"></i><i class="tc-badge" id="tc-ws-badge"></i></button>
+    </div>
+    <div id="steerhand" aria-hidden="true"><div class="sh"></div></div>
+    <div id="loading">Loading…</div>
+  </div>
+  <div id="end" class="screen hidden">
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+      <radialGradient id="sgOn" cx="40%" cy="32%" r="75%"><stop offset="0" stop-color="#fff9c4"/><stop offset=".4" stop-color="#ffd83a"/><stop offset=".8" stop-color="#f59a00"/><stop offset="1" stop-color="#d86f00"/></radialGradient>
+      <radialGradient id="sgOff" cx="40%" cy="32%" r="75%"><stop offset="0" stop-color="#8a93a6"/><stop offset="1" stop-color="#454c5c"/></radialGradient>
+    </defs></svg>
+    <div id="badgewrap">
+      <div id="rays"></div>
+      <img id="badge" src="assets/badge_complete.webp" alt="Mission complete">
+      <div id="shine"></div>
+      <div class="bstar s1"></div><div class="bstar s2"></div><div class="bstar s3"></div>
+      <div id="lplate"><b>SHOT DOWN</b></div>
+    </div>
+    <!-- round 13: SHOT DOWN in the results style: how far you got, the coins you keep, one picture of the cause -->
+    <div id="lose">
+      <div id="l-dist"><div class="l-track"><div id="l-fill"></div><i id="l-plane"></i></div><i class="l-beacon" data-art="beacon"></i></div>
+      <div id="l-coins"><i class="ico coin"></i><b id="l-coinN">0</b></div>
+      <div id="l-stones"></div>
+      <div id="l-cause"><div class="l-pic"></div><b></b></div>
+      <div class="l-btns"><button id="upg">UPGRADE</button><button id="again">FLY AGAIN</button></div>
+    </div>
+    <!-- round 7: the Mission Complete sequence (coins, drones, star bonus, stones, total) -->
+    <div id="res">
+      <div id="r-name">BEACON IN SIGHT</div>
+      <div id="r-coins"><div class="r-halo"></div><i id="r-coinico" class="ico coin"></i><span id="r-coinW"><b id="r-coinN">0</b><div id="r-bonus"></div></span></div>
+      <div id="r-drones"><div class="r-dtop"><i id="r-droneico" class="ico drone"></i><b id="r-droneN">0</b><div class="r-dlab"><span>DRONES</span><div id="r-mult">&times;0.4</div></div></div></div>
+      <div id="r-stones"></div>
+      <button id="again2" class="againbtn">CONTINUE</button>
+      <div id="r-bank"></div>
+    </div>
+    <div id="r-flash"></div>
+    <canvas id="endfx"></canvas>
+  </div>
+  <!-- round 13: the panels (Workshop, Settings, Store, Depot, Hangar, Base) slide up over the title; meta.js fills them -->
+  <div id="meta" class="hidden"><div class="m-scrim"></div><div class="m-sheet"><div class="m-head"><div class="m-title"></div><button class="m-close" aria-label="Close"></button></div><div class="m-body"></div></div></div>
+  <div id="mfx"></div>
+  <div id="story" class="hidden"></div>
+  <div id="fade"></div>
+</div>
+<script type="module" src="meta.js?v=24d4166"></script>
+<script type="module" src="story.js?v=24d4166"></script>
+<script type="module" src="game.js?v=24d4166"></script>
+</body>
+</html>
